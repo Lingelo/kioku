@@ -1,0 +1,14 @@
+{
+  "name": "kioku",
+  "description": "Kioku : coffre de connaissance garde pour Claude Code.",
+  "owner": {
+    "name": "Kioku"
+  },
+  "plugins": [
+    {
+      "name": "kioku",
+      "source": "./",
+      "description": "Garde, gate, skills et relecteur du coffre Kioku."
+    }
+  ]
+}

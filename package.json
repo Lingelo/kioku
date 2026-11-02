@@ -1,6 +1,5 @@
 {
   "name": "kioku",
-  "version": "0.1.0",
   "description": "Coffre de connaissance garde pour Claude Code : medaillon bronze, argent, or ; silos etanches ; gate relue.",
   "type": "module",
   "private": true,

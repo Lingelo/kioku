@@ -1,5 +1,6 @@
 node_modules/
 tools/dashboard/dashboard-*.html
+tools/dashboard/vendor/media/*.mp4
 tools/plaud-sync/.snapshot.json
 tools/plaud-sync/.queue.json
 tools/plaud-sync/.lock.json

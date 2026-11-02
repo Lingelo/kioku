@@ -15,12 +15,20 @@ Le core (ce dépôt) ne contient aucune donnée. Votre coffre est un dossier à 
 
 ## Installation
 
+Le plugin (garde, gate, skills, relecteur), dans Claude Code :
+
+```
+/plugin install kioku --marketplace <owner>/kioku
+```
+
+Le CLI (`kioku init`, `doctor`, lanceur de sessions), depuis un clone :
+
 ```bash
-git clone https://github.com/<vous>/kioku.git ~/kioku
+git clone https://github.com/<owner>/kioku.git ~/kioku
 ln -s ~/kioku/bin/kioku ~/.local/bin/kioku    # ou tout dossier de votre PATH
 ```
 
-Puis, dans Claude Code, installez le plugin depuis ce clone (`/plugin`, marketplace locale), ou lancez une session avec `claude --plugin-dir ~/kioku`.
+Pour essayer sans installer : `claude --plugin-dir ~/kioku`.
 
 ## Créer un coffre
 
