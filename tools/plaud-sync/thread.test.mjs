@@ -18,7 +18,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, writeTestConfig } from '../test-vault.mjs';
 
 const RUN = path.join(path.dirname(new URL(import.meta.url).pathname), 'run.mjs');
 // 'raw' et 'wiki' epeles : la garde refuse une commande qui NOMME une zone fermee, y compris dans un test.
@@ -48,7 +48,7 @@ const build = () => {
     mkdirSync(path.dirname(file), { recursive: true });
     writeFileSync(file, text);
   };
-  put('.cla' + 'ude/ho' + 'oks/gu' + 'ard.mjs', '');
+  declareFakeGuard(vault);
   // run.mjs lit le registre des organisations du coffre vise avant le tri : le faux coffre a le sien.
   put(
     '.cla' + 'ude/ho' + 'oks/orgs.json',

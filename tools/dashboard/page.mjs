@@ -2783,7 +2783,7 @@ ${JSON.stringify({
       busy: 'Une réponse est déjà en cours, dans cet onglet ou un autre.',
       token: 'Le serveur a redémarré : recharge la page.',
       spawn: 'Session impossible : vérifie l’installation de Claude Code.',
-      'no-guard': 'Session impossible : vérifie l’installation de Claude Code.',
+      'no-guard': 'Session refusée : la garde du coffre n’est pas en place (lance kioku doctor --live).',
       session: 'La session a échoué ; repose la question.',
     };
     // Attente du premier mot : phrases japonaises ecrites caractere par caractere, jamais sans leur

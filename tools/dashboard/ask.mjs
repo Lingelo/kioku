@@ -19,7 +19,7 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 
 import { withCorePath } from '../core-path.mjs';
-import { registeredGuard } from '../kioku.mjs';
+import { startupRefusal } from '../startup-guard.mjs';
 import { skill } from '../names.mjs';
 import { assertDomain } from '../vault-config.mjs';
 
@@ -124,9 +124,10 @@ export const createAsker = ({ vaultRoot, domain, command = 'claude', commandArgs
       };
     })();
 
-    // La garde declaree, pas un chemin suppose : apres la bascule, elle vit dans le plugin, plus dans le coffre.
-    if (!registeredGuard(vaultRoot).guard) {
-      emitFinal({ type: 'error', code: 'no-guard', message: 'Garde du coffre introuvable : session refusee.' });
+    // La garde declaree et presente : hook du projet, ou plugin kioku installe pour ce coffre au SHA epingle.
+    const refusal = startupRefusal(vaultRoot);
+    if (refusal) {
+      emitFinal({ type: 'error', code: 'no-guard', message: `Session refusee : ${refusal}` });
       return { cancel: () => {}, finished: Promise.resolve() };
     }
 
@@ -156,7 +157,7 @@ export const createAsker = ({ vaultRoot, domain, command = 'claude', commandArgs
     try {
       child = spawn(command, WIN ? args.map(quote) : args, {
         cwd: vaultRoot,
-        env: { ...withCorePath(process.env), CLAUDE_PROJECT_DIR: vaultRoot, VAULT_MODE: 'query', VAULT_DOMAIN: domain },
+        env: { ...withCorePath(process.env), CLAUDE_PROJECT_DIR: vaultRoot, VAULT_MODE: 'query', VAULT_DOMAIN: domain, CLAUDE_CODE_SYNC_PLUGIN_INSTALL: '1' },
         stdio: ['pipe', 'pipe', 'pipe'],
         shell: WIN, // claude est un .cmd sous Windows
       });

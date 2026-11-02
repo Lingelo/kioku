@@ -25,6 +25,7 @@ import { fileURLToPath } from 'node:url';
 
 import { withCorePath } from './core-path.mjs';
 import { skill } from './names.mjs';
+import { startupRefusal } from './startup-guard.mjs';
 import { domainsOf, isVault, vaultRoot } from './vault-config.mjs';
 
 // Le coffre : le dossier courant (scripts npm du coffre) ou CLAUDE_PROJECT_DIR, jamais l'emplacement du core.
@@ -108,6 +109,10 @@ const quote = (s) => (process.platform === 'win32' ? `"${s.replace(/"/g, '\\"')}
 const env = { ...withCorePath(process.env), VAULT_MODE: mode };
 if (domain === undefined) delete env.VAULT_DOMAIN;
 else env.VAULT_DOMAIN = domain;
+
+// Pas de session sans garde : hook du projet, ou plugin kioku installe pour ce coffre au SHA epingle.
+const refusal = startupRefusal(ROOT);
+if (refusal) fail(`Session refusee : ${refusal}`);
 
 console.log(`Coffre : mode=${mode}${domain ? ` domaine=${domain}` : ''}${start ? ` — demarrage : ${start}` : ''}`);
 const child = spawn('claude', start ? [...passthrough, quote(start)] : passthrough, {

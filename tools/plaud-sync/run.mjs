@@ -46,6 +46,7 @@ import { dropParked, pruneReasons } from './drop.mjs';
 import { acquire, release } from './lock.mjs';
 import { CORE_BIN, withCorePath } from '../core-path.mjs';
 import { skill } from '../names.mjs';
+import { startupRefusal } from '../startup-guard.mjs';
 import { isVault, loadConfig, vaultRoot } from '../vault-config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -111,7 +112,13 @@ if (statSync(path.join(VAULT, '.git'), { throwIfNoEntry: false })?.isFile() && !
 }
 
 // Tous les enfants visent CE coffre (fetch-notes et pending lisent CLAUDE_PROJECT_DIR).
-const baseEnv = { ...withCorePath(process.env), CLAUDE_PROJECT_DIR: VAULT };
+// Les sessions claude -p attendent le plugin avant leur premier tour : sans lui, la garde manquerait.
+const baseEnv = { ...withCorePath(process.env), CLAUDE_PROJECT_DIR: VAULT, CLAUDE_CODE_SYNC_PLUGIN_INSTALL: '1' };
+// Pas de session sans garde. Seuls le dry-run et --drop n'en ouvrent aucune (--decide passe par la session de tri).
+if (!flag('--dry-run') && !flag('--drop')) {
+  const refusal = startupRefusal(VAULT);
+  if (refusal) fail(`sessions refusees : ${refusal}`);
+}
 const quote = (a) => (WIN ? `"${String(a).replace(/"/g, '\\"')}"` : a); // cmd.exe : la garde et les prompts contiennent des espaces et des parentheses
 
 /** Un script Node du coffre ; capture la sortie si demande. */
