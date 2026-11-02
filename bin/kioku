@@ -1,0 +1,10 @@
+#!/bin/sh
+# kioku : entree unique du core (CLI et gate). Relaie a tools/kioku.mjs ; suit un lien symbolique eventuel.
+here=$(cd "$(dirname "$0")" && pwd -P)
+target="$0"
+if [ -L "$target" ]; then
+  target=$(readlink "$target")
+  case "$target" in /*) ;; *) target="$here/$target" ;; esac
+  here=$(cd "$(dirname "$target")" && pwd -P)
+fi
+exec node "$here/../tools/kioku.mjs" "$@"

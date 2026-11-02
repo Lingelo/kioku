@@ -1,0 +1,3 @@
+#!/bin/sh
+# Denylist du core : refuse un push qui porte un terme prive (liste hors depot, KIOKU_DENYLIST).
+exec node "$(git rev-parse --show-toplevel)/tools/denylist-check.mjs" pre-push "$@"

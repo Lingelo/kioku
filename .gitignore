@@ -1,0 +1,7 @@
+node_modules/
+tools/dashboard/dashboard-*.html
+tools/plaud-sync/.snapshot.json
+tools/plaud-sync/.queue.json
+tools/plaud-sync/.lock.json
+.env
+.env.*

@@ -1,0 +1,103 @@
+{
+  "lang": "fr",
+  "engine": "piper",
+  "start": 1.6,
+  "gap": 3.65,
+  "rate": 0.95,
+  "lines": [
+    {
+      "id": "titre",
+      "text": "Voici Kiokou. En japonais, ce mot veut dire mémoire.",
+      "pause": 4.2,
+      "caption": "Voici Kioku. En japonais, ce mot veut dire mémoire."
+    },
+    {
+      "id": "probleme",
+      "text": "Au travail, les réunions, les documents et les décisions s'accumulent, et l'essentiel finit par se perdre."
+    },
+    {
+      "id": "wiki",
+      "text": "Kiokou rassemble tout dans un wiki personnel : une page par projet, par personne, par réunion et par décision.",
+      "caption": "Kioku rassemble tout dans un wiki personnel : une page par projet, par personne, par réunion et par décision."
+    },
+    {
+      "id": "claude",
+      "text": "C'est l'assistant Claude qui rédige et tient ces pages à jour, à partir des sources qu'on lui confie."
+    },
+    {
+      "id": "question",
+      "text": "Ensuite, il suffit de poser une question : la réponse vient du wiki, avec ses sources."
+    },
+    {
+      "id": "confiance",
+      "text": "Et aucune page n'y entre sans avoir été relue.",
+      "pause": 4.2
+    },
+    {
+      "id": "transition",
+      "text": "Voyons maintenant comment ça marche.",
+      "pause": 3.4
+    },
+    {
+      "id": "chemin",
+      "text": "Chaque information suit le même chemin, en trois étages : c'est l'architecture dite médaillon. Elle raffine l'information, du brut jusqu'à une donnée de qualité."
+    },
+    {
+      "id": "bronze",
+      "text": "Le bronze d'abord : la source telle qu'elle est arrivée. Elle n'est jamais modifiée."
+    },
+    {
+      "id": "argent",
+      "text": "L'argent ensuite : une fiche par source, nettoyée, où l'on sait qui a dit quoi."
+    },
+    {
+      "id": "or",
+      "text": "L'or enfin : le wiki lui-même. C'est là, et seulement là, qu'on pose ses questions.",
+      "pause": 4.2
+    },
+    {
+      "id": "gate",
+      "text": "Pour entrer dans l'or, une page doit passer un contrôle."
+    },
+    {
+      "id": "relecteur",
+      "text": "Un relecteur indépendant vérifie d'où elle vient, sa forme, et le respect des personnes citées."
+    },
+    {
+      "id": "quarantaine",
+      "text": "Ce qu'il refuse est mis de côté, et attend une décision humaine.",
+      "pause": 4
+    },
+    {
+      "id": "silo",
+      "text": "Le travail et la vie privée restent dans deux espaces séparés, qui ne se mélangent jamais. Chacun a son propre relecteur, avec ses propres règles.",
+      "pause": 4
+    },
+    {
+      "id": "commandes",
+      "text": "Au quotidien, quelques commandes suffisent : interroger, ajouter une source, vérifier la qualité."
+    },
+    {
+      "id": "plaud",
+      "text": "Les réunions enregistrées avec Plaud suivent le même circuit, jusqu'au wiki. Plus tard, d'autres outils de transcription, comme Teams ou Meet, pourront s'y brancher."
+    },
+    {
+      "id": "tableau",
+      "text": "Un tableau de bord montre, à chaque instant, où en est chaque étage."
+    },
+    {
+      "id": "onglet",
+      "text": "Son onglet Question interroge le wiki depuis le navigateur, avec les mêmes garde-fous que dans le terminal."
+    },
+    {
+      "id": "graphe",
+      "text": "Et sa vue Graphe affiche tout le wiki en trois dimensions : chaque page est un point, coloré selon son type, relié aux pages qu'elle cite. Un clic ouvre la page."
+    },
+    {
+      "id": "conclusion",
+      "caption": "Kioku, c'est une mémoire de travail qui ne se perd plus : relue, sourcée, et toujours à portée de question.",
+      "text": "Kiokou, c'est une mémoire de travail qui ne se perd plus : relue, sourcée, et toujours à portée de question.",
+      "pause": 2.8
+    }
+  ]
+}

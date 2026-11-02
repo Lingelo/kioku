@@ -1,0 +1,2322 @@
+{
+ "lang": "fr",
+ "engine": "piper",
+ "duration": 192.167,
+ "narration": "narration.wav",
+ "lines": [
+  {
+   "id": "titre",
+   "text": "Voici Kiokou. En japonais, ce mot veut dire mémoire.",
+   "caption": "Voici Kioku. En japonais, ce mot veut dire mémoire.",
+   "start": 1.6,
+   "end": 5.377,
+   "file": "line-01-7955df7a.wav"
+  },
+  {
+   "id": "probleme",
+   "text": "Au travail, les réunions, les documents et les décisions s'accumulent, et l'essentiel finit par se perdre.",
+   "start": 9.578,
+   "end": 15.635,
+   "file": "line-02-dacea492.wav"
+  },
+  {
+   "id": "wiki",
+   "text": "Kiokou rassemble tout dans un wiki personnel : une page par projet, par personne, par réunion et par décision.",
+   "caption": "Kioku rassemble tout dans un wiki personnel : une page par projet, par personne, par réunion et par décision.",
+   "start": 19.285,
+   "end": 26.718,
+   "file": "line-03-3e5951df.wav"
+  },
+  {
+   "id": "claude",
+   "text": "C'est l'assistant Claude qui rédige et tient ces pages à jour, à partir des sources qu'on lui confie.",
+   "start": 30.368,
+   "end": 35.447,
+   "file": "line-04-e0329c4b.wav"
+  },
+  {
+   "id": "question",
+   "text": "Ensuite, il suffit de poser une question : la réponse vient du wiki, avec ses sources.",
+   "start": 39.097,
+   "end": 44.383,
+   "file": "line-05-c337eb81.wav"
+  },
+  {
+   "id": "confiance",
+   "text": "Et aucune page n'y entre sans avoir été relue.",
+   "start": 48.033,
+   "end": 50.785,
+   "file": "line-06-cc6dccf1.wav"
+  },
+  {
+   "id": "transition",
+   "text": "Voyons maintenant comment ça marche.",
+   "start": 54.985,
+   "end": 56.74,
+   "file": "line-07-569d76b5.wav"
+  },
+  {
+   "id": "chemin",
+   "text": "Chaque information suit le même chemin, en trois étages : c'est l'architecture dite médaillon. Elle raffine l'information, du brut jusqu'à une donnée de qualité.",
+   "start": 60.14,
+   "end": 69.351,
+   "file": "line-08-30976990.wav"
+  },
+  {
+   "id": "bronze",
+   "text": "Le bronze d'abord : la source telle qu'elle est arrivée. Elle n'est jamais modifiée.",
+   "start": 73.001,
+   "end": 77.427,
+   "file": "line-09-e98dcc44.wav"
+  },
+  {
+   "id": "argent",
+   "text": "L'argent ensuite : une fiche par source, nettoyée, où l'on sait qui a dit quoi.",
+   "start": 81.077,
+   "end": 85.645,
+   "file": "line-10-9ccc1310.wav"
+  },
+  {
+   "id": "or",
+   "text": "L'or enfin : le wiki lui-même. C'est là, et seulement là, qu'on pose ses questions.",
+   "start": 89.295,
+   "end": 94.713,
+   "file": "line-11-83a86839.wav"
+  },
+  {
+   "id": "gate",
+   "text": "Pour entrer dans l'or, une page doit passer un contrôle.",
+   "start": 98.913,
+   "end": 102.239,
+   "file": "line-12-02feb117.wav"
+  },
+  {
+   "id": "relecteur",
+   "text": "Un relecteur indépendant vérifie d'où elle vient, sa forme, et le respect des personnes citées.",
+   "start": 105.889,
+   "end": 111.121,
+   "file": "line-13-1ce40cf7.wav"
+  },
+  {
+   "id": "quarantaine",
+   "text": "Ce qu'il refuse est mis de côté, et attend une décision humaine.",
+   "start": 114.771,
+   "end": 118.322,
+   "file": "line-14-3d190a39.wav"
+  },
+  {
+   "id": "silo",
+   "text": "Le travail et la vie privée restent dans deux espaces séparés, qui ne se mélangent jamais. Chacun a son propre relecteur, avec ses propres règles.",
+   "start": 122.322,
+   "end": 130.507,
+   "file": "line-15-bcbc8eac.wav"
+  },
+  {
+   "id": "commandes",
+   "text": "Au quotidien, quelques commandes suffisent : interroger, ajouter une source, vérifier la qualité.",
+   "start": 134.507,
+   "end": 139.852,
+   "file": "line-16-9c4e0f08.wav"
+  },
+  {
+   "id": "plaud",
+   "text": "Les réunions enregistrées avec Plaud suivent le même circuit, jusqu'au wiki. Plus tard, d'autres outils de transcription, comme Teams ou Meet, pourront s'y brancher.",
+   "start": 143.502,
+   "end": 151.739,
+   "file": "line-17-650eada3.wav"
+  },
+  {
+   "id": "tableau",
+   "text": "Un tableau de bord montre, à chaque instant, où en est chaque étage.",
+   "start": 155.389,
+   "end": 159.169,
+   "file": "line-18-3f62efff.wav"
+  },
+  {
+   "id": "onglet",
+   "text": "Son onglet Question interroge le wiki depuis le navigateur, avec les mêmes garde-fous que dans le terminal.",
+   "start": 162.819,
+   "end": 168.598,
+   "file": "line-19-97d2046f.wav"
+  },
+  {
+   "id": "graphe",
+   "text": "Et sa vue Graphe affiche tout le wiki en trois dimensions : chaque page est un point, coloré selon son type, relié aux pages qu'elle cite. Un clic ouvre la page.",
+   "start": 172.248,
+   "end": 181.949,
+   "file": "line-20-656ba643.wav"
+  },
+  {
+   "id": "conclusion",
+   "text": "Kiokou, c'est une mémoire de travail qui ne se perd plus : relue, sourcée, et toujours à portée de question.",
+   "caption": "Kioku, c'est une mémoire de travail qui ne se perd plus : relue, sourcée, et toujours à portée de question.",
+   "start": 185.599,
+   "end": 191.867,
+   "file": "line-21-f9cd021b.wav"
+  }
+ ],
+ "cues": [
+  {
+   "start": 1.6,
+   "end": 2.733,
+   "text": "Voici Kioku.",
+   "words": [
+    {
+     "w": "Voici",
+     "start": 1.6,
+     "end": 1.978
+    },
+    {
+     "w": "Kioku.",
+     "start": 1.978,
+     "end": 2.733
+    }
+   ]
+  },
+  {
+   "start": 2.733,
+   "end": 5.627,
+   "text": "En japonais, ce mot veut dire mémoire.",
+   "words": [
+    {
+     "w": "En",
+     "start": 2.733,
+     "end": 2.949
+    },
+    {
+     "w": "japonais,",
+     "start": 2.949,
+     "end": 3.704
+    },
+    {
+     "w": "ce",
+     "start": 3.704,
+     "end": 3.92
+    },
+    {
+     "w": "mot",
+     "start": 3.92,
+     "end": 4.19
+    },
+    {
+     "w": "veut",
+     "start": 4.19,
+     "end": 4.514
+    },
+    {
+     "w": "dire",
+     "start": 4.514,
+     "end": 4.837
+    },
+    {
+     "w": "mémoire.",
+     "start": 4.837,
+     "end": 5.377
+    }
+   ]
+  },
+  {
+   "start": 9.578,
+   "end": 11.23,
+   "text": "Au travail, les réunions,",
+   "words": [
+    {
+     "w": "Au",
+     "start": 9.578,
+     "end": 9.762
+    },
+    {
+     "w": "travail,",
+     "start": 9.762,
+     "end": 10.358
+    },
+    {
+     "w": "les",
+     "start": 10.358,
+     "end": 10.587
+    },
+    {
+     "w": "réunions,",
+     "start": 10.587,
+     "end": 11.23
+    }
+   ]
+  },
+  {
+   "start": 11.23,
+   "end": 12.882,
+   "text": "les documents et les décisions",
+   "words": [
+    {
+     "w": "les",
+     "start": 11.23,
+     "end": 11.459
+    },
+    {
+     "w": "documents",
+     "start": 11.459,
+     "end": 11.964
+    },
+    {
+     "w": "et",
+     "start": 11.964,
+     "end": 12.148
+    },
+    {
+     "w": "les",
+     "start": 12.148,
+     "end": 12.377
+    },
+    {
+     "w": "décisions",
+     "start": 12.377,
+     "end": 12.882
+    }
+   ]
+  },
+  {
+   "start": 12.882,
+   "end": 14.488,
+   "text": "s'accumulent, et l'essentiel",
+   "words": [
+    {
+     "w": "s'accumulent,",
+     "start": 12.882,
+     "end": 13.708
+    },
+    {
+     "w": "et",
+     "start": 13.708,
+     "end": 13.891
+    },
+    {
+     "w": "l'essentiel",
+     "start": 13.891,
+     "end": 14.488
+    }
+   ]
+  },
+  {
+   "start": 14.488,
+   "end": 15.885,
+   "text": "finit par se perdre.",
+   "words": [
+    {
+     "w": "finit",
+     "start": 14.488,
+     "end": 14.809
+    },
+    {
+     "w": "par",
+     "start": 14.809,
+     "end": 15.038
+    },
+    {
+     "w": "se",
+     "start": 15.038,
+     "end": 15.222
+    },
+    {
+     "w": "perdre.",
+     "start": 15.222,
+     "end": 15.635
+    }
+   ]
+  },
+  {
+   "start": 19.285,
+   "end": 21.439,
+   "text": "Kioku rassemble tout dans un wiki",
+   "words": [
+    {
+     "w": "Kioku",
+     "start": 19.285,
+     "end": 19.662
+    },
+    {
+     "w": "rassemble",
+     "start": 19.662,
+     "end": 20.255
+    },
+    {
+     "w": "tout",
+     "start": 20.255,
+     "end": 20.578
+    },
+    {
+     "w": "dans",
+     "start": 20.578,
+     "end": 20.901
+    },
+    {
+     "w": "un",
+     "start": 20.901,
+     "end": 21.116
+    },
+    {
+     "w": "wiki",
+     "start": 21.116,
+     "end": 21.439
+    }
+   ]
+  },
+  {
+   "start": 21.439,
+   "end": 23.863,
+   "text": "personnel : une page par projet,",
+   "words": [
+    {
+     "w": "personnel",
+     "start": 21.439,
+     "end": 22.032
+    },
+    {
+     "w": ":",
+     "start": 22.032,
+     "end": 22.355
+    },
+    {
+     "w": "une",
+     "start": 22.355,
+     "end": 22.624
+    },
+    {
+     "w": "page",
+     "start": 22.624,
+     "end": 22.948
+    },
+    {
+     "w": "par",
+     "start": 22.948,
+     "end": 23.217
+    },
+    {
+     "w": "projet,",
+     "start": 23.217,
+     "end": 23.863
+    }
+   ]
+  },
+  {
+   "start": 23.863,
+   "end": 26.968,
+   "text": "par personne, par réunion et par décision.",
+   "words": [
+    {
+     "w": "par",
+     "start": 23.863,
+     "end": 24.133
+    },
+    {
+     "w": "personne,",
+     "start": 24.133,
+     "end": 24.887
+    },
+    {
+     "w": "par",
+     "start": 24.887,
+     "end": 25.156
+    },
+    {
+     "w": "réunion",
+     "start": 25.156,
+     "end": 25.641
+    },
+    {
+     "w": "et",
+     "start": 25.641,
+     "end": 25.856
+    },
+    {
+     "w": "par",
+     "start": 25.856,
+     "end": 26.126
+    },
+    {
+     "w": "décision.",
+     "start": 26.126,
+     "end": 26.718
+    }
+   ]
+  },
+  {
+   "start": 30.368,
+   "end": 32.226,
+   "text": "C'est l'assistant Claude qui rédige et",
+   "words": [
+    {
+     "w": "C'est",
+     "start": 30.368,
+     "end": 30.657
+    },
+    {
+     "w": "l'assistant",
+     "start": 30.657,
+     "end": 31.194
+    },
+    {
+     "w": "Claude",
+     "start": 31.194,
+     "end": 31.524
+    },
+    {
+     "w": "qui",
+     "start": 31.524,
+     "end": 31.731
+    },
+    {
+     "w": "rédige",
+     "start": 31.731,
+     "end": 32.061
+    },
+    {
+     "w": "et",
+     "start": 32.061,
+     "end": 32.226
+    }
+   ]
+  },
+  {
+   "start": 32.226,
+   "end": 33.548,
+   "text": "tient ces pages à jour,",
+   "words": [
+    {
+     "w": "tient",
+     "start": 32.226,
+     "end": 32.515
+    },
+    {
+     "w": "ces",
+     "start": 32.515,
+     "end": 32.722
+    },
+    {
+     "w": "pages",
+     "start": 32.722,
+     "end": 33.011
+    },
+    {
+     "w": "à",
+     "start": 33.011,
+     "end": 33.135
+    },
+    {
+     "w": "jour,",
+     "start": 33.135,
+     "end": 33.548
+    }
+   ]
+  },
+  {
+   "start": 33.548,
+   "end": 35.697,
+   "text": "à partir des sources qu'on lui confie.",
+   "words": [
+    {
+     "w": "à",
+     "start": 33.548,
+     "end": 33.671
+    },
+    {
+     "w": "partir",
+     "start": 33.671,
+     "end": 34.002
+    },
+    {
+     "w": "des",
+     "start": 34.002,
+     "end": 34.208
+    },
+    {
+     "w": "sources",
+     "start": 34.208,
+     "end": 34.58
+    },
+    {
+     "w": "qu'on",
+     "start": 34.58,
+     "end": 34.869
+    },
+    {
+     "w": "lui",
+     "start": 34.869,
+     "end": 35.075
+    },
+    {
+     "w": "confie.",
+     "start": 35.075,
+     "end": 35.447
+    }
+   ]
+  },
+  {
+   "start": 39.097,
+   "end": 41.032,
+   "text": "Ensuite, il suffit de poser une",
+   "words": [
+    {
+     "w": "Ensuite,",
+     "start": 39.097,
+     "end": 39.711
+    },
+    {
+     "w": "il",
+     "start": 39.711,
+     "end": 39.899
+    },
+    {
+     "w": "suffit",
+     "start": 39.899,
+     "end": 40.277
+    },
+    {
+     "w": "de",
+     "start": 40.277,
+     "end": 40.466
+    },
+    {
+     "w": "poser",
+     "start": 40.466,
+     "end": 40.796
+    },
+    {
+     "w": "une",
+     "start": 40.796,
+     "end": 41.032
+    }
+   ]
+  },
+  {
+   "start": 41.032,
+   "end": 42.92,
+   "text": "question : la réponse vient du",
+   "words": [
+    {
+     "w": "question",
+     "start": 41.032,
+     "end": 41.504
+    },
+    {
+     "w": ":",
+     "start": 41.504,
+     "end": 41.787
+    },
+    {
+     "w": "la",
+     "start": 41.787,
+     "end": 41.976
+    },
+    {
+     "w": "réponse",
+     "start": 41.976,
+     "end": 42.401
+    },
+    {
+     "w": "vient",
+     "start": 42.401,
+     "end": 42.731
+    },
+    {
+     "w": "du",
+     "start": 42.731,
+     "end": 42.92
+    }
+   ]
+  },
+  {
+   "start": 42.92,
+   "end": 44.633,
+   "text": "wiki, avec ses sources.",
+   "words": [
+    {
+     "w": "wiki,",
+     "start": 42.92,
+     "end": 43.392
+    },
+    {
+     "w": "avec",
+     "start": 43.392,
+     "end": 43.675
+    },
+    {
+     "w": "ses",
+     "start": 43.675,
+     "end": 43.911
+    },
+    {
+     "w": "sources.",
+     "start": 43.911,
+     "end": 44.383
+    }
+   ]
+  },
+  {
+   "start": 48.033,
+   "end": 49.507,
+   "text": "Et aucune page n'y entre",
+   "words": [
+    {
+     "w": "Et",
+     "start": 48.033,
+     "end": 48.23
+    },
+    {
+     "w": "aucune",
+     "start": 48.23,
+     "end": 48.623
+    },
+    {
+     "w": "page",
+     "start": 48.623,
+     "end": 48.918
+    },
+    {
+     "w": "n'y",
+     "start": 48.918,
+     "end": 49.163
+    },
+    {
+     "w": "entre",
+     "start": 49.163,
+     "end": 49.507
+    }
+   ]
+  },
+  {
+   "start": 49.507,
+   "end": 51.035,
+   "text": "sans avoir été relue.",
+   "words": [
+    {
+     "w": "sans",
+     "start": 49.507,
+     "end": 49.802
+    },
+    {
+     "w": "avoir",
+     "start": 49.802,
+     "end": 50.146
+    },
+    {
+     "w": "été",
+     "start": 50.146,
+     "end": 50.392
+    },
+    {
+     "w": "relue.",
+     "start": 50.392,
+     "end": 50.785
+    }
+   ]
+  },
+  {
+   "start": 54.985,
+   "end": 56.99,
+   "text": "Voyons maintenant comment ça marche.",
+   "words": [
+    {
+     "w": "Voyons",
+     "start": 54.985,
+     "end": 55.319
+    },
+    {
+     "w": "maintenant",
+     "start": 55.319,
+     "end": 55.821
+    },
+    {
+     "w": "comment",
+     "start": 55.821,
+     "end": 56.197
+    },
+    {
+     "w": "ça",
+     "start": 56.197,
+     "end": 56.364
+    },
+    {
+     "w": "marche.",
+     "start": 56.364,
+     "end": 56.74
+    }
+   ]
+  },
+  {
+   "start": 60.14,
+   "end": 61.836,
+   "text": "Chaque information suit le même",
+   "words": [
+    {
+     "w": "Chaque",
+     "start": 60.14,
+     "end": 60.507
+    },
+    {
+     "w": "information",
+     "start": 60.507,
+     "end": 61.102
+    },
+    {
+     "w": "suit",
+     "start": 61.102,
+     "end": 61.377
+    },
+    {
+     "w": "le",
+     "start": 61.377,
+     "end": 61.561
+    },
+    {
+     "w": "même",
+     "start": 61.561,
+     "end": 61.836
+    }
+   ]
+  },
+  {
+   "start": 61.836,
+   "end": 63.531,
+   "text": "chemin, en trois étages :",
+   "words": [
+    {
+     "w": "chemin,",
+     "start": 61.836,
+     "end": 62.385
+    },
+    {
+     "w": "en",
+     "start": 62.385,
+     "end": 62.569
+    },
+    {
+     "w": "trois",
+     "start": 62.569,
+     "end": 62.89
+    },
+    {
+     "w": "étages",
+     "start": 62.89,
+     "end": 63.256
+    },
+    {
+     "w": ":",
+     "start": 63.256,
+     "end": 63.531
+    }
+   ]
+  },
+  {
+   "start": 63.531,
+   "end": 65.685,
+   "text": "c'est l'architecture dite médaillon.",
+   "words": [
+    {
+     "w": "c'est",
+     "start": 63.531,
+     "end": 63.852
+    },
+    {
+     "w": "l'architecture",
+     "start": 63.852,
+     "end": 64.585
+    },
+    {
+     "w": "dite",
+     "start": 64.585,
+     "end": 64.86
+    },
+    {
+     "w": "médaillon.",
+     "start": 64.86,
+     "end": 65.685
+    }
+   ]
+  },
+  {
+   "start": 65.685,
+   "end": 67.243,
+   "text": "Elle raffine l'information,",
+   "words": [
+    {
+     "w": "Elle",
+     "start": 65.685,
+     "end": 65.96
+    },
+    {
+     "w": "raffine",
+     "start": 65.96,
+     "end": 66.372
+    },
+    {
+     "w": "l'information,",
+     "start": 66.372,
+     "end": 67.243
+    }
+   ]
+  },
+  {
+   "start": 67.243,
+   "end": 69.601,
+   "text": "du brut jusqu'à une donnée de qualité.",
+   "words": [
+    {
+     "w": "du",
+     "start": 67.243,
+     "end": 67.426
+    },
+    {
+     "w": "brut",
+     "start": 67.426,
+     "end": 67.701
+    },
+    {
+     "w": "jusqu'à",
+     "start": 67.701,
+     "end": 68.114
+    },
+    {
+     "w": "une",
+     "start": 68.114,
+     "end": 68.343
+    },
+    {
+     "w": "donnée",
+     "start": 68.343,
+     "end": 68.709
+    },
+    {
+     "w": "de",
+     "start": 68.709,
+     "end": 68.893
+    },
+    {
+     "w": "qualité.",
+     "start": 68.893,
+     "end": 69.351
+    }
+   ]
+  },
+  {
+   "start": 73.001,
+   "end": 74.108,
+   "text": "Le bronze d'abord :",
+   "words": [
+    {
+     "w": "Le",
+     "start": 73.001,
+     "end": 73.165
+    },
+    {
+     "w": "bronze",
+     "start": 73.165,
+     "end": 73.493
+    },
+    {
+     "w": "d'abord",
+     "start": 73.493,
+     "end": 73.862
+    },
+    {
+     "w": ":",
+     "start": 73.862,
+     "end": 74.108
+    }
+   ]
+  },
+  {
+   "start": 74.108,
+   "end": 76.116,
+   "text": "la source telle qu'elle est arrivée.",
+   "words": [
+    {
+     "w": "la",
+     "start": 74.108,
+     "end": 74.271
+    },
+    {
+     "w": "source",
+     "start": 74.271,
+     "end": 74.599
+    },
+    {
+     "w": "telle",
+     "start": 74.599,
+     "end": 74.886
+    },
+    {
+     "w": "qu'elle",
+     "start": 74.886,
+     "end": 75.255
+    },
+    {
+     "w": "est",
+     "start": 75.255,
+     "end": 75.46
+    },
+    {
+     "w": "arrivée.",
+     "start": 75.46,
+     "end": 76.116
+    }
+   ]
+  },
+  {
+   "start": 76.116,
+   "end": 77.677,
+   "text": "Elle n'est jamais modifiée.",
+   "words": [
+    {
+     "w": "Elle",
+     "start": 76.116,
+     "end": 76.361
+    },
+    {
+     "w": "n'est",
+     "start": 76.361,
+     "end": 76.648
+    },
+    {
+     "w": "jamais",
+     "start": 76.648,
+     "end": 76.976
+    },
+    {
+     "w": "modifiée.",
+     "start": 76.976,
+     "end": 77.427
+    }
+   ]
+  },
+  {
+   "start": 81.077,
+   "end": 83.449,
+   "text": "L'argent ensuite : une fiche par source,",
+   "words": [
+    {
+     "w": "L'argent",
+     "start": 81.077,
+     "end": 81.516
+    },
+    {
+     "w": "ensuite",
+     "start": 81.516,
+     "end": 81.912
+    },
+    {
+     "w": ":",
+     "start": 81.912,
+     "end": 82.175
+    },
+    {
+     "w": "une",
+     "start": 82.175,
+     "end": 82.395
+    },
+    {
+     "w": "fiche",
+     "start": 82.395,
+     "end": 82.702
+    },
+    {
+     "w": "par",
+     "start": 82.702,
+     "end": 82.922
+    },
+    {
+     "w": "source,",
+     "start": 82.922,
+     "end": 83.449
+    }
+   ]
+  },
+  {
+   "start": 83.449,
+   "end": 85.895,
+   "text": "nettoyée, où l'on sait qui a dit quoi.",
+   "words": [
+    {
+     "w": "nettoyée,",
+     "start": 83.449,
+     "end": 84.064
+    },
+    {
+     "w": "où",
+     "start": 84.064,
+     "end": 84.239
+    },
+    {
+     "w": "l'on",
+     "start": 84.239,
+     "end": 84.503
+    },
+    {
+     "w": "sait",
+     "start": 84.503,
+     "end": 84.767
+    },
+    {
+     "w": "qui",
+     "start": 84.767,
+     "end": 84.986
+    },
+    {
+     "w": "a",
+     "start": 84.986,
+     "end": 85.118
+    },
+    {
+     "w": "dit",
+     "start": 85.118,
+     "end": 85.338
+    },
+    {
+     "w": "quoi.",
+     "start": 85.338,
+     "end": 85.645
+    }
+   ]
+  },
+  {
+   "start": 89.295,
+   "end": 91.481,
+   "text": "L'or enfin : le wiki lui-même.",
+   "words": [
+    {
+     "w": "L'or",
+     "start": 89.295,
+     "end": 89.58
+    },
+    {
+     "w": "enfin",
+     "start": 89.58,
+     "end": 89.913
+    },
+    {
+     "w": ":",
+     "start": 89.913,
+     "end": 90.198
+    },
+    {
+     "w": "le",
+     "start": 90.198,
+     "end": 90.388
+    },
+    {
+     "w": "wiki",
+     "start": 90.388,
+     "end": 90.673
+    },
+    {
+     "w": "lui-même.",
+     "start": 90.673,
+     "end": 91.481
+    }
+   ]
+  },
+  {
+   "start": 91.481,
+   "end": 93.287,
+   "text": "C'est là, et seulement là,",
+   "words": [
+    {
+     "w": "C'est",
+     "start": 91.481,
+     "end": 91.814
+    },
+    {
+     "w": "là,",
+     "start": 91.814,
+     "end": 92.194
+    },
+    {
+     "w": "et",
+     "start": 92.194,
+     "end": 92.384
+    },
+    {
+     "w": "seulement",
+     "start": 92.384,
+     "end": 92.907
+    },
+    {
+     "w": "là,",
+     "start": 92.907,
+     "end": 93.287
+    }
+   ]
+  },
+  {
+   "start": 93.287,
+   "end": 94.963,
+   "text": "qu'on pose ses questions.",
+   "words": [
+    {
+     "w": "qu'on",
+     "start": 93.287,
+     "end": 93.62
+    },
+    {
+     "w": "pose",
+     "start": 93.62,
+     "end": 93.905
+    },
+    {
+     "w": "ses",
+     "start": 93.905,
+     "end": 94.143
+    },
+    {
+     "w": "questions.",
+     "start": 94.143,
+     "end": 94.713
+    }
+   ]
+  },
+  {
+   "start": 98.913,
+   "end": 100.338,
+   "text": "Pour entrer dans l'or,",
+   "words": [
+    {
+     "w": "Pour",
+     "start": 98.913,
+     "end": 99.198
+    },
+    {
+     "w": "entrer",
+     "start": 99.198,
+     "end": 99.578
+    },
+    {
+     "w": "dans",
+     "start": 99.578,
+     "end": 99.863
+    },
+    {
+     "w": "l'or,",
+     "start": 99.863,
+     "end": 100.338
+    }
+   ]
+  },
+  {
+   "start": 100.338,
+   "end": 102.489,
+   "text": "une page doit passer un contrôle.",
+   "words": [
+    {
+     "w": "une",
+     "start": 100.338,
+     "end": 100.576
+    },
+    {
+     "w": "page",
+     "start": 100.576,
+     "end": 100.861
+    },
+    {
+     "w": "doit",
+     "start": 100.861,
+     "end": 101.146
+    },
+    {
+     "w": "passer",
+     "start": 101.146,
+     "end": 101.526
+    },
+    {
+     "w": "un",
+     "start": 101.526,
+     "end": 101.716
+    },
+    {
+     "w": "contrôle.",
+     "start": 101.716,
+     "end": 102.239
+    }
+   ]
+  },
+  {
+   "start": 105.889,
+   "end": 107.812,
+   "text": "Un relecteur indépendant vérifie d'où",
+   "words": [
+    {
+     "w": "Un",
+     "start": 105.889,
+     "end": 106.068
+    },
+    {
+     "w": "relecteur",
+     "start": 106.068,
+     "end": 106.56
+    },
+    {
+     "w": "indépendant",
+     "start": 106.56,
+     "end": 107.141
+    },
+    {
+     "w": "vérifie",
+     "start": 107.141,
+     "end": 107.544
+    },
+    {
+     "w": "d'où",
+     "start": 107.544,
+     "end": 107.812
+    }
+   ]
+  },
+  {
+   "start": 107.812,
+   "end": 109.243,
+   "text": "elle vient, sa forme,",
+   "words": [
+    {
+     "w": "elle",
+     "start": 107.812,
+     "end": 108.08
+    },
+    {
+     "w": "vient,",
+     "start": 108.08,
+     "end": 108.572
+    },
+    {
+     "w": "sa",
+     "start": 108.572,
+     "end": 108.751
+    },
+    {
+     "w": "forme,",
+     "start": 108.751,
+     "end": 109.243
+    }
+   ]
+  },
+  {
+   "start": 109.243,
+   "end": 111.371,
+   "text": "et le respect des personnes citées.",
+   "words": [
+    {
+     "w": "et",
+     "start": 109.243,
+     "end": 109.422
+    },
+    {
+     "w": "le",
+     "start": 109.422,
+     "end": 109.601
+    },
+    {
+     "w": "respect",
+     "start": 109.601,
+     "end": 110.003
+    },
+    {
+     "w": "des",
+     "start": 110.003,
+     "end": 110.227
+    },
+    {
+     "w": "personnes",
+     "start": 110.227,
+     "end": 110.719
+    },
+    {
+     "w": "citées.",
+     "start": 110.719,
+     "end": 111.121
+    }
+   ]
+  },
+  {
+   "start": 114.771,
+   "end": 116.68,
+   "text": "Ce qu'il refuse est mis de côté,",
+   "words": [
+    {
+     "w": "Ce",
+     "start": 114.771,
+     "end": 114.949
+    },
+    {
+     "w": "qu'il",
+     "start": 114.949,
+     "end": 115.259
+    },
+    {
+     "w": "refuse",
+     "start": 115.259,
+     "end": 115.614
+    },
+    {
+     "w": "est",
+     "start": 115.614,
+     "end": 115.836
+    },
+    {
+     "w": "mis",
+     "start": 115.836,
+     "end": 116.058
+    },
+    {
+     "w": "de",
+     "start": 116.058,
+     "end": 116.236
+    },
+    {
+     "w": "côté,",
+     "start": 116.236,
+     "end": 116.68
+    }
+   ]
+  },
+  {
+   "start": 116.68,
+   "end": 118.572,
+   "text": "et attend une décision humaine.",
+   "words": [
+    {
+     "w": "et",
+     "start": 116.68,
+     "end": 116.857
+    },
+    {
+     "w": "attend",
+     "start": 116.857,
+     "end": 117.212
+    },
+    {
+     "w": "une",
+     "start": 117.212,
+     "end": 117.434
+    },
+    {
+     "w": "décision",
+     "start": 117.434,
+     "end": 117.878
+    },
+    {
+     "w": "humaine.",
+     "start": 117.878,
+     "end": 118.322
+    }
+   ]
+  },
+  {
+   "start": 122.322,
+   "end": 124.235,
+   "text": "Le travail et la vie privée restent",
+   "words": [
+    {
+     "w": "Le",
+     "start": 122.322,
+     "end": 122.5
+    },
+    {
+     "w": "travail",
+     "start": 122.5,
+     "end": 122.9
+    },
+    {
+     "w": "et",
+     "start": 122.9,
+     "end": 123.078
+    },
+    {
+     "w": "la",
+     "start": 123.078,
+     "end": 123.256
+    },
+    {
+     "w": "vie",
+     "start": 123.256,
+     "end": 123.479
+    },
+    {
+     "w": "privée",
+     "start": 123.479,
+     "end": 123.834
+    },
+    {
+     "w": "restent",
+     "start": 123.834,
+     "end": 124.235
+    }
+   ]
+  },
+  {
+   "start": 124.235,
+   "end": 125.747,
+   "text": "dans deux espaces séparés,",
+   "words": [
+    {
+     "w": "dans",
+     "start": 124.235,
+     "end": 124.502
+    },
+    {
+     "w": "deux",
+     "start": 124.502,
+     "end": 124.769
+    },
+    {
+     "w": "espaces",
+     "start": 124.769,
+     "end": 125.169
+    },
+    {
+     "w": "séparés,",
+     "start": 125.169,
+     "end": 125.747
+    }
+   ]
+  },
+  {
+   "start": 125.747,
+   "end": 127.482,
+   "text": "qui ne se mélangent jamais.",
+   "words": [
+    {
+     "w": "qui",
+     "start": 125.747,
+     "end": 125.97
+    },
+    {
+     "w": "ne",
+     "start": 125.97,
+     "end": 126.148
+    },
+    {
+     "w": "se",
+     "start": 126.148,
+     "end": 126.326
+    },
+    {
+     "w": "mélangent",
+     "start": 126.326,
+     "end": 126.815
+    },
+    {
+     "w": "jamais.",
+     "start": 126.815,
+     "end": 127.482
+    }
+   ]
+  },
+  {
+   "start": 127.482,
+   "end": 129.217,
+   "text": "Chacun a son propre relecteur,",
+   "words": [
+    {
+     "w": "Chacun",
+     "start": 127.482,
+     "end": 127.838
+    },
+    {
+     "w": "a",
+     "start": 127.838,
+     "end": 127.971
+    },
+    {
+     "w": "son",
+     "start": 127.971,
+     "end": 128.194
+    },
+    {
+     "w": "propre",
+     "start": 128.194,
+     "end": 128.55
+    },
+    {
+     "w": "relecteur,",
+     "start": 128.55,
+     "end": 129.217
+    }
+   ]
+  },
+  {
+   "start": 129.217,
+   "end": 130.757,
+   "text": "avec ses propres règles.",
+   "words": [
+    {
+     "w": "avec",
+     "start": 129.217,
+     "end": 129.484
+    },
+    {
+     "w": "ses",
+     "start": 129.484,
+     "end": 129.706
+    },
+    {
+     "w": "propres",
+     "start": 129.706,
+     "end": 130.107
+    },
+    {
+     "w": "règles.",
+     "start": 130.107,
+     "end": 130.507
+    }
+   ]
+  },
+  {
+   "start": 134.507,
+   "end": 136.245,
+   "text": "Au quotidien, quelques commandes",
+   "words": [
+    {
+     "w": "Au",
+     "start": 134.507,
+     "end": 134.681
+    },
+    {
+     "w": "quotidien,",
+     "start": 134.681,
+     "end": 135.333
+    },
+    {
+     "w": "quelques",
+     "start": 135.333,
+     "end": 135.767
+    },
+    {
+     "w": "commandes",
+     "start": 135.767,
+     "end": 136.245
+    }
+   ]
+  },
+  {
+   "start": 136.245,
+   "end": 137.679,
+   "text": "suffisent : interroger,",
+   "words": [
+    {
+     "w": "suffisent",
+     "start": 136.245,
+     "end": 136.723
+    },
+    {
+     "w": ":",
+     "start": 136.723,
+     "end": 136.984
+    },
+    {
+     "w": "interroger,",
+     "start": 136.984,
+     "end": 137.679
+    }
+   ]
+  },
+  {
+   "start": 137.679,
+   "end": 140.102,
+   "text": "ajouter une source, vérifier la qualité.",
+   "words": [
+    {
+     "w": "ajouter",
+     "start": 137.679,
+     "end": 138.07
+    },
+    {
+     "w": "une",
+     "start": 138.07,
+     "end": 138.288
+    },
+    {
+     "w": "source,",
+     "start": 138.288,
+     "end": 138.809
+    },
+    {
+     "w": "vérifier",
+     "start": 138.809,
+     "end": 139.244
+    },
+    {
+     "w": "la",
+     "start": 139.244,
+     "end": 139.417
+    },
+    {
+     "w": "qualité.",
+     "start": 139.417,
+     "end": 139.852
+    }
+   ]
+  },
+  {
+   "start": 143.502,
+   "end": 145.165,
+   "text": "Les réunions enregistrées avec Plaud",
+   "words": [
+    {
+     "w": "Les",
+     "start": 143.502,
+     "end": 143.7
+    },
+    {
+     "w": "réunions",
+     "start": 143.7,
+     "end": 144.096
+    },
+    {
+     "w": "enregistrées",
+     "start": 144.096,
+     "end": 144.65
+    },
+    {
+     "w": "avec",
+     "start": 144.65,
+     "end": 144.888
+    },
+    {
+     "w": "Plaud",
+     "start": 144.888,
+     "end": 145.165
+    }
+   ]
+  },
+  {
+   "start": 145.165,
+   "end": 146.432,
+   "text": "suivent le même circuit,",
+   "words": [
+    {
+     "w": "suivent",
+     "start": 145.165,
+     "end": 145.522
+    },
+    {
+     "w": "le",
+     "start": 145.522,
+     "end": 145.68
+    },
+    {
+     "w": "même",
+     "start": 145.68,
+     "end": 145.918
+    },
+    {
+     "w": "circuit,",
+     "start": 145.918,
+     "end": 146.432
+    }
+   ]
+  },
+  {
+   "start": 146.432,
+   "end": 147.343,
+   "text": "jusqu'au wiki.",
+   "words": [
+    {
+     "w": "jusqu'au",
+     "start": 146.432,
+     "end": 146.828
+    },
+    {
+     "w": "wiki.",
+     "start": 146.828,
+     "end": 147.343
+    }
+   ]
+  },
+  {
+   "start": 147.343,
+   "end": 148.848,
+   "text": "Plus tard, d'autres outils de",
+   "words": [
+    {
+     "w": "Plus",
+     "start": 147.343,
+     "end": 147.581
+    },
+    {
+     "w": "tard,",
+     "start": 147.581,
+     "end": 147.977
+    },
+    {
+     "w": "d'autres",
+     "start": 147.977,
+     "end": 148.373
+    },
+    {
+     "w": "outils",
+     "start": 148.373,
+     "end": 148.69
+    },
+    {
+     "w": "de",
+     "start": 148.69,
+     "end": 148.848
+    }
+   ]
+  },
+  {
+   "start": 148.848,
+   "end": 150.313,
+   "text": "transcription, comme Teams ou",
+   "words": [
+    {
+     "w": "transcription,",
+     "start": 148.848,
+     "end": 149.601
+    },
+    {
+     "w": "comme",
+     "start": 149.601,
+     "end": 149.878
+    },
+    {
+     "w": "Teams",
+     "start": 149.878,
+     "end": 150.155
+    },
+    {
+     "w": "ou",
+     "start": 150.155,
+     "end": 150.313
+    }
+   ]
+  },
+  {
+   "start": 150.313,
+   "end": 151.989,
+   "text": "Meet, pourront s'y brancher.",
+   "words": [
+    {
+     "w": "Meet,",
+     "start": 150.313,
+     "end": 150.709
+    },
+    {
+     "w": "pourront",
+     "start": 150.709,
+     "end": 151.105
+    },
+    {
+     "w": "s'y",
+     "start": 151.105,
+     "end": 151.303
+    },
+    {
+     "w": "brancher.",
+     "start": 151.303,
+     "end": 151.739
+    }
+   ]
+  },
+  {
+   "start": 155.389,
+   "end": 156.892,
+   "text": "Un tableau de bord montre,",
+   "words": [
+    {
+     "w": "Un",
+     "start": 155.389,
+     "end": 155.561
+    },
+    {
+     "w": "tableau",
+     "start": 155.561,
+     "end": 155.947
+    },
+    {
+     "w": "de",
+     "start": 155.947,
+     "end": 156.119
+    },
+    {
+     "w": "bord",
+     "start": 156.119,
+     "end": 156.377
+    },
+    {
+     "w": "montre,",
+     "start": 156.377,
+     "end": 156.892
+    }
+   ]
+  },
+  {
+   "start": 156.892,
+   "end": 159.419,
+   "text": "à chaque instant, où en est chaque étage.",
+   "words": [
+    {
+     "w": "à",
+     "start": 156.892,
+     "end": 157.021
+    },
+    {
+     "w": "chaque",
+     "start": 157.021,
+     "end": 157.365
+    },
+    {
+     "w": "instant,",
+     "start": 157.365,
+     "end": 157.923
+    },
+    {
+     "w": "où",
+     "start": 157.923,
+     "end": 158.095
+    },
+    {
+     "w": "en",
+     "start": 158.095,
+     "end": 158.267
+    },
+    {
+     "w": "est",
+     "start": 158.267,
+     "end": 158.482
+    },
+    {
+     "w": "chaque",
+     "start": 158.482,
+     "end": 158.825
+    },
+    {
+     "w": "étage.",
+     "start": 158.825,
+     "end": 159.169
+    }
+   ]
+  },
+  {
+   "start": 162.819,
+   "end": 164.806,
+   "text": "Son onglet Question interroge le wiki",
+   "words": [
+    {
+     "w": "Son",
+     "start": 162.819,
+     "end": 163.045
+    },
+    {
+     "w": "onglet",
+     "start": 163.045,
+     "end": 163.406
+    },
+    {
+     "w": "Question",
+     "start": 163.406,
+     "end": 163.857
+    },
+    {
+     "w": "interroge",
+     "start": 163.857,
+     "end": 164.354
+    },
+    {
+     "w": "le",
+     "start": 164.354,
+     "end": 164.535
+    },
+    {
+     "w": "wiki",
+     "start": 164.535,
+     "end": 164.806
+    }
+   ]
+  },
+  {
+   "start": 164.806,
+   "end": 166.07,
+   "text": "depuis le navigateur,",
+   "words": [
+    {
+     "w": "depuis",
+     "start": 164.806,
+     "end": 165.167
+    },
+    {
+     "w": "le",
+     "start": 165.167,
+     "end": 165.347
+    },
+    {
+     "w": "navigateur,",
+     "start": 165.347,
+     "end": 166.07
+    }
+   ]
+  },
+  {
+   "start": 166.07,
+   "end": 167.424,
+   "text": "avec les mêmes garde-fous",
+   "words": [
+    {
+     "w": "avec",
+     "start": 166.07,
+     "end": 166.341
+    },
+    {
+     "w": "les",
+     "start": 166.341,
+     "end": 166.566
+    },
+    {
+     "w": "mêmes",
+     "start": 166.566,
+     "end": 166.882
+    },
+    {
+     "w": "garde-fous",
+     "start": 166.882,
+     "end": 167.424
+    }
+   ]
+  },
+  {
+   "start": 167.424,
+   "end": 168.848,
+   "text": "que dans le terminal.",
+   "words": [
+    {
+     "w": "que",
+     "start": 167.424,
+     "end": 167.65
+    },
+    {
+     "w": "dans",
+     "start": 167.65,
+     "end": 167.921
+    },
+    {
+     "w": "le",
+     "start": 167.921,
+     "end": 168.101
+    },
+    {
+     "w": "terminal.",
+     "start": 168.101,
+     "end": 168.598
+    }
+   ]
+  },
+  {
+   "start": 172.248,
+   "end": 174.58,
+   "text": "Et sa vue Graphe affiche tout le wiki en",
+   "words": [
+    {
+     "w": "Et",
+     "start": 172.248,
+     "end": 172.435
+    },
+    {
+     "w": "sa",
+     "start": 172.435,
+     "end": 172.621
+    },
+    {
+     "w": "vue",
+     "start": 172.621,
+     "end": 172.854
+    },
+    {
+     "w": "Graphe",
+     "start": 172.854,
+     "end": 173.227
+    },
+    {
+     "w": "affiche",
+     "start": 173.227,
+     "end": 173.647
+    },
+    {
+     "w": "tout",
+     "start": 173.647,
+     "end": 173.927
+    },
+    {
+     "w": "le",
+     "start": 173.927,
+     "end": 174.114
+    },
+    {
+     "w": "wiki",
+     "start": 174.114,
+     "end": 174.393
+    },
+    {
+     "w": "en",
+     "start": 174.393,
+     "end": 174.58
+    }
+   ]
+  },
+  {
+   "start": 174.58,
+   "end": 176.819,
+   "text": "trois dimensions : chaque page est un",
+   "words": [
+    {
+     "w": "trois",
+     "start": 174.58,
+     "end": 174.906
+    },
+    {
+     "w": "dimensions",
+     "start": 174.906,
+     "end": 175.466
+    },
+    {
+     "w": ":",
+     "start": 175.466,
+     "end": 175.746
+    },
+    {
+     "w": "chaque",
+     "start": 175.746,
+     "end": 176.119
+    },
+    {
+     "w": "page",
+     "start": 176.119,
+     "end": 176.399
+    },
+    {
+     "w": "est",
+     "start": 176.399,
+     "end": 176.632
+    },
+    {
+     "w": "un",
+     "start": 176.632,
+     "end": 176.819
+    }
+   ]
+  },
+  {
+   "start": 176.819,
+   "end": 178.731,
+   "text": "point, coloré selon son type,",
+   "words": [
+    {
+     "w": "point,",
+     "start": 176.819,
+     "end": 177.332
+    },
+    {
+     "w": "coloré",
+     "start": 177.332,
+     "end": 177.705
+    },
+    {
+     "w": "selon",
+     "start": 177.705,
+     "end": 178.031
+    },
+    {
+     "w": "son",
+     "start": 178.031,
+     "end": 178.264
+    },
+    {
+     "w": "type,",
+     "start": 178.264,
+     "end": 178.731
+    }
+   ]
+  },
+  {
+   "start": 178.731,
+   "end": 180.643,
+   "text": "relié aux pages qu'elle cite.",
+   "words": [
+    {
+     "w": "relié",
+     "start": 178.731,
+     "end": 179.057
+    },
+    {
+     "w": "aux",
+     "start": 179.057,
+     "end": 179.291
+    },
+    {
+     "w": "pages",
+     "start": 179.291,
+     "end": 179.617
+    },
+    {
+     "w": "qu'elle",
+     "start": 179.617,
+     "end": 180.037
+    },
+    {
+     "w": "cite.",
+     "start": 180.037,
+     "end": 180.643
+    }
+   ]
+  },
+  {
+   "start": 180.643,
+   "end": 182.199,
+   "text": "Un clic ouvre la page.",
+   "words": [
+    {
+     "w": "Un",
+     "start": 180.643,
+     "end": 180.83
+    },
+    {
+     "w": "clic",
+     "start": 180.83,
+     "end": 181.109
+    },
+    {
+     "w": "ouvre",
+     "start": 181.109,
+     "end": 181.436
+    },
+    {
+     "w": "la",
+     "start": 181.436,
+     "end": 181.623
+    },
+    {
+     "w": "page.",
+     "start": 181.623,
+     "end": 181.949
+    }
+   ]
+  },
+  {
+   "start": 185.599,
+   "end": 188.017,
+   "text": "Kioku, c'est une mémoire de travail qui ne",
+   "words": [
+    {
+     "w": "Kioku,",
+     "start": 185.599,
+     "end": 186.091
+    },
+    {
+     "w": "c'est",
+     "start": 186.091,
+     "end": 186.405
+    },
+    {
+     "w": "une",
+     "start": 186.405,
+     "end": 186.629
+    },
+    {
+     "w": "mémoire",
+     "start": 186.629,
+     "end": 187.032
+    },
+    {
+     "w": "de",
+     "start": 187.032,
+     "end": 187.211
+    },
+    {
+     "w": "travail",
+     "start": 187.211,
+     "end": 187.614
+    },
+    {
+     "w": "qui",
+     "start": 187.614,
+     "end": 187.838
+    },
+    {
+     "w": "ne",
+     "start": 187.838,
+     "end": 188.017
+    }
+   ]
+  },
+  {
+   "start": 188.017,
+   "end": 189.494,
+   "text": "se perd plus : relue,",
+   "words": [
+    {
+     "w": "se",
+     "start": 188.017,
+     "end": 188.196
+    },
+    {
+     "w": "perd",
+     "start": 188.196,
+     "end": 188.464
+    },
+    {
+     "w": "plus",
+     "start": 188.464,
+     "end": 188.733
+    },
+    {
+     "w": ":",
+     "start": 188.733,
+     "end": 189.002
+    },
+    {
+     "w": "relue,",
+     "start": 189.002,
+     "end": 189.494
+    }
+   ]
+  },
+  {
+   "start": 189.494,
+   "end": 192.117,
+   "text": "sourcée, et toujours à portée de question.",
+   "words": [
+    {
+     "w": "sourcée,",
+     "start": 189.494,
+     "end": 190.076
+    },
+    {
+     "w": "et",
+     "start": 190.076,
+     "end": 190.255
+    },
+    {
+     "w": "toujours",
+     "start": 190.255,
+     "end": 190.703
+    },
+    {
+     "w": "à",
+     "start": 190.703,
+     "end": 190.837
+    },
+    {
+     "w": "portée",
+     "start": 190.837,
+     "end": 191.195
+    },
+    {
+     "w": "de",
+     "start": 191.195,
+     "end": 191.375
+    },
+    {
+     "w": "question.",
+     "start": 191.375,
+     "end": 191.867
+    }
+   ]
+  }
+ ]
+}

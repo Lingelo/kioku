@@ -1,0 +1,13 @@
+{
+  "name": "kioku",
+  "version": "0.1.0",
+  "description": "Coffre de connaissance garde pour Claude Code : medaillon bronze, argent, or ; silos etanches ; gate relue.",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "prepare": "git config core.hooksPath scripts/git-hooks || true",
+    "test": "node --test hooks/*.test.mjs tools/*.test.mjs tools/dashboard/*.test.mjs tools/plaud-sync/*.test.mjs",
+    "denylist": "node tools/denylist-check.mjs tree"
+  }
+}

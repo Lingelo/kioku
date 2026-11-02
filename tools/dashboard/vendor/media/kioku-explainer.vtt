@@ -1,0 +1,222 @@
+WEBVTT
+
+00:00:01.600 --> 00:00:02.733
+Voici Kioku.
+
+00:00:02.733 --> 00:00:05.627
+En japonais, ce mot
+veut dire mémoire.
+
+00:00:09.578 --> 00:00:11.230
+Au travail, les réunions,
+
+00:00:11.230 --> 00:00:12.882
+les documents et les décisions
+
+00:00:12.882 --> 00:00:14.488
+s'accumulent, et l'essentiel
+
+00:00:14.488 --> 00:00:15.885
+finit par se perdre.
+
+00:00:19.285 --> 00:00:21.439
+Kioku rassemble
+tout dans un wiki
+
+00:00:21.439 --> 00:00:23.863
+personnel : une page par projet,
+
+00:00:23.863 --> 00:00:26.968
+par personne, par
+réunion et par décision.
+
+00:00:30.368 --> 00:00:32.226
+C'est l'assistant
+Claude qui rédige et
+
+00:00:32.226 --> 00:00:33.548
+tient ces pages à jour,
+
+00:00:33.548 --> 00:00:35.697
+à partir des sources
+qu'on lui confie.
+
+00:00:39.097 --> 00:00:41.032
+Ensuite, il suffit de poser une
+
+00:00:41.032 --> 00:00:42.920
+question : la réponse vient du
+
+00:00:42.920 --> 00:00:44.633
+wiki, avec ses sources.
+
+00:00:48.033 --> 00:00:49.507
+Et aucune page n'y entre
+
+00:00:49.507 --> 00:00:51.035
+sans avoir été relue.
+
+00:00:54.985 --> 00:00:56.990
+Voyons maintenant
+comment ça marche.
+
+00:01:00.140 --> 00:01:01.836
+Chaque information suit le même
+
+00:01:01.836 --> 00:01:03.531
+chemin, en trois étages :
+
+00:01:03.531 --> 00:01:05.685
+c'est l'architecture
+dite médaillon.
+
+00:01:05.685 --> 00:01:07.243
+Elle raffine l'information,
+
+00:01:07.243 --> 00:01:09.601
+du brut jusqu'à une
+donnée de qualité.
+
+00:01:13.001 --> 00:01:14.108
+Le bronze d'abord :
+
+00:01:14.108 --> 00:01:16.116
+la source telle
+qu'elle est arrivée.
+
+00:01:16.116 --> 00:01:17.677
+Elle n'est jamais modifiée.
+
+00:01:21.077 --> 00:01:23.449
+L'argent ensuite :
+une fiche par source,
+
+00:01:23.449 --> 00:01:25.895
+nettoyée, où l'on
+sait qui a dit quoi.
+
+00:01:29.295 --> 00:01:31.481
+L'or enfin : le wiki lui-même.
+
+00:01:31.481 --> 00:01:33.287
+C'est là, et seulement là,
+
+00:01:33.287 --> 00:01:34.963
+qu'on pose ses questions.
+
+00:01:38.913 --> 00:01:40.338
+Pour entrer dans l'or,
+
+00:01:40.338 --> 00:01:42.489
+une page doit
+passer un contrôle.
+
+00:01:45.889 --> 00:01:47.812
+Un relecteur indépendant
+vérifie d'où
+
+00:01:47.812 --> 00:01:49.243
+elle vient, sa forme,
+
+00:01:49.243 --> 00:01:51.371
+et le respect des
+personnes citées.
+
+00:01:54.771 --> 00:01:56.680
+Ce qu'il refuse est mis de côté,
+
+00:01:56.680 --> 00:01:58.572
+et attend une décision humaine.
+
+00:02:02.322 --> 00:02:04.235
+Le travail et la
+vie privée restent
+
+00:02:04.235 --> 00:02:05.747
+dans deux espaces séparés,
+
+00:02:05.747 --> 00:02:07.482
+qui ne se mélangent jamais.
+
+00:02:07.482 --> 00:02:09.217
+Chacun a son propre relecteur,
+
+00:02:09.217 --> 00:02:10.757
+avec ses propres règles.
+
+00:02:14.507 --> 00:02:16.245
+Au quotidien, quelques commandes
+
+00:02:16.245 --> 00:02:17.679
+suffisent : interroger,
+
+00:02:17.679 --> 00:02:20.102
+ajouter une source,
+vérifier la qualité.
+
+00:02:23.502 --> 00:02:25.165
+Les réunions
+enregistrées avec Plaud
+
+00:02:25.165 --> 00:02:26.432
+suivent le même circuit,
+
+00:02:26.432 --> 00:02:27.343
+jusqu'au wiki.
+
+00:02:27.343 --> 00:02:28.848
+Plus tard, d'autres outils de
+
+00:02:28.848 --> 00:02:30.313
+transcription, comme Teams ou
+
+00:02:30.313 --> 00:02:31.989
+Meet, pourront s'y brancher.
+
+00:02:35.389 --> 00:02:36.892
+Un tableau de bord montre,
+
+00:02:36.892 --> 00:02:39.419
+à chaque instant, où
+en est chaque étage.
+
+00:02:42.819 --> 00:02:44.806
+Son onglet Question
+interroge le wiki
+
+00:02:44.806 --> 00:02:46.070
+depuis le navigateur,
+
+00:02:46.070 --> 00:02:47.424
+avec les mêmes garde-fous
+
+00:02:47.424 --> 00:02:48.848
+que dans le terminal.
+
+00:02:52.248 --> 00:02:54.580
+Et sa vue Graphe
+affiche tout le wiki en
+
+00:02:54.580 --> 00:02:56.819
+trois dimensions :
+chaque page est un
+
+00:02:56.819 --> 00:02:58.731
+point, coloré selon son type,
+
+00:02:58.731 --> 00:03:00.643
+relié aux pages qu'elle cite.
+
+00:03:00.643 --> 00:03:02.199
+Un clic ouvre la page.
+
+00:03:05.599 --> 00:03:08.017
+Kioku, c'est une mémoire
+de travail qui ne
+
+00:03:08.017 --> 00:03:09.494
+se perd plus : relue,
+
+00:03:09.494 --> 00:03:12.117
+sourcée, et toujours
+à portée de question.

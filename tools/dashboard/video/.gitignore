@@ -1,0 +1,7 @@
+# Sorties de travail du rendu : regenerables
+stills/
+draft.*
+render.log
+cues.json
+# Cache de voix Piper : regenere par voice.mjs (etape 1 du README)
+voice/*.wav
