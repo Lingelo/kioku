@@ -89,6 +89,13 @@ describe('init', () => {
     assert.match(readFileSync(path.join(other, '.kioku', 'schema.md'), 'utf8'), /\/kioku:ingest/);
   });
 
+  test('doctor : avec le plugin active, le schema attendu est le schema prefixe', () => {
+    kioku(['init', vault, '--domains', 'a,b'], { KIOKU_PLUGIN: 'kioku' });
+    writeFileSync(path.join(vault, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'kioku@x': true } }));
+    const r = kioku(['doctor', '--vault', vault]);
+    assert.doesNotMatch(r.stdout, /schema\.md differe/, r.stdout);
+  });
+
   test('doctor : schema absent = a corriger ; schema modifie = signale, sans echec', () => {
     kioku(['init', vault, '--domains', 'a,b'], { KIOKU_PLUGIN: '' });
     const schema = path.join(vault, '.kioku', 'schema.md');

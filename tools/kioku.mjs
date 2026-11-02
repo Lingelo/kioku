@@ -293,11 +293,14 @@ export const doctor = (vault, { live = false, pluginDir, home } = {}) => {
     else if (!/^## Relecture$/m.test(readFileSync(rules, 'utf8'))) problems.push(`domains/${d}/rules.md sans section ## Relecture`);
   }
 
-  const schema = path.join(vault, SCHEMA_REL);
-  if (!existsSync(schema)) problems.push(`${SCHEMA_REL} absent : les sessions n'ont pas le schema commun (CLAUDE.md l'importe)`);
-  else if (readFileSync(schema, 'utf8') !== schemaText()) notes.push(`${SCHEMA_REL} differe du schema de ce core : version differente, ou modifie a la main`);
-
   const { guard, source, why, double } = registeredGuard(vault, { home });
+
+  // Le schema attendu suit la garde declaree : noms prefixes avec le plugin, nus avec un hook du projet.
+  const schema = path.join(vault, SCHEMA_REL);
+  const expected = schemaText(source === 'plugin' || pluginDir ? { KIOKU_PLUGIN: 'kioku' } : {});
+  if (!existsSync(schema)) problems.push(`${SCHEMA_REL} absent : les sessions n'ont pas le schema commun (CLAUDE.md l'importe)`);
+  else if (readFileSync(schema, 'utf8') !== expected) notes.push(`${SCHEMA_REL} differe du schema de ce core : version differente, ou modifie a la main`);
+
   if (!guard && !pluginDir) isolation.push(`garde non branchee : ${why}`);
   else {
     const script = guard ?? CORE_GUARD;
