@@ -30,10 +30,10 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync, unlink
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { domainsOf } from '../vault-config.mjs';
+import { domainsOf, vaultRoot } from '../vault-config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VAULT = path.resolve(process.env.CLAUDE_PROJECT_DIR ?? path.join(HERE, '..', '..'));
+const VAULT = vaultRoot(undefined);
 // Les domaines du coffre vise ; configuration absente ou invalide : on s'arrete, rien n'est ecrit.
 let DOMAINS;
 try {

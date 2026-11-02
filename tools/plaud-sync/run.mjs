@@ -46,7 +46,7 @@ import { dropParked, pruneReasons } from './drop.mjs';
 import { acquire, release } from './lock.mjs';
 import { CORE_BIN, withCorePath } from '../core-path.mjs';
 import { skill } from '../names.mjs';
-import { isVault, loadConfig } from '../vault-config.mjs';
+import { isVault, loadConfig, vaultRoot } from '../vault-config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
@@ -56,7 +56,7 @@ const opt = (n) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 
-const VAULT = path.resolve(opt('--vault') ?? path.join(HERE, '..', '..'));
+const VAULT = vaultRoot(opt('--vault'));
 const SINCE = opt('--since') ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 const WIN = process.platform === 'win32';
 const FETCH = path.join(HERE, 'fetch-notes.mjs');

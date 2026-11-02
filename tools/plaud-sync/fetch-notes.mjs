@@ -29,11 +29,13 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { vaultRoot } from '../vault-config.mjs';
 import { addToRegistry, classify, legacyDomain, loadRegistry, scanKnown, withPlaudId } from './dedup.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VAULT = path.resolve(process.env.CLAUDE_PROJECT_DIR ?? path.join(HERE, '..', '..'));
-const EXCLUSIONS = path.join(HERE, 'exclusions.txt');
+const VAULT = vaultRoot(undefined);
+const EXCLUSIONS = path.join(VAULT, 'tools', 'plaud-sync', 'exclusions.txt'); // etat du coffre, comme seen.json
 // Le MCP encapsule les donnees utilisateur dans un bloc anti-injection dont le nom porte un nonce.
 const UNTRUSTED = /^<(untrusted-user-data-[0-9a-f]+)\b[^>]*>([\s\S]*?)<\/\1>/m;
 

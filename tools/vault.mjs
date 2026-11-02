@@ -25,9 +25,10 @@ import { fileURLToPath } from 'node:url';
 
 import { withCorePath } from './core-path.mjs';
 import { skill } from './names.mjs';
-import { domainsOf } from './vault-config.mjs';
+import { domainsOf, isVault, vaultRoot } from './vault-config.mjs';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Le coffre : le dossier courant (scripts npm du coffre) ou CLAUDE_PROJECT_DIR, jamais l'emplacement du core.
+const ROOT = vaultRoot(undefined);
 const MODES = ['query', 'ingest', 'triage', 'setup'];
 // Modes sans domaine : triage (la garde n'ouvre que inbox/) et setup (aucun contenu de domaine, la configuration seule).
 const NO_DOMAIN = ['triage', 'setup'];
@@ -51,6 +52,7 @@ function fail(msg) {
 }
 
 // Les domaines viennent de la configuration du coffre (kioku.config.json), comme pour la garde.
+if (!isVault(ROOT)) fail(`${ROOT} n'est pas un coffre (kioku.config.json absent ou invalide) : lance le lanceur depuis la racine du coffre.`);
 let DOMAINS;
 try {
   DOMAINS = domainsOf(ROOT);

@@ -147,6 +147,20 @@ describe('U2 : Serveur local securise a routes fixes', () => {
     }
   });
 
+  test('video Mode d emploi : la video du coffre est servie quand le core n en a pas', async () => {
+    put('tools/dashboard/vendor/media/kioku-explainer.mp4', '0123456789');
+    const instance = await startServer(vault, 'pro', { port: 0, quiet: true, vendorDir: path.join(vault, 'core-sans-video') });
+    try {
+      const res = await fetch(`http://127.0.0.1:${instance.port}/vendor/media/kioku-explainer.mp4`, { headers: { Host: `127.0.0.1:${instance.port}` } });
+      assert.equal(res.status, 200);
+      assert.equal(await res.text(), '0123456789');
+      const miss = await fetch(`http://127.0.0.1:${instance.port}/vendor/media/absente.mp4`, { headers: { Host: `127.0.0.1:${instance.port}` } });
+      assert.equal(miss.status, 404);
+    } finally {
+      await instance.close();
+    }
+  });
+
   test('video Mode d emploi : route /vendor/media/ sert le mp4 avec Range, bloque traversees et extensions', async () => {
     put('tools/dashboard/vendor/media/kioku-explainer.mp4', '0123456789ABCDEF');
     put('tools/dashboard/vendor/media/kioku-explainer.vtt', 'WEBVTT\n');

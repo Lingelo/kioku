@@ -448,9 +448,12 @@ export const startServer = (vaultRoot, domain, options = {}) => {
         const mediaName = pathname.slice('/vendor/media/'.length);
         const MEDIA_TYPES = { mp4: 'video/mp4', vtt: 'text/vtt; charset=utf-8' };
         const ext = /^[a-zA-Z0-9_-]+\.(mp4|vtt)$/.exec(mediaName)?.[1];
-        const mediaDir = path.join(vendorDir, 'media');
-        const resolvedPath = ext ? path.resolve(mediaDir, mediaName) : '';
-        if (!ext || !resolvedPath.startsWith(mediaDir + path.sep) || !existsSync(resolvedPath)) {
+        // Le core d'abord (sous-titres), puis le coffre (la video, trop lourde pour le depot du core).
+        const mediaDirs = [path.join(vendorDir, 'media'), path.join(vaultRoot, 'tools', 'dashboard', 'vendor', 'media')];
+        const resolvedPath = ext
+          ? mediaDirs.map((d) => [d, path.resolve(d, mediaName)]).find(([d, f]) => f.startsWith(d + path.sep) && existsSync(f))?.[1] ?? ''
+          : '';
+        if (!resolvedPath) {
           res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
           res.end('Media introuvable');
           return;

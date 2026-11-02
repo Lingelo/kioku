@@ -9,6 +9,7 @@
  *   isVault(vault)        -> un coffre est un dossier qui porte une configuration lisible
  */
 
+import path from 'node:path';
 import { existsSync } from 'node:fs';
 
 import { configFile, loadConfig } from '../hooks/config.mjs';
@@ -39,3 +40,10 @@ export const isVault = (vault) => {
     return false;
   }
 };
+
+/**
+ * Le coffre vise par un outil du core : --vault (passe par l'appelant), sinon CLAUDE_PROJECT_DIR, sinon le dossier
+ * courant. Jamais l'emplacement du script : le core est installe a part (plugin, clone ~/kioku), un repli sur lui
+ * ouvrirait une session sur le moteur au lieu du coffre.
+ */
+export const vaultRoot = (explicit, env = process.env) => path.resolve(explicit ?? env.CLAUDE_PROJECT_DIR ?? process.cwd());
