@@ -103,7 +103,7 @@ const skeleton = (vault, domain) => {
 /** Hors session Claude (terminal) : permis. En session : seulement en mode setup. */
 const sessionRefusal = (env) => {
   if (!env.CLAUDECODE && env.VAULT_MODE === undefined) return null;
-  return env.VAULT_MODE === 'setup' ? null : `session ${env.VAULT_MODE ?? '(sans mode)'} : configurer le coffre se fait en session setup (node tools/vault.mjs --mode setup) ou depuis un terminal`;
+  return env.VAULT_MODE === 'setup' ? null : `session ${env.VAULT_MODE ?? '(sans mode)'} : configurer le coffre se fait depuis un terminal hors de Claude Code, ou en session setup (npm run setup, ou kioku session --mode setup)`;
 };
 
 // ---------------------------------------------------------------------------------------------------------------

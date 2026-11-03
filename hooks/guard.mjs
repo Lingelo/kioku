@@ -347,7 +347,7 @@ const decide = () => {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : recherche recursive sans dossier autorise. Utilise Grep/Glob avec un path.)`);
     }
     if (KIOKU_WRITE.test(normalized) && MODE !== 'setup') {
-      refuse(`Session ${MODE}/${D ?? '-'} : configurer le coffre (kioku init, add-domain) se fait en session setup (node tools/vault.mjs --mode setup).`);
+      refuse(`Session ${MODE}/${D ?? '-'} : configurer le coffre (kioku init, add-domain, upgrade --write) se fait en session setup (npm run setup, ou kioku session --mode setup), ou depuis un terminal hors de Claude Code.`);
     }
     if (MODE === 'setup' && SETUP_DENIED.some((r) => r.test(normalized))) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : en session setup, ni la gate, ni le circuit Plaud, ni le lanceur, ni le dashboard : ils lisent un domaine ou ouvrent une autre session.)`);
