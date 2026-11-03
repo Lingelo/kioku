@@ -111,13 +111,13 @@ describe('U2 : Serveur local securise a routes fixes', () => {
   });
 
   test('U1 & KTD1 : route securisee /vendor/fonts/ sert les polices woff2 et bloque les traversées et extensions invalides', async () => {
-    put('tools/dashboard/vendor/fonts/inter-400.woff2', '/* woff2 binary stub */');
+    put('tools/dashboard/vendor/fonts/inter-latin-400.woff2', '/* woff2 binary stub */');
     put('tools/dashboard/vendor/fonts/fichier.txt', 'texte');
 
     const instance = await startServer(vault, 'pro', { port: 0, quiet: true, vendorDir: path.join(vault, 'tools', 'dashboard', 'vendor') });
     try {
       // 1. Police WOFF2 valide
-      const res = await fetch(`http://127.0.0.1:${instance.port}/vendor/fonts/inter-400.woff2`, {
+      const res = await fetch(`http://127.0.0.1:${instance.port}/vendor/fonts/inter-latin-400.woff2`, {
         headers: { Host: `127.0.0.1:${instance.port}` },
       });
       assert.equal(res.status, 200);

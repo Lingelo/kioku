@@ -1,14 +1,16 @@
 Polices vendorisees dans ce dossier, sous SIL Open Font License, version 1.1
 
+Source : paquets npm @fontsource/inter 5.3.0 et @fontsource/jetbrains-mono 5.3.0 (fichiers
+files/<famille>-<jeu>-<graisse>-normal.woff2), redistribues tels quels, renommes <famille>-<jeu>-<graisse>.woff2.
+Graisses 400, 500, 600 ; jeux latin et latin-ext. Non modifies, non vendus seuls.
+
 - Inter (inter-*.woff2)
-  Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter)
+  Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
 
 - JetBrains Mono (jetbrains-mono-*.woff2)
   Copyright 2020 The JetBrains Mono Project Authors (https://github.com/JetBrains/JetBrainsMono)
 
-Mentions de copyright reprises des depots officiels des deux projets : elles n'ont pas ete relues dans les fichiers
-WOFF2 eux-memes (tables de nom compressees). Les fichiers sont redistribues tels quels, non modifies, et ne sont pas
-vendus seuls.
+Mentions de copyright reprises du fichier LICENSE de chaque paquet @fontsource.
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

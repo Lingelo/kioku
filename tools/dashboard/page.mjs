@@ -168,48 +168,103 @@ export const renderPage = (data) => {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tableau de bord — ${domain}</title>
   <style>
-    /* Polices locales vendorisees (KTD1, U1) */
+    /* Polices locales vendorisees (KTD1, U1) : @fontsource 5.3.0, une graisse reelle par fichier, decoupees comme le
+       CSS officiel (latin, latin-ext) : le navigateur ne charge que le jeu dont la page a besoin. Licence : vendor/fonts/OFL.txt */
     @font-face {
       font-family: 'Inter';
       font-style: normal;
       font-weight: 400;
       font-display: swap;
-      src: url('vendor/fonts/inter-400.woff2') format('woff2');
+      src: url('vendor/fonts/inter-latin-400.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('vendor/fonts/inter-latin-ext-400.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
       font-family: 'Inter';
       font-style: normal;
       font-weight: 500;
       font-display: swap;
-      src: url('vendor/fonts/inter-500.woff2') format('woff2');
+      src: url('vendor/fonts/inter-latin-500.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+      src: url('vendor/fonts/inter-latin-ext-500.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
       font-family: 'Inter';
       font-style: normal;
       font-weight: 600;
       font-display: swap;
-      src: url('vendor/fonts/inter-600.woff2') format('woff2');
+      src: url('vendor/fonts/inter-latin-600.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'Inter';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('vendor/fonts/inter-latin-ext-600.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
       font-family: 'JetBrains Mono';
       font-style: normal;
       font-weight: 400;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-400.woff2') format('woff2');
+      src: url('vendor/fonts/jetbrains-mono-latin-400.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'JetBrains Mono';
+      font-style: normal;
+      font-weight: 400;
+      font-display: swap;
+      src: url('vendor/fonts/jetbrains-mono-latin-ext-400.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
       font-family: 'JetBrains Mono';
       font-style: normal;
       font-weight: 500;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-500.woff2') format('woff2');
+      src: url('vendor/fonts/jetbrains-mono-latin-500.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'JetBrains Mono';
+      font-style: normal;
+      font-weight: 500;
+      font-display: swap;
+      src: url('vendor/fonts/jetbrains-mono-latin-ext-500.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
       font-family: 'JetBrains Mono';
       font-style: normal;
       font-weight: 600;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-600.woff2') format('woff2');
+      src: url('vendor/fonts/jetbrains-mono-latin-600.woff2') format('woff2');
+      unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+    }
+    @font-face {
+      font-family: 'JetBrains Mono';
+      font-style: normal;
+      font-weight: 600;
+      font-display: swap;
+      src: url('vendor/fonts/jetbrains-mono-latin-ext-600.woff2') format('woff2');
+      unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
 
     /* Tokens washi (clair, defaut) : papier non blanchi, encre sumi, pigments mineraux.
