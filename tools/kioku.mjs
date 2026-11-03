@@ -2,9 +2,11 @@
 /**
  * kioku : creer un coffre, y ajouter un silo, prouver le cloisonnement (plan core/data, U9).
  *
- *   kioku init <dossier> [--domains a,b] [--org <domaine>] [--plaud]
+ *   kioku init <dossier> [--domains a,b] [--org <domaine>] [--plaud] [--guard-hook]
  *   kioku add-domain <nom> [--preset <preset>] [--description <texte>] [--vault <dossier>]
  *   kioku doctor [--vault <dossier>]
+ *   kioku upgrade [--write] [--vault <dossier>]   amene un coffre existant a la forme courante d'init (simulation par defaut)
+ *   kioku session|dashboard|plaud …   les outils du core (lanceur, dashboard, Plaud), relayes tels quels (voir toolCommand)
  *   kioku check|verdict|promote|stage|audit|undecided|… <arguments>   la gate (voir hooks/vault.mjs), relayee telle quelle
  *
  * `kioku` est l'entree unique du core : `bin/kioku` sur le PATH (le plugin ajoute son bin/ au PATH des sessions ; le
@@ -25,12 +27,17 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CONFIG_NAME, DOMAIN_ID, loadConfig } from '../hooks/config.mjs';
+import { CONFIG_NAME, DOMAIN_ID, loadConfig, vaultMarkers } from '../hooks/config.mjs';
+import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, managedScripts, mergeConfig, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
+import { formatRefusal } from './plugin-install.mjs';
 import { acquire, release } from './plaud-sync/lock.mjs';
+
+export { PLUGIN_ID };
 
 const CORE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PRESETS = path.join(CORE, 'presets');
@@ -284,8 +291,34 @@ export const doctor = (vault, { live = false, pluginDir, home } = {}) => {
   try {
     cfg = loadConfig(vault);
   } catch (error) {
+    // Configuration absente : la garde ne refuse que dans un coffre abime ; hors coffre, elle ne s'applique pas.
+    const markers = existsSync(path.join(vault, CONFIG_NAME)) ? [] : vaultMarkers(vault);
+    // Sous-dossier d'un coffre sain : la racine est chez un parent, rien n'est abime.
+    const parentConfig = markers.find((m) => path.basename(m) === CONFIG_NAME);
+    if (parentConfig) {
+      const rootDir = path.dirname(parentConfig);
+      return {
+        code: EXIT.precondition,
+        lines: [`ECHEC  ${vault} est un sous-dossier du coffre ${rootDir} : ouvre la racine du coffre (cd ${rootDir}, ou --vault ${rootDir})`, 'note   la garde refuse une session ouverte dans un sous-dossier : elle ne se rabat pas sur une autre racine'],
+      };
+    }
+    if (markers.length) {
+      return {
+        code: EXIT.precondition,
+        lines: [
+          `ECHEC  coffre abime : ${CONFIG_NAME} absent, mais ${markers.join(', ')} present(s)`,
+          'note   la garde refuse tout dans ce dossier tant que la configuration manque : restaure-la (git checkout, sauvegarde) ; init refuse un dossier non vide',
+        ],
+      };
+    }
+    if (!existsSync(path.join(vault, CONFIG_NAME))) {
+      return { code: EXIT.precondition, lines: [`ECHEC  ${error.message} : ${vault} n'est pas un coffre (aucun marqueur), la garde ne s'y applique pas ; kioku init pour en creer un`] };
+    }
     return { code: EXIT.precondition, lines: [`ECHEC  ${error.message}`] };
   }
+  // Un core qui ne sait pas lire ce format ne prouve rien sur ce coffre : refus avant toute sonde.
+  const tooOld = formatRefusal(CORE, vault);
+  if (tooOld) return { code: EXIT.precondition, lines: [`ECHEC  ${tooOld}`] };
   for (const d of cfg.domains) {
     if (!existsSync(path.join(vault, 'wiki', d))) problems.push(`wiki/${d}/ absent (squelette : node tools/plaud-sync/run.mjs --init-structure, ou add-domain)`);
     const rules = cfg.rulesPath(d);
@@ -337,10 +370,25 @@ export const doctor = (vault, { live = false, pluginDir, home } = {}) => {
 // init
 // ---------------------------------------------------------------------------------------------------------------
 
-export const init = (target, { domains = ['pro', 'perso'], org = null, plaud = false } = {}) => {
+// ---------------------------------------------------------------------------------------------------------------
+// Ce que init pose pour le plugin et npm (chantier 2)
+// ---------------------------------------------------------------------------------------------------------------
+
+const now = () => new Date().toISOString().replace('T', ' ').slice(0, 16);
+// index.md : lu en premier a toute query ; log.md : 5 dernieres entrees lues en debut de session (schema commun).
+const journalText = (d, file) =>
+  file === 'index.md'
+    ? `# Index — ${d}\n\n> Catalogue des pages de l'or, lu en premier a toute query. Une ligne par page : [[dossier/slug]] — resume.\n`
+    : `# Journal — ${d}\n\n## [${now()}] schema | creation du domaine\n- source : kioku init / add-domain / upgrade\n- pages touchees : index.md, log.md\n`;
+const domainJournals = (vault, d) => {
+  for (const f of ['index.md', 'log.md']) create(path.join(vault, 'wiki', d, f), journalText(d, f));
+};
+
+export const init = (target, { domains = ['pro', 'perso'], org = null, plaud = false, guardHook = false } = {}) => {
   const vault = path.resolve(target);
   if (path.relative(CORE, vault) === '' ) return { code: EXIT.precondition, lines: ['init : refuse sur le core lui-meme'] };
-  if (existsSync(vault) && readdirSync(vault).length) return { code: EXIT.precondition, lines: [`init : ${vault} n'est pas vide, rien n'est ecrit`] };
+  // Seul .git est tolere : un depot vide (git init, clone d'un depot neuf) ne porte aucune donnee de coffre.
+  if (existsSync(vault) && readdirSync(vault).some((n) => n !== '.git')) return { code: EXIT.precondition, lines: [`init : ${vault} n'est pas vide (seul .git est tolere), rien n'est ecrit`] };
   const seen = [];
   for (const d of domains) {
     const bad = validName(d, seen);
@@ -350,16 +398,19 @@ export const init = (target, { domains = ['pro', 'perso'], org = null, plaud = f
   if (org && !domains.includes(org)) return { code: EXIT.precondition, lines: [`init : --org ${org} n'est pas un des domaines (${domains.join(', ')})`] };
   const known = presets();
   for (const d of domains) if (!known.includes(d) && !known.includes('minimal')) return { code: EXIT.precondition, lines: [`init : aucun preset pour ${d}`] };
-
   mkdirSync(vault, { recursive: true });
   const config = {
     version: 1,
+    format: VAULT_FORMAT,
     domains: domains.map((id) => (id === org ? { id, extensions: { org: { registry: 'orgs.json' } } } : { id })),
-    ...(plaud ? { modules: { plaud: { state: 'tools/plaud-sync' } } } : {}),
+    modules: { ...(plaud ? { plaud: { state: 'tools/plaud-sync' } } : {}), dashboard: {} },
+    // Un `claude` lance a nu dans le coffre (sans le lanceur) ouvre une session query du premier domaine, pas un refus.
+    default_session: { mode: 'query', domain: domains[0] },
   };
   writeAtomic(path.join(vault, CONFIG_NAME), `${JSON.stringify(config, null, 2)}\n`);
   for (const d of domains) {
     skeleton(vault, d);
+    domainJournals(vault, d);
     create(path.join(vault, 'domains', d, 'rules.md'), presetText(known.includes(d) ? d : 'minimal', d));
   }
   if (org) {
@@ -368,18 +419,162 @@ export const init = (target, { domains = ['pro', 'perso'], org = null, plaud = f
       `${JSON.stringify({ employer: 'employeur', orgs: [{ id: 'employeur', name: 'Employeur (a renommer)', role: 'employer' }], org_required: true }, null, 2)}\n`,
     );
   }
-  // Repli de la phase B (KTD2) : le hook vise la garde du core par chemin absolu ; le plugin la remplacera (U11).
-  create(
-    path.join(vault, '.claude', 'settings.json'),
-    `${JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|NotebookRead|Bash', hooks: [{ type: 'command', command: `node "${CORE_GUARD}"` }] }] } }, null, 2)}\n`,
-  );
-  create(path.join(vault, SCHEMA_REL), schemaText());
+  // La garde : le plugin de la marketplace du core, installe au niveau utilisateur et mis a jour par Claude Code. Le
+  // coffre declare seulement qu'il l'utilise (sans version). --guard-hook : repli de developpement, un hook vers la
+  // garde de ce clone par chemin absolu (non portable entre machines).
+  const settings = guardHook
+    ? { hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|NotebookRead|Bash', hooks: [{ type: 'command', command: `node "${CORE_GUARD}"` }] }] } }
+    : mergeSettings({});
+  create(path.join(vault, '.claude', 'settings.json'), `${JSON.stringify(settings, null, 2)}\n`);
+  create(path.join(vault, SCHEMA_REL), schemaText(guardHook ? {} : { KIOKU_PLUGIN: 'kioku' }));
   create(path.join(vault, 'CLAUDE.md'), readFileSync(path.join(TEMPLATES, 'vault-CLAUDE.md'), 'utf8'));
-  create(path.join(vault, '.gitignore'), `# Jamais versionne : l'entrant (pas encore classe)\ninbox/\n.env\n.env.*\n${plaud ? 'tools/plaud-sync/.snapshot.json\ntools/plaud-sync/.queue.json\ntools/plaud-sync/.lock.json\n' : ''}`);
+  create(path.join(vault, '.gitignore'), mergeGitignore('', gitignoreBlock({ plaud })));
+  // Fins de ligne LF partout : la gate hache les contenus, la garde compare des chemins ; un CRLF de Windows les fausse.
+  create(path.join(vault, '.gitattributes'), '* text=auto eol=lf\n');
+  create(path.join(vault, 'package.json'), `${JSON.stringify({ name: path.basename(vault).toLowerCase().replace(/[^a-z0-9-]+/g, '-'), private: true, scripts: managedScripts(domains, { plaud }) }, null, 2)}\n`);
   mkdirSync(path.join(vault, 'inbox'), { recursive: true });
 
   const d = doctor(vault);
-  return { code: d.code, lines: [`init : coffre cree dans ${vault} (${domains.join(', ')})`, ...(org ? [`registre a remplir : ${path.join(vault, 'orgs.json')}`] : []), ...d.lines] };
+  const next = [
+    'etapes suivantes :',
+    ...(org ? [`  - remplir le registre des organisations : ${path.join(vault, 'orgs.json')}`] : []),
+    `  - completer ${path.join(vault, 'CLAUDE.md')} (contexte propre a ce coffre)`,
+    ...(guardHook
+      ? ['  - garde : hook vers ce clone (--guard-hook), aucun plugin a installer']
+      : [`  - plugin, une fois par machine : ${INSTALL_HINT}`]),
+    '  - kioku doctor --live : prouve que Claude Code execute la garde',
+    `  - npm run ${domains[0]} : premiere session`,
+  ];
+  return { code: d.code, lines: [`init : coffre cree dans ${vault} (${domains.join(', ')})`, ...d.lines, ...next] };
+};
+
+// ---------------------------------------------------------------------------------------------------------------
+// upgrade : amene un coffre existant a la forme courante d'init (parties gerees, voir managed.mjs)
+// ---------------------------------------------------------------------------------------------------------------
+
+const readJson = (file) => {
+  if (!existsSync(file)) return { data: undefined };
+  try {
+    return { data: JSON.parse(readFileSync(file, 'utf8')) };
+  } catch (error) {
+    return { error: `${path.basename(file)} illisible (${error instanceof Error ? error.message : String(error)})` };
+  }
+};
+const json = (data) => `${JSON.stringify(data, null, 2)}\n`;
+const textOf = (file) => (existsSync(file) ? readFileSync(file, 'utf8') : null);
+
+/**
+ * Le plan d'upgrade, sans rien ecrire : [{ rel, before, after }] (before null = creation) et des notes.
+ * `only` : restreindre aux fichiers nommes (add-domain : package.json). Leve si la configuration est illisible.
+ */
+export const planUpgrade = (vault, { only } = {}) => {
+  const cfg = loadConfig(vault);
+  const plaud = cfg.modules.plaud !== undefined;
+  const changes = [];
+  const notes = [];
+  const want = (rel) => !only || only.includes(rel);
+  const put = (rel, after) => {
+    const before = textOf(path.join(vault, rel));
+    if (before !== after) changes.push({ rel, before, after });
+  };
+
+  if (want('package.json')) {
+    const r = readJson(path.join(vault, 'package.json'));
+    if (r.error || (r.data !== undefined && (r.data === null || typeof r.data !== 'object' || Array.isArray(r.data)))) {
+      notes.push(`package.json ${r.error ?? 'n est pas un objet'} : non modifie, scripts a ajouter a la main`);
+    } else {
+      const pkg = r.data ?? { name: path.basename(vault).toLowerCase().replace(/[^a-z0-9-]+/g, '-'), private: true };
+      const m = mergeScripts(pkg.scripts ?? {}, managedScripts(cfg.domains, { plaud }));
+      if (m.kept.length) notes.push(`package.json : ${m.kept.join(', ')} occupe(s) par un script maison (sans prefixe kioku), laisse(s)`);
+      if (m.stale.length) notes.push(`package.json : ${m.stale.join(', ')} gere(s) mais plus produit(s) par init, laisse(s) : a retirer a la main si inutile(s)`);
+      put('package.json', json({ ...pkg, scripts: m.scripts }));
+    }
+  }
+  if (want('.gitignore')) {
+    try {
+      put('.gitignore', mergeGitignore(textOf(path.join(vault, '.gitignore')) ?? '', gitignoreBlock({ plaud })));
+    } catch (error) {
+      notes.push(error.message);
+    }
+  }
+  if (want('.gitattributes') && !existsSync(path.join(vault, '.gitattributes'))) put('.gitattributes', '* text=auto eol=lf\n');
+  if (want(CONFIG_NAME)) {
+    // Ajout seul : rien a ajouter = fichier laisse tel quel (sa mise en forme comprise).
+    const text = readFileSync(cfg.file, 'utf8');
+    const merged = mergeConfig(JSON.parse(text), { domains: cfg.domains, plaud });
+    if (merged.added.length) {
+      // Cles de premier niveau seulement : inserees sans reformater le fichier ; sinon, reecriture complete.
+      const topLevel = merged.added.every((k) => !k.includes('.'));
+      const inPlace = topLevel ? appendTopLevelKeys(text, Object.fromEntries(merged.added.map((k) => [k, merged.config[k]])), merged.config) : null;
+      put(CONFIG_NAME, inPlace ?? json(merged.config));
+    }
+  }
+  for (const d of cfg.domains) {
+    for (const f of ['index.md', 'log.md']) {
+      const rel = path.join('wiki', d, f);
+      if (want(rel) && !existsSync(path.join(vault, rel))) put(rel, journalText(d, f));
+    }
+  }
+  if (want(path.join('.claude', 'settings.json'))) {
+    const rel = path.join('.claude', 'settings.json');
+    const r = readJson(path.join(vault, rel));
+    const { guard, source: kind } = registeredGuard(vault, { home: null });
+    if (r.error) notes.push(`${rel} ${r.error} : plugin non declare`);
+    else if (kind === 'projet' && guard) notes.push(`${rel} : hook de garde du projet present, plugin non active (sinon double garde) ; bascule vers le plugin a faire a la main`);
+    else {
+      // Deja a la forme voulue : fichier laisse tel quel, mise en forme comprise.
+      const merged = mergeSettings(r.data ?? {});
+      if (JSON.stringify(merged) !== JSON.stringify(r.data)) put(rel, json(merged));
+    }
+  }
+  if (want(SCHEMA_REL)) {
+    const { source: kind } = registeredGuard(vault, { home: null });
+    put(SCHEMA_REL, schemaText(kind === 'projet' ? {} : { KIOKU_PLUGIN: 'kioku' }));
+  }
+  return { changes, notes };
+};
+
+/** Un diff unifie lisible : git diff --no-index si git est la, sinon avant / apres. */
+const showDiff = ({ rel, before, after }) => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'kioku-upgrade-'));
+  try {
+    const a = path.join(dir, 'avant');
+    const b = path.join(dir, 'apres');
+    writeFileSync(a, before ?? '');
+    writeFileSync(b, after);
+    const r = spawnSync('git', ['diff', '--no-index', '--no-color', '--', a, b], { encoding: 'utf8' });
+    const body = r.status === 1 ? r.stdout.split('\n').slice(4).join('\n') : `--- avant\n${before ?? ''}\n+++ apres\n${after}`;
+    return [`=== ${rel}${before === null ? ' (cree)' : ''}`, body.trimEnd()];
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+export const upgrade = (vaultDir, { write = false } = {}) => {
+  const vault = path.resolve(vaultDir);
+  let plan;
+  try {
+    plan = planUpgrade(vault);
+  } catch (error) {
+    return { code: EXIT.precondition, lines: [`upgrade : ${error.message}`] };
+  }
+  const notes = plan.notes.map((n) => `note   ${n}`);
+  if (!plan.changes.length) return { code: EXIT.ok, lines: ['upgrade : deja a la forme courante, rien a faire', ...notes] };
+  if (!write) {
+    return {
+      code: EXIT.ok,
+      lines: [`upgrade : simulation, ${plan.changes.length} fichier(s) a modifier (relance avec --write pour appliquer)`, ...plan.changes.flatMap(showDiff), ...notes],
+    };
+  }
+  const lock = acquire(vault);
+  if (!lock.ok) return { code: EXIT.precondition, lines: [`upgrade : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`] };
+  try {
+    for (const c of plan.changes) writeAtomic(path.join(vault, c.rel), c.after);
+  } finally {
+    release(vault);
+  }
+  const d = doctor(vault);
+  return { code: d.code, lines: [`upgrade : ${plan.changes.map((c) => c.rel).join(', ')} mis a jour`, ...notes, ...d.lines] };
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -405,6 +600,7 @@ export const addDomain = (vaultDir, name, { preset = 'minimal', description } = 
   if (!lock.ok) return { code: EXIT.precondition, lines: [`add-domain : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`] };
   try {
     skeleton(vault, name);
+    domainJournals(vault, name);
     create(path.join(vault, 'domains', name, 'rules.md'), presetText(preset, name));
     // La configuration en dernier : tant qu'elle ne declare pas le domaine, la garde le tient ferme.
     const raw = JSON.parse(readFileSync(path.join(vault, CONFIG_NAME), 'utf8'));
@@ -413,9 +609,14 @@ export const addDomain = (vaultDir, name, { preset = 'minimal', description } = 
   } finally {
     release(vault);
   }
+  // Apres la configuration : un script npm vers un domaine non declare serait refuse par le lanceur, sans plus.
+  // Meme fusion qu'upgrade, restreinte au package.json : scripts geres du nouveau domaine, maison intacts.
+  const plan = planUpgrade(vault, { only: ['package.json'] });
+  for (const c of plan.changes) writeAtomic(path.join(vault, c.rel), c.after);
+  const scriptNotes = plan.notes.map((n) => `note   ${n}`);
   const d = doctor(vault);
   const head = d.code === EXIT.isolation ? `add-domain : ${name} cree, MAIS le cloisonnement n'est pas prouve : ne t'en sers pas avant de corriger` : `add-domain : ${name} cree (preset ${preset})`;
-  return { code: d.code, lines: [head, ...d.lines] };
+  return { code: d.code, lines: [head, ...scriptNotes, ...d.lines] };
 };
 
 // ---------------------------------------------------------------------------------------------------------------
@@ -424,9 +625,14 @@ export const addDomain = (vaultDir, name, { preset = 'minimal', description } = 
 
 const USAGE = [
   'usage :',
-  '  kioku init <dossier> [--domains a,b] [--org <domaine>] [--plaud]',
+  '  kioku init <dossier> [--domains a,b] [--org <domaine>] [--plaud] [--guard-hook]',
+  '      (le coffre active le plugin kioku@dojo de la marketplace dojo ; --guard-hook : hook vers ce clone, sans plugin)',
   '  kioku add-domain <nom> [--preset <preset>] [--description <texte>] [--vault <dossier>]',
+  '  kioku upgrade [--write] [--vault <dossier>]   (simulation par defaut : diff des parties gerees ; --write applique)',
   '  kioku doctor [--live] [--plugin-dir <core>] [--vault <dossier>]   (--live : sonde par une vraie session claude -p)',
+  '  kioku session [<domaine>] [--mode ingest|triage|setup] [--lint] [-- <args claude>]   (ouvre une session du coffre)',
+  '  kioku dashboard [<domaine>|all] [--serve]   (HTML statique, ou serveur local au premier plan)',
+  '  kioku plaud [--dry-run|--skip-fetch|--drop <fichier>|…]   (circuit Plaud du coffre courant)',
   `  kioku ${GATE_COMMANDS.join('|')} <arguments>   (la gate)`,
   'Retirer ou renommer un domaine ne passe pas par ce CLI : a la main, hors session (configuration, dossiers, regles),',
   'puis kioku doctor.',
@@ -448,7 +654,15 @@ const main = (argv, env) => {
   if (cmd === 'init') {
     if (!positional[0]) return { code: EXIT.precondition, lines: [USAGE] };
     const domains = (opt('--domains') ?? 'pro,perso').split(',').map((s) => s.trim()).filter(Boolean);
-    return init(positional[0], { domains, org: opt('--org') ?? null, plaud: rest.includes('--plaud') });
+    return init(positional[0], { domains, org: opt('--org') ?? null, plaud: rest.includes('--plaud'), guardHook: rest.includes('--guard-hook') });
+  }
+  if (cmd === 'upgrade') {
+    // Simulation par defaut : n'ecrit rien sans --write. L'ecriture touche la configuration : setup ou terminal.
+    if (rest.includes('--write')) {
+      const refusal = sessionRefusal(env);
+      if (refusal) return { code: EXIT.precondition, lines: [`upgrade : ${refusal}`] };
+    }
+    return upgrade(vault, { write: rest.includes('--write') });
   }
   if (cmd === 'add-domain') {
     if (!positional[0]) return { code: EXIT.precondition, lines: [USAGE] };
@@ -457,10 +671,39 @@ const main = (argv, env) => {
   return { code: EXIT.precondition, lines: [USAGE] };
 };
 
+/**
+ * Les outils du core relayes par le CLI (decision 1 du 2026-11-02) : les scripts npm du coffre appellent `kioku <cmd>`
+ * via le relais du PATH, qui ne connait que kioku.mjs. Relais transparent : meme dossier courant (le coffre), meme
+ * environnement, sortie et code de l'outil. Le cloisonnement reste dans les outils (garde, resolveDomains, lanceur).
+ *   session [<D>] [args]      tools/vault.mjs [--domain <D>] [args]   (--mode, --lint, -- passes tels quels)
+ *   dashboard [<D>|all]       tools/dashboard/run.mjs                  (HTML statique)
+ *   dashboard <D> --serve     tools/dashboard/serve.mjs <D>            (serveur au premier plan, Ctrl-C)
+ *   plaud [args]              tools/plaud-sync/run.mjs --vault . [args]
+ */
+export const toolCommand = (argv) => {
+  const [cmd, ...rest] = argv;
+  const tools = path.join(CORE, 'tools');
+  const first = rest[0] && !rest[0].startsWith('-') ? rest[0] : undefined;
+  if (cmd === 'session') return [path.join(tools, 'vault.mjs'), ...(first ? ['--domain', first, ...rest.slice(1)] : rest)];
+  if (cmd === 'dashboard') {
+    if (rest.includes('--serve')) return [path.join(tools, 'dashboard', 'serve.mjs'), ...rest.filter((a) => a !== '--serve')];
+    return [path.join(tools, 'dashboard', 'run.mjs'), ...rest];
+  }
+  if (cmd === 'plaud') return [path.join(tools, 'plaud-sync', 'run.mjs'), '--vault', '.', ...rest];
+  return null;
+};
+
 const isDirect = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const relayed = isDirect ? toolCommand(process.argv.slice(2)) : null;
 if (isDirect && GATE_COMMANDS.includes(process.argv[2])) {
   // La gate garde sa sortie et son code (0, 1, 3, 4) : relais transparent, meme repertoire, meme environnement.
-  const r = spawnSync(process.execPath, [GATE, ...process.argv.slice(2)], { stdio: 'inherit' });
+  // Hors session (npm run audit:<D> depuis un terminal), CLAUDE_PROJECT_DIR manque et la gate se rabattrait sur
+  // l'emplacement de son script (le core) : le coffre est le dossier courant, comme pour les autres outils (vaultRoot).
+  const env = process.env.CLAUDE_PROJECT_DIR ? process.env : { ...process.env, CLAUDE_PROJECT_DIR: process.cwd() };
+  const r = spawnSync(process.execPath, [GATE, ...process.argv.slice(2)], { stdio: 'inherit', env });
+  process.exit(r.status ?? 1);
+} else if (relayed) {
+  const r = spawnSync(process.execPath, relayed, { stdio: 'inherit' });
   process.exit(r.status ?? 1);
 } else if (isDirect) {
   let out;

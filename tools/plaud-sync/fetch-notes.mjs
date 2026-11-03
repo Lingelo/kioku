@@ -16,7 +16,7 @@
  * Port Node de l'ancien fetch_notes.py (Python n'est pas requis).
  *
  * Deduplication (dedup.mjs), sur les DEUX domaines et avant le tri : une note n'est jamais redeposee si son id Plaud
- * est deja dans seen.json ou dans un `plaud_id:` de inbox/, inbox/a-trancher/, raw/pro/ ou raw/perso/, si son nom de
+ * est deja dans seen.json ou dans un `plaud_id:` de inbox/, inbox/a-trancher/ ou raw/<D>/ (domaines declares), si son nom de
  * fichier existe deja, ou si l'empreinte de son contenu egale celle d'un fichier present. Rapport : [connu:id],
  * [connu:nom], [connu:contenu], [ecarte:registre]. Chaque nouveau depot porte `plaud_id:` en frontmatter.
  *
@@ -149,7 +149,7 @@ const listAll = (since) => {
 };
 
 // Amorcage unique : consigne dans seen.json {id, domaine} pour chaque enregistrement dont un brut existe deja dans
-// raw/pro ou raw/perso (empreinte du contenu, sinon nom de fichier). Ne reecrit aucun brut. Le non-apparie est liste, pas consigne.
+// raw/<D> d un domaine declare (empreinte du contenu, sinon nom de fichier). Ne reecrit aucun brut. Le non-apparie est liste, pas consigne.
 const seed = (files, excluded) => {
   const known = scanKnown(VAULT);
   const registry = loadRegistry(VAULT);

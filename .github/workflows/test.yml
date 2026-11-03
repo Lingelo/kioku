@@ -1,0 +1,31 @@
+name: tests
+
+# La suite du core (node --test, aucune dependance) sur le Node minimal annonce et sur une LTS recente.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['20', '22']
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Historique et branches distantes : init lit le SHA du core et verifie qu'il est sur une branche distante.
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Identite git (filet si un test appelle git sans la sienne)
+        run: |
+          git config --global user.name ci
+          git config --global user.email ci@example.invalid
+      - run: npm test

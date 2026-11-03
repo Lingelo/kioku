@@ -7,7 +7,8 @@
  * peut tomber avec lui. Tout ce qu'elle ne sait pas decider vaut refus.
  *
  * Les domaines viennent de la configuration du coffre (kioku.config.json, voir config.mjs) : la garde ne
- * connait aucun nom de domaine. Configuration absente ou invalide : tout est refuse.
+ * connait aucun nom de domaine. Configuration invalide : tout est refuse. Configuration absente : hors coffre (aucun
+ * marqueur, voir locateVault), la garde ne s'applique pas ; dans un coffre abime (un marqueur), tout est refuse.
  *
  * Deux variables d'environnement, posees au lancement (tools/vault.mjs) :
  *   VAULT_MODE   query | ingest | triage | setup
@@ -64,18 +65,28 @@ const errText = (error) => (error instanceof Error ? error.message : String(erro
 // que Claude Code traite comme non bloquant : la garde echouerait ouverte. Elle refuse a la place.
 process.on('uncaughtException', (error) => refuse(`Garde du coffre en panne (${errText(error)}). Dans le doute, je refuse.`));
 
+const envMode = process.env.VAULT_MODE;
+const envDomain = process.env.VAULT_DOMAIN;
+
+// Hors coffre, pas de garde (chantier 1) : installe au niveau utilisateur, le plugin la branche dans tous les projets,
+// et `kioku init` doit pouvoir tourner dans un dossier vide. Sortie a trois conditions, toutes requises :
+//   - CLAUDE_PROJECT_DIR pose : sans lui, VAULT est le repli sur le dossier du script (le cache du plugin), qui ne dit
+//     rien du projet ouvert ;
+//   - ni VAULT_MODE ni VAULT_DOMAIN : poses, ils annoncent une session de coffre, ouverte au mauvais endroit ;
+//   - ni configuration ni marqueur de coffre (locateVault : 'none'). Un marqueur sans configuration = coffre abime,
+//     refuse plus bas par loadConfig.
 // Import dynamique, sous try : un config.mjs absent ferait sinon sortir le hook en code 1, que Claude Code
 // traite comme une erreur non bloquante. La garde echouerait ouverte.
 let cfg;
 try {
-  const { loadConfig } = await import('./config.mjs');
+  const { loadConfig, locateVault } = await import('./config.mjs');
+  if (process.env.CLAUDE_PROJECT_DIR !== undefined && envMode === undefined && envDomain === undefined && locateVault(VAULT) === 'none') {
+    process.exit(0);
+  }
   cfg = loadConfig(VAULT);
 } catch (error) {
-  refuse(`Garde du coffre : ${errText(error)}. Sans configuration lisible, je refuse tout.`);
+  refuse(`Garde du coffre : ${errText(error)}. Sans configuration lisible, je refuse tout (un dossier de coffre sans kioku.config.json est un coffre abime : kioku doctor).`);
 }
-
-const envMode = process.env.VAULT_MODE;
-const envDomain = process.env.VAULT_DOMAIN;
 let MODE;
 let D;
 if (envMode === undefined && envDomain === undefined) {
@@ -201,13 +212,21 @@ const allowedMention = () =>
       : // silver/<D> n'y figure pas : une recherche recursive y traverserait heritage/ (fiches : Read, une a une)
         new RegExp(`(wiki[/\\\\]${D}|\\.candidats[/\\\\]wiki[/\\\\]${D}${MODE === 'ingest' ? `|raw[/\\\\]${D}` : ''})${END}`);
 
-// Le CLI du coffre : `kioku init|add-domain` ecrit la configuration, donc seulement en setup. `doctor` lit et sonde : partout.
-const KIOKU_WRITE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(init|add-domain)\b/;
+// Le CLI du coffre : `kioku init|add-domain|upgrade --write` ecrit la configuration, donc seulement en setup. `doctor`
+// et `upgrade` sans --write (simulation) lisent : partout.
+const KIOKU_WRITE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(init|add-domain|upgrade\b[^;&|\n]*\s--write)\b/;
 // En setup, ce qui lirait un domaine ou ouvrirait une session d'un autre mode : la gate, le circuit Plaud, le lanceur,
 // le dashboard. Ni lecture de nom de page, ni escalade par processus enfant.
 // La gate s'appelle `kioku <commande>` : ses sous-commandes (pas init, add-domain, doctor) lisent ou ecrivent un domaine.
 const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(check|verdict|promote|stage|rotate-log|propose-org|tag-org|propose-raw|tag-raw|quarantine|undecided|audit|flag|decide|seed)\b/;
-const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, /plaud-sync[/\\]/, /tools[/\\]dashboard[/\\]/, /(^|[\s;&|(])npm\s+(run\s+)?(pro|perso|vault|ingest|triage|lint|dashboard|plaud|audit|undecided)\b/];
+// Les scripts npm du coffre (generes par init) : un par domaine declare (session query/<D>) et les prefixes communs.
+// Les domaines viennent de la configuration : une liste figee laisserait `npm run travail` ouvrir une session de domaine
+// depuis setup. `pro` et `perso` restent, pour les coffres anterieurs a la configuration.
+const NPM_SCRIPTS = [...new Set([...cfg.domains, 'pro', 'perso', 'vault', 'ingest', 'triage', 'lint', 'dashboard', 'plaud', 'audit', 'undecided'])];
+const NPM_DENIED = new RegExp(`(^|[\\s;&|(])npm\\s+(run\\s+)?(${NPM_SCRIPTS.join('|')})(?![\\w-])`);
+// Les relais du CLI vers le lanceur, le dashboard et Plaud : sans chemin d'outil dans la commande, refuses par leur nom.
+const KIOKU_TOOLS = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(session|dashboard|plaud)\b/;
+const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /plaud-sync[/\\]/, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
 
 // Une commande shell qui ecrit, et qui vise une zone fermee en ecriture.
 const WRITERS = [/(^|[\s;&|(])(sed|perl)\b[^\n;&|]*\s-\w*i/, /(^|[\s;&|(])tee\b/, /(^|[\s;&|(])(mv|cp|rm|touch|truncate|ln|install|dd)\b/];
@@ -218,12 +237,36 @@ const writeTargets = () => {
   if (MODE !== 'triage') list.push('raw[/\\\\]', 'inbox[/\\\\]', 'quarantine[/\\\\]', '\\.verdicts');
   return list.join('|');
 };
+// Revue de securite : les cibles ci-dessus exigent un separateur final (`wiki/`), donc `mv wiki w` passait, et un
+// glob (`mv kioku.config.j* …`) echappait au chemin litteral de la configuration. Renommer un marqueur ou .claude, ou
+// deplacer la configuration, fait passer le coffre pour « hors coffre » et coupe la garde (chantier 1). Un writer qui
+// nomme l'un d'eux comme mot entier, ou un glob qui couvre un fichier protege, est refuse.
+const MARKER_WORD = /(^|[\s"'=;&|(])(\.\/)?(wiki|raw|silver|domains|\.kioku|\.claude)\/?(?=$|[\s"';&|)])/;
+const GLOB_WORD = /(?:^|\s)["']?([^\s"';&|()]*[*?[][^\s"';&|()]*)/g;
+const globCovers = (pattern, name) => {
+  const re = `^${pattern.replace(/^\.\//, '').replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')}$`;
+  try {
+    return new RegExp(re).test(name);
+  } catch {
+    return true; // glob illisible (crochet non ferme…) : dans le doute, il couvre
+  }
+};
+const PROTECTED_NAMES = [...PROTECTED].filter((p) => inside(p, VAULT)).map((p) => path.relative(VAULT, p).split(path.sep).join('/'));
+const writerTouchesVaultShape = (cleaned) => {
+  if (!WRITERS.some((w) => w.test(cleaned))) return false;
+  if (MARKER_WORD.test(cleaned)) return true;
+  for (const [, glob] of cleaned.matchAll(GLOB_WORD)) {
+    if ([...PROTECTED_NAMES, 'wiki', 'raw', 'silver', 'domains', '.kioku', '.claude'].some((n) => globCovers(glob, n))) return true;
+  }
+  return false;
+};
+
 const shellWritesProtected = (command) => {
   const cleaned = command.replace(/\d?>&\d/g, ' ').replace(/\d?>>?\s*\/dev\/null/g, ' ');
   const t = writeTargets();
   const targets = new RegExp(`(^|[\\s"'=/\\\\])(${t})`);
   const redirect = new RegExp(`(?:^|[^>&\\d])\\d?>>?\\s*["']?[^\\s"'|;&]*(?:${t})`);
-  return redirect.test(cleaned) || (targets.test(cleaned) && WRITERS.some((w) => w.test(cleaned)));
+  return redirect.test(cleaned) || (targets.test(cleaned) && WRITERS.some((w) => w.test(cleaned))) || writerTouchesVaultShape(cleaned);
 };
 
 // Le texte d'un message (-m / --message) n'est ni un chemin ni une commande : les regles ci-dessous y

@@ -14,69 +14,30 @@
  * a lancer a l'installation et apres chaque montee de version.
  */
 
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { registeredGuard } from './kioku.mjs';
+import { formatRefusal, INSTALL_HINT, installedKioku, KIOKU_ID } from './plugin-install.mjs';
 
-const real = (p) => {
-  try {
-    return realpathSync(p);
-  } catch {
-    return path.resolve(p);
-  }
-};
+export { installedKioku };
 
-/** Le SHA epingle pour kioku dans un catalogue inline des settings du coffre, ou null. */
-const pinnedSha = (vault) => {
-  try {
-    const s = JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'));
-    for (const [name, m] of Object.entries(s.extraKnownMarketplaces ?? {})) {
-      const entry = (m.source?.plugins ?? []).find((p) => p.name === 'kioku');
-      if (entry?.source?.sha) return { marketplace: name, sha: entry.source.sha };
-    }
-  } catch {
-    // settings illisibles : registeredGuard l'a deja dit
-  }
-  return null;
-};
+const CORE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** L'installation de kioku vue par Claude Code pour ce coffre : { found, sha, path } ou { error }. */
-export const installedKioku = (vault, { home = process.env.HOME, marketplace } = {}) => {
-  const file = path.join(home ?? '', '.claude', 'plugins', 'installed_plugins.json');
-  if (!existsSync(file)) return { found: false }; // machine neuve : aucun plugin installe
-  let data;
-  try {
-    data = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    return { error: `${file} illisible` };
-  }
-  if (!data || typeof data.plugins !== 'object') return { error: `${file} : format inconnu (lance kioku doctor --live)` };
-  const here = real(vault);
-  for (const [id, installs] of Object.entries(data.plugins)) {
-    if (!/^kioku@/.test(id) || (marketplace && id !== `kioku@${marketplace}`) || !Array.isArray(installs)) continue;
-    for (const i of installs) {
-      const applies = i.scope === 'user' || (i.projectPath && real(i.projectPath) === here);
-      if (applies && i.installPath && existsSync(path.join(i.installPath, 'hooks', 'guard.mjs'))) return { found: true, sha: i.gitCommitSha ?? null, path: i.installPath, id };
-    }
-  }
-  return { found: false };
-};
-
-export const startupRefusal = (vault, { home } = {}) => {
+export const startupRefusal = (vault, { home, core = CORE } = {}) => {
   const g = registeredGuard(vault, { home });
   if (!g.guard) return `garde absente : ${g.why}. Corrige, puis kioku doctor --live.`;
   if (g.double) return 'double garde (hook du projet ET plugin kioku) : retire le hook du projet.';
+  // Le core qui ouvre la session sait-il lire ce coffre ? (format exige par le coffre, format lu par le core)
+  const tooOld = formatRefusal(core, vault);
+  if (tooOld) return tooOld;
   if (g.source !== 'plugin') return null;
-  const pin = pinnedSha(vault);
-  const inst = installedKioku(vault, { home, marketplace: pin?.marketplace });
+  const inst = installedKioku(vault, { home });
   if (inst.error) return `plugin kioku active, installation illisible : ${inst.error}.`;
   if (!inst.found) {
-    const id = pin ? `kioku@${pin.marketplace}` : 'kioku@<marketplace>';
-    return `plugin kioku active mais pas installe sur cette machine pour ce coffre : la session tournerait sans garde. Lance : claude plugin install ${id} --scope project, puis kioku doctor --live.`;
+    return `plugin ${KIOKU_ID} active par ce coffre mais pas installe sur cette machine : la session tournerait sans garde. Lance : ${INSTALL_HINT}, puis kioku doctor --live.`;
   }
-  if (pin && inst.sha && inst.sha !== pin.sha) {
-    return `plugin kioku installe en ${inst.sha.slice(0, 7)}, le coffre epingle ${pin.sha.slice(0, 7)} : lance claude plugin update ${inst.id}, puis kioku doctor --live.`;
-  }
+  const pluginTooOld = formatRefusal(inst.path, vault);
+  if (pluginTooOld) return `plugin installe : ${pluginTooOld}`;
   return null;
 };

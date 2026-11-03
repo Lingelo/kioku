@@ -7,7 +7,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
@@ -42,6 +42,16 @@ const guard = (session, payload, raw) => {
   if (session.mode !== undefined) env.VAULT_MODE = session.mode;
   if (session.domain !== undefined) env.VAULT_DOMAIN = session.domain;
   const input = raw ?? JSON.stringify({ ...payload, cwd: vault });
+  return spawnSync(process.execPath, [TARGET], { input, env, encoding: 'utf8' }).status;
+};
+// Session nue (ni VAULT_MODE ni VAULT_DOMAIN) ouverte sur un autre dossier projet ; projectDir null = variable absente.
+const guardAt = (projectDir, payload) => {
+  const env = { ...process.env };
+  delete env.VAULT_MODE;
+  delete env.VAULT_DOMAIN;
+  delete env.CLAUDE_PROJECT_DIR;
+  if (projectDir !== null) env.CLAUDE_PROJECT_DIR = projectDir;
+  const input = JSON.stringify({ ...payload, cwd: projectDir ?? vault });
   return spawnSync(process.execPath, [TARGET], { input, env, encoding: 'utf8' }).status;
 };
 const read = (file_path) => ({ tool_name: 'Read', tool_input: { file_path } });
@@ -139,10 +149,15 @@ describe('echec ferme', () => {
 });
 
 describe('U3 : configuration du coffre', () => {
-  test('configuration absente : tout est refuse, meme le wiki de la session', () => {
+  test('configuration absente, marqueur de coffre present : tout est refuse, meme le wiki de la session', () => {
     rmSync(path.join(vault, 'kioku.config.json'));
+    mkdirSync(path.join(vault, 'wiki', 'pro'), { recursive: true });
     assert.equal(guard({ mode: 'query', domain: 'pro' }, read('wiki/pro/x.md')), REFUS);
     assert.equal(guard({ mode: 'query', domain: 'pro' }, read('README.md')), REFUS);
+  });
+  test('configuration invalide : refus, meme sans autre marqueur', () => {
+    writeFileSync(path.join(vault, 'kioku.config.json'), '{ pas du json');
+    assert.equal(guard({}, read('README.md')), REFUS);
   });
   test('configuration invalide : refus', () => {
     writeFileSync(path.join(vault, 'kioku.config.json'), '{ pas du json');
@@ -291,7 +306,10 @@ describe('U8 : mode de session setup', () => {
     for (const sess of [{ mode: 'query', domain: 'a' }, { mode: 'ingest', domain: 'a' }, { mode: 'triage' }]) {
       assert.equal(guard(sess, bash('node tools/kioku.mjs add-domain asso')), REFUS, sess.mode);
       assert.equal(guard(sess, bash('kioku init /tmp/v')), REFUS, sess.mode);
+      assert.equal(guard(sess, bash('kioku upgrade --write')), REFUS, `${sess.mode} : upgrade --write ecrit la configuration`);
+      assert.equal(guard(sess, bash('kioku upgrade')), OK, `${sess.mode} : la simulation ne fait que lire`);
     }
+    assert.equal(guard(s, bash('kioku upgrade --write')), OK, 'en setup');
   });
 
   test('en setup : ni gate, ni circuit Plaud, ni lanceur, ni dashboard, ni recherche recursive', () => {
@@ -313,9 +331,131 @@ describe('U8 : mode de session setup', () => {
     assert.equal(guard(s, bash('npm test')), OK, 'les tests ne lisent aucun domaine du coffre');
   });
 
+  // init genere un script npm par domaine declare (`npm run a` ouvre une session query/a) : les noms viennent de la
+  // configuration, pas d'une liste figee pro|perso.
+  test('en setup, npm run <domaine declare> et ses variantes sont refuses ; un script sans rapport passe', () => {
+    for (const cmd of ['npm run a', 'npm run c', 'npm run ingest:b', 'npm run lint:a', 'npm run audit:c', 'npm run dashboard:serve:b', 'npm a', 'npm run doctor && npm run a']) {
+      assert.equal(guard(s, bash(cmd)), REFUS, cmd);
+    }
+    for (const cmd of ['npm run doctor', 'npm run alpha', 'npm run build']) assert.equal(guard(s, bash(cmd)), OK, cmd);
+  });
+
+  // Les sous-commandes relais du CLI (decision 1) n'ont plus vault.mjs, tools/dashboard/ ni plaud-sync/ dans la
+  // commande : la garde les refuse par leur nom, comme les outils qu'elles lancent.
+  const RELAY_CMDS = ['kioku session a', 'kioku session --mode ingest --domain b', 'kioku dashboard', 'kioku dashboard c --serve', 'kioku plaud --dry-run', 'node tools/kioku.mjs dashboard a', 'node /opt/core/bin/kioku session a', 'npm run doctor; kioku session a'];
+
+  test('en setup, kioku session|dashboard|plaud sont refuses ; doctor reste admis', () => {
+    for (const cmd of RELAY_CMDS) assert.equal(guard(s, bash(cmd)), REFUS, cmd);
+    assert.equal(guard(s, bash('node tools/kioku.mjs doctor')), OK);
+    assert.equal(guard(s, bash('kioku doctor --live')), OK);
+  });
+
+  test('en query et ingest, kioku dashboard est admis (le domaine est impose par resolveDomains)', () => {
+    for (const sess of [{ mode: 'query', domain: 'a' }, { mode: 'ingest', domain: 'a' }]) {
+      for (const cmd of ['kioku dashboard', 'kioku dashboard a --serve', 'node tools/kioku.mjs dashboard a']) assert.equal(guard(sess, bash(cmd)), OK, `${sess.mode} : ${cmd}`);
+    }
+  });
+
   test('default_session setup explicite : admis, sans ouvrir de domaine', () => {
     config({ ...THREE, default_session: { mode: 'setup' } });
     assert.equal(guard({}, read('kioku.config.json')), OK);
     assert.equal(guard({}, read('wiki/a/x.md')), REFUS);
+  });
+});
+
+// Chantier 1 (plan apres U12) : installe au niveau utilisateur, le plugin branche la garde dans TOUS les projets.
+// Hors coffre, elle ne s'applique pas ; un coffre abime (marqueur sans configuration lisible) reste ferme.
+describe('chantier 1 : hors coffre, pas de garde ; coffre abime, refus', () => {
+  const nu = {};
+  const sansConfig = () => rmSync(path.join(vault, 'kioku.config.json'));
+
+  test('dossier sans configuration ni marqueur : tout passe (projet ordinaire, ou dossier vide avant init)', () => {
+    sansConfig();
+    assert.equal(guard(nu, read('README.md')), OK);
+    assert.equal(guard(nu, write('src/index.js')), OK);
+    assert.equal(guard(nu, bash('npm test && git log')), OK);
+    assert.equal(guard(nu, bash('node /opt/core/tools/kioku.mjs init .')), OK, 'kioku init dans un dossier vide');
+  });
+
+  for (const marker of ['wiki', 'raw', 'silver', 'domains', '.kioku']) {
+    test(`marqueur ${marker}/ sans configuration : refus (coffre abime)`, () => {
+      sansConfig();
+      mkdirSync(path.join(vault, marker));
+      assert.equal(guard(nu, read('README.md')), REFUS);
+    });
+  }
+
+  test('un fichier nomme comme un marqueur ne fait pas un coffre', () => {
+    sansConfig();
+    writeFileSync(path.join(vault, 'wiki'), 'x');
+    assert.equal(guard(nu, read('README.md')), OK);
+  });
+
+  test('projet ouvert dans un sous-dossier d un coffre (configuration chez un parent) : la garde ne se coupe pas', () => {
+    const sub = path.join(vault, 'wiki', 'pro');
+    mkdirSync(sub, { recursive: true });
+    assert.equal(guardAt(sub, read('x.md')), REFUS);
+  });
+
+  test('projet ouvert dans un sous-dossier d un coffre abime (.kioku/ chez un parent) : refus', () => {
+    sansConfig();
+    mkdirSync(path.join(vault, '.kioku'));
+    const sub = path.join(vault, 'projet');
+    mkdirSync(sub);
+    assert.equal(guardAt(sub, read('x.md')), REFUS);
+  });
+
+  test('hors coffre mais VAULT_MODE ou VAULT_DOMAIN pose : refus (session de coffre ouverte au mauvais endroit)', () => {
+    sansConfig();
+    assert.equal(guard({ mode: 'query', domain: 'pro' }, read('README.md')), REFUS);
+    assert.equal(guard({ mode: 'setup' }, read('README.md')), REFUS);
+    assert.equal(guard({ domain: 'pro' }, read('README.md')), REFUS);
+  });
+
+  test('sans CLAUDE_PROJECT_DIR : echec ferme garde (le repli vise le dossier du plugin, pas le projet)', () => {
+    sansConfig();
+    assert.equal(guardAt(null, read('README.md')), REFUS);
+  });
+});
+
+// Revue de securite de la PR : une session ne doit pas pouvoir faire passer un coffre a « hors coffre » pour couper
+// la garde (renommer les marqueurs, deplacer la configuration par un glob, renommer .claude/).
+describe('chantier 1 : la sortie hors coffre ne s ouvre pas depuis une session', () => {
+  const nu = {};
+  test('renommer un marqueur ou .claude, sans slash final : refuse', () => {
+    for (const cmd of ['mv wiki w', 'mv raw r', 'mv silver s', 'mv domains d', 'mv .kioku k', 'mv .claude c', 'cp -r wiki /tmp/x && rm -rf wiki', 'mv ./wiki w', 'ln -sfn /tmp wiki']) {
+      assert.equal(guard(nu, bash(cmd)), REFUS, cmd);
+    }
+  });
+  test('deplacer ou effacer la configuration par un glob : refuse', () => {
+    for (const cmd of ['mv kioku.config.j* /tmp/kc.json', 'rm kioku.conf*', 'mv kioku.config.json? x', 'rm kioku.[c]onfig.json', 'mv kioku* /tmp/']) {
+      assert.equal(guard(nu, bash(cmd)), REFUS, cmd);
+    }
+  });
+  test('le scenario de la revue en un appel : refuse', () => {
+    assert.equal(guard(nu, bash('mv wiki w && mv raw r && mv silver s && mv domains dd && mv .kioku k && mv kioku.config.j* /tmp/kc.json')), REFUS);
+  });
+  test('marqueurs et configuration retires par un autre chemin, settings Kioku restants : toujours refuse', () => {
+    for (const d of ['wiki', 'raw', 'silver', 'domains', '.kioku']) rmSync(path.join(vault, d), { recursive: true, force: true });
+    rmSync(path.join(vault, 'kioku.config.json'));
+    mkdirSync(path.join(vault, '.claude'), { recursive: true });
+    for (const settings of [{ enabledPlugins: { 'kioku@dojo': true } }, { enabledPlugins: { 'kioku@kioku': true } }, { extraKnownMarketplaces: { 'kioku-pin': { source: {} } } }, { enabledPlugins: { 'kioku@kioku-pin': true } }, { hooks: { PreToolUse: [{ hooks: [{ command: 'node "/x/guard.mjs"' }] }] } }]) {
+      writeFileSync(path.join(vault, '.claude', 'settings.json'), JSON.stringify(settings));
+      assert.equal(guard(nu, read('wiki/perso/a.md')), REFUS, JSON.stringify(settings));
+      assert.equal(guard(nu, edit('.claude/settings.json')), REFUS, JSON.stringify(settings));
+    }
+  });
+  test('settings illisibles sans autre marqueur : refuse (echec ferme)', () => {
+    rmSync(path.join(vault, 'kioku.config.json'));
+    mkdirSync(path.join(vault, '.claude'), { recursive: true });
+    writeFileSync(path.join(vault, '.claude', 'settings.json'), '{ casse');
+    assert.equal(guard(nu, read('README.md')), REFUS);
+  });
+  test('projet ordinaire avec ses propres settings (sans Kioku) : toujours hors coffre', () => {
+    rmSync(path.join(vault, 'kioku.config.json'));
+    mkdirSync(path.join(vault, '.claude'), { recursive: true });
+    writeFileSync(path.join(vault, '.claude', 'settings.json'), JSON.stringify({ permissions: { allow: ['Bash(ls)'] }, enabledPlugins: { 'autre@x': true } }));
+    assert.equal(guard(nu, read('README.md')), OK);
+    assert.equal(guard(nu, bash('mv build dist && rm -rf node_modules')), OK);
   });
 });

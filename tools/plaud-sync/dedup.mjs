@@ -1,9 +1,9 @@
 /**
- * Deduplication des notes Plaud, pour les DEUX domaines a la fois.
+ * Deduplication des notes Plaud, pour tous les domaines declares a la fois.
  *
  * Une note est deja connue si (dans cet ordre) :
  *   1. son id Plaud (`of_...`) est dans seen.json, ou dans le frontmatter (`plaud_id:`) d'un fichier de inbox/,
- *      inbox/a-trancher/, raw/pro/ ou raw/perso/                          -> connu:id | ecarte:registre
+ *      inbox/a-trancher/ ou raw/<D>/ (chaque domaine declare)            -> connu:id | ecarte:registre
  *   2. son nom de fichier existe deja dans l'un de ces dossiers             -> connu:nom
  *   3. le sha256 de son contenu egale celui d'un fichier deja present       -> connu:contenu
  * Le nom est derive du titre Plaud, qui change (retitrage, troncature) : l'id est la cle, le contenu le filet.
@@ -18,6 +18,8 @@ import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
+import { domainsOf } from '../vault-config.mjs';
+
 const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/;
 const PLAUD_ID = /^plaud_id:\s*["']?(\S+?)["']?\s*$/m;
 
@@ -27,12 +29,21 @@ export const sha = (text) => createHash('sha256').update(normalize(text)).digest
 export const plaudIdOf = (text) => text.replace(/\r\n/g, '\n').match(FRONTMATTER)?.[1].match(PLAUD_ID)?.[1] ?? null;
 export const withPlaudId = (markdown, id) => `---\nplaud_id: ${id}\n---\n\n${markdown}`;
 
-/** Les dossiers ou une note peut deja se trouver : [chemin relatif au coffre, recursif ?]. */
-const PLACES = [
+// Coffre sans configuration lisible (anterieur au plan core/data, ou test) : les deux domaines d'origine.
+const LEGACY_DOMAINS = ['pro', 'perso'];
+const domainsOrLegacy = (vault) => {
+  try {
+    return domainsOf(vault);
+  } catch {
+    return LEGACY_DOMAINS;
+  }
+};
+
+/** Les dossiers ou une note peut deja se trouver : [chemin relatif au coffre, recursif ?]. Un raw/<D> par domaine declare. */
+const places = (vault) => [
   ['inbox', false],
   [path.join('inbox', 'a-trancher'), false],
-  [path.join('raw', 'pro'), true],
-  [path.join('raw', 'perso'), true],
+  ...domainsOrLegacy(vault).map((d) => [path.join('raw', d), true]),
 ];
 
 const mdFiles = (dir, recursive) => {
@@ -51,7 +62,7 @@ export const scanKnown = (vault) => {
   const ids = new Map();
   const names = new Map();
   const hashes = new Map();
-  for (const [rel, recursive] of PLACES) {
+  for (const [rel, recursive] of places(vault)) {
     const place = posix(rel);
     for (const file of mdFiles(path.join(vault, rel), recursive)) {
       const text = readFileSync(file, 'utf8');
@@ -100,6 +111,7 @@ export const classify = ({ id, fileName, markdown }, { known, registry }) => {
 /** Pour l'amorcage : dans quel domaine (pro | perso) un brut existant correspond-il a cette note ? null sinon. */
 export const legacyDomain = ({ fileName, markdown }, known) => {
   const place = ((markdown === undefined ? undefined : known.hashes.get(sha(markdown))) ?? known.names.get(fileName)) ?? '';
-  const m = place.match(/^raw\/(pro|perso)$/);
+  // Seuls des dossiers raw/<D> de domaines declares sont dans `known` (places) : le segment suffit.
+  const m = place.match(/^raw\/([a-z0-9-]+)$/);
   return m ? m[1] : null;
 };

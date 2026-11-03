@@ -3,7 +3,7 @@
 Un coffre de connaissance pour [Claude Code](https://docs.claude.com/en/docs/claude-code), sur le modèle *LLM Wiki* : vous déposez des sources brutes, Claude maintient un wiki structuré, et un schéma fixe les règles. Kioku ajoute trois garanties tenues par du code, pas par une consigne :
 
 - **Médaillon** : bronze (`raw/`, la source telle qu'elle est entrée, immuable) → argent (`silver/`, une fiche nettoyée par source) → or (`wiki/`, les pages). On ne requête que l'or.
-- **Silos** : un coffre a plusieurs domaines (par exemple `travail` et `perso`). Une session est ouverte sur un seul domaine ; un hook `PreToolUse` refuse toute lecture ou écriture dans un autre.
+- **Silos** : un coffre a plusieurs domaines (par exemple `travail` et `perso`). Une session est ouverte sur un seul domaine ; un hook `PreToolUse` refuse toute lecture ou écriture dans un autre. Hors d'un coffre (ni `kioku.config.json`, ni `wiki/`, `raw/`, `silver/`, `domains/`, `.kioku/`), le hook ne s'applique pas : le plugin installé au niveau utilisateur ne gêne pas vos autres projets. Un dossier de coffre sans configuration lisible est traité comme abîmé : tout y est refusé (`kioku doctor` le signale).
 - **Gate** : aucune page n'entre dans l'or sans un contrôle déterministe (format, provenance, secrets) puis un verdict d'un relecteur distinct du rédacteur, lié à l'empreinte exacte de la page.
 
 Le core (ce dépôt) ne contient aucune donnée. Votre coffre est un dossier à part, dans votre propre dépôt privé.
@@ -15,32 +15,51 @@ Le core (ce dépôt) ne contient aucune donnée. Votre coffre est un dossier à 
 
 ## Installation
 
-Le plugin (garde, gate, skills, relecteur), dans Claude Code :
+Le plugin porte tout : la garde et la gate, les skills (création du coffre, ingestion, requête, tri, relecture), le relecteur, le lanceur de sessions, le dashboard et le circuit Plaud. Il est distribué par la marketplace [dojo](https://github.com/<owner>/dojo) et s'installe une fois par machine, au niveau utilisateur. Claude Code le met à jour depuis la marketplace si son auto-update est activé (`/plugin` > Marketplaces > dojo > Enable auto-update ; désactivé par défaut pour une marketplace tierce).
 
 ```
-/plugin install kioku --marketplace <owner>/kioku
+/plugin marketplace add <owner>/dojo
+/plugin install kioku@dojo --scope user
 ```
 
-Le CLI (`kioku init`, `doctor`, lanceur de sessions), depuis un clone :
+Pour lancer les sessions depuis un terminal (`npm run <silo>`), le relais `kioku` dans le PATH : `sh ~/.claude/plugins/cache/dojo/kioku/<version>/scripts/install.sh <owner>/dojo` (le dossier `<version>` est le SHA du plugin installé ; le script fait aussi les deux commandes ci-dessus si besoin). Le relais ne vise aucune version : il lance le plugin installé, ou refuse.
 
-```bash
-git clone https://github.com/<owner>/kioku.git ~/kioku
-ln -s ~/kioku/bin/kioku ~/.local/bin/kioku    # ou tout dossier de votre PATH
-```
-
-Pour essayer sans installer : `claude --plugin-dir ~/kioku`.
+**Développement sur un clone** : `KIOKU_HOME=~/kioku` posé, le relais utilise ce core-là, avant le plugin, et le dit sur stderr. Sans `KIOKU_HOME` ni plugin installé, le relais refuse : il ne se rabat jamais sur un clone. Pour essayer sans rien installer : `claude --plugin-dir ~/kioku`.
 
 ## Créer un coffre
 
+Dans un dossier vide (ou un dépôt git vide) :
+
 ```bash
-kioku init ~/mon-coffre --domains travail,perso
-cd ~/mon-coffre
-kioku doctor --live
+mkdir mon-coffre && cd mon-coffre && claude
+/kioku:setup                                         # questions : silos, registre, Plaud ; puis kioku init
+/exit
+npm run travail                                      # première session, sous la garde
 ```
 
-`init` crée la configuration (`kioku.config.json`), le squelette de chaque domaine, ses règles (`domains/<D>/rules.md`, à partir d'un preset), le schéma commun (`.kioku/schema.md`) et un `CLAUDE.md` qui l'importe. `doctor` prouve le cloisonnement : il sonde la garde pour chaque paire de domaines, et `--live` ouvre une vraie session qui doit être refusée en lisant un autre domaine.
+Ou depuis un terminal : `kioku init ~/mon-coffre --domains travail,perso [--org travail] [--plaud]`, puis `kioku doctor --live`.
+
+`init` crée la configuration (`kioku.config.json` : silos, numéro de format, session par défaut sur le premier silo), le squelette de chaque silo (`index.md`, `log.md`, `overview.md`), ses règles (`domains/<D>/rules.md`, à partir d'un preset), le schéma commun (`.kioku/schema.md`) et un `CLAUDE.md` qui l'importe, un `package.json` aux commandes par silo, `.gitignore`, `.gitattributes`, et l'activation du plugin dans `.claude/settings.json` (sans version). `--guard-hook` remplace le plugin par un hook vers la garde du clone (développement, non portable).
+
+Le coffre est votre dépôt : poussez-le où vous voulez, **à condition qu'il soit privé** (il contient vos silos en clair). `doctor` prouve le cloisonnement : il sonde la garde pour chaque paire de silos, et `--live` ouvre une vraie session qui doit être refusée en lisant un autre silo.
 
 Ajouter un silo plus tard : `kioku add-domain <nom> [--preset minimal|pro|perso]`, ou `/kioku:add-domain` dans une session `setup`.
+
+**Versions** : le coffre ne porte pas de version du plugin, seulement un numéro de format (`format` dans `kioku.config.json`). Un plugin trop ancien pour ce format refuse de démarrer et donne la commande de mise à jour (`claude plugin update kioku@dojo`) ; un plugin plus récent lit les coffres plus anciens, et `kioku upgrade` les amène à la forme courante.
+
+### Parties gérées et `kioku upgrade`
+
+Un coffre en service doit rester ce qu'`init` produit, plus vos données et vos personnalisations. `kioku upgrade` l'y ramène après une montée de version : sans `--write`, il montre le diff ; avec, il l'applique (idempotent). Il ne réécrit que les parties gérées :
+
+| Fichier | Partie gérée |
+|---|---|
+| `package.json` | les scripts dont la valeur commence par `kioku ` ; vos autres scripts restent intacts |
+| `.gitignore` | le bloc `# >>> kioku` … `# <<< kioku` |
+| `.claude/settings.json` | `enabledPlugins["kioku@dojo"]` ; retire les anciens identifiants Kioku (`kioku-pin`, `kioku@kioku`) |
+| `kioku.config.json` | ajout seul (`format`, `default_session`, `modules`), jamais une valeur posée |
+| `.kioku/schema.md` | entier |
+
+Jamais touchés : les données (`wiki/`, `raw/`, `silver/`), `CLAUDE.md`, `domains/*/rules.md`, `orgs.json`. Un script géré que la version courante ne produit plus est signalé, pas supprimé.
 
 ## Au quotidien
 
@@ -52,7 +71,17 @@ Ajouter un silo plus tard : `kioku add-domain <nom> [--preset minimal|pro|perso]
 | Relire le wiki | `/kioku:lint <D>` en session `query` |
 | Filer une analyse durable | `/kioku:save` |
 
-Une session se lance avec `VAULT_MODE` (`query`, `ingest`, `triage`, `setup`) et `VAULT_DOMAIN` ; `node ~/kioku/tools/vault.mjs --domain <D> [--mode ingest]` les pose pour vous.
+Les scripts npm du coffre (générés par `init`) ouvrent les sessions et les outils :
+
+| Script | Effet |
+|---|---|
+| `npm run <D>` · `ingest:<D>` · `lint:<D>` | session `query`, `ingest`, ou `query` démarrée sur `/kioku:lint <D>` |
+| `npm run triage` · `setup` | session de tri de l'entrant, ou d'installation |
+| `npm run dashboard:<D>` · `dashboard:serve:<D>` · `dashboard:all` | HTML statique, serveur local au premier plan (Ctrl-C), tous les domaines (hors session) |
+| `npm run audit:<D>` · `undecided` · `doctor` | état de l'or, sources à trancher, preuve du cloisonnement |
+| `npm run plaud:sync` · `plaud:dry-run` · `plaud:pending` · `plaud:drop` | circuit Plaud, si le module est déclaré |
+
+Chacun appelle `kioku session|dashboard|plaud|…` ; la session porte `VAULT_MODE` (`query`, `ingest`, `triage`, `setup`) et `VAULT_DOMAIN`, que la garde lit. Attention : un `VAULT_MODE` ou un `VAULT_DOMAIN` **exporté dans votre shell** remet la garde en marche hors coffre (elle refuse tout dans un projet ordinaire) : ne les exportez pas, laissez le lanceur les poser.
 
 ## Modules optionnels
 

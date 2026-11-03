@@ -1,10 +1,10 @@
 /**
- * Refus de demarrer sans garde (plan core/data, U12) : hook du projet, plugin active mais absent, SHA different.
+ * Refus de demarrer sans garde : hook du projet, plugin active mais absent, core trop ancien pour le format du coffre.
  * `node --test tools/startup-guard.test.mjs`
  */
 
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
@@ -12,7 +12,6 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { startupRefusal } from './startup-guard.mjs';
 import { declareFakeGuard, writeTestConfig } from './test-vault.mjs';
 
-const SHA = 'a'.repeat(40);
 let root;
 let vault;
 let home;
@@ -25,24 +24,23 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-const pinPlugin = (sha = SHA) => {
+const enablePlugin = (id = 'kioku@dojo') => {
   mkdirSync(path.join(vault, '.claude'), { recursive: true });
-  writeFileSync(
-    path.join(vault, '.claude', 'settings.json'),
-    JSON.stringify({
-      extraKnownMarketplaces: { 'kioku-pin': { source: { source: 'settings', name: 'kioku-pin', plugins: [{ name: 'kioku', source: { source: 'github', repo: 'x/kioku', sha } }] } } },
-      enabledPlugins: { 'kioku@kioku-pin': true },
-    }),
-  );
+  writeFileSync(path.join(vault, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { [id]: true } }));
 };
-const install = ({ sha = SHA, projectPath = vault, scope = 'project' } = {}) => {
-  const installPath = path.join(home, '.claude', 'plugins', 'cache', 'kioku-pin', 'kioku', sha.slice(0, 12));
+const install = ({ scope = 'user', projectPath, format = 1 } = {}) => {
+  const installPath = path.join(home, '.claude', 'plugins', 'cache', 'dojo', 'kioku', 'abc123');
   mkdirSync(path.join(installPath, 'hooks'), { recursive: true });
   writeFileSync(path.join(installPath, 'hooks', 'guard.mjs'), '// garde\n');
+  writeFileSync(path.join(installPath, 'hooks', 'format.json'), JSON.stringify({ vault: format }));
   writeFileSync(
     path.join(home, '.claude', 'plugins', 'installed_plugins.json'),
-    JSON.stringify({ version: 2, plugins: { 'kioku@kioku-pin': [{ scope, projectPath, installPath, gitCommitSha: sha }] } }),
+    JSON.stringify({ version: 2, plugins: { 'kioku@dojo': [{ scope, projectPath, installPath, gitCommitSha: 'a'.repeat(40) }] } }),
   );
+};
+const setVaultFormat = (format) => {
+  const file = path.join(vault, 'kioku.config.json');
+  writeFileSync(file, JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), format }));
 };
 
 describe('refus de demarrer', () => {
@@ -55,31 +53,42 @@ describe('refus de demarrer', () => {
     assert.match(startupRefusal(vault, { home }), /garde absente/);
   });
 
-  test('plugin active, installe pour ce coffre au SHA epingle : demarrage permis', () => {
-    pinPlugin();
+  test('plugin active, installe au niveau utilisateur : demarrage permis', () => {
+    enablePlugin();
     install();
     assert.equal(startupRefusal(vault, { home }), null);
   });
 
   test('plugin active mais pas installe : refus qui donne la commande d installation', () => {
-    pinPlugin();
-    assert.match(startupRefusal(vault, { home }), /claude plugin install kioku@kioku-pin --scope project/);
+    enablePlugin();
+    const why = startupRefusal(vault, { home });
+    assert.match(why, /claude plugin marketplace add <owner>\/dojo/);
+    assert.match(why, /claude plugin install kioku@dojo --scope user/);
   });
 
-  test('plugin installe pour un autre coffre seulement : refus', () => {
-    pinPlugin();
-    install({ projectPath: path.join(root, 'autre') });
+  test('plugin installe pour un autre projet seulement : refus', () => {
+    enablePlugin();
+    install({ scope: 'project', projectPath: path.join(root, 'autre') });
     assert.match(startupRefusal(vault, { home }), /pas installe/);
   });
 
-  test('plugin installe a un autre SHA que celui epingle : refus qui donne la commande de mise a jour', () => {
-    pinPlugin('b'.repeat(40));
-    install();
-    assert.match(startupRefusal(vault, { home }), /claude plugin update kioku@kioku-pin/);
+  test('plugin installe trop ancien pour le format du coffre : refus qui donne la commande de mise a jour', () => {
+    enablePlugin();
+    install({ format: 1 });
+    setVaultFormat(2);
+    const why = startupRefusal(vault, { home, core: path.join(home, '.claude', 'plugins', 'cache', 'dojo', 'kioku', 'abc123') });
+    assert.match(why, /exige le format 2/);
+    assert.match(why, /claude plugin update kioku@dojo/);
+  });
+
+  test('le core qui lance la session est trop ancien : refus, meme avec un hook du projet', () => {
+    declareFakeGuard(vault);
+    setVaultFormat(99);
+    assert.match(startupRefusal(vault, { home }), /exige le format 99/);
   });
 
   test('format d installation inconnu : refus (echec ferme)', () => {
-    pinPlugin();
+    enablePlugin();
     writeFileSync(path.join(home, '.claude', 'plugins', 'installed_plugins.json'), JSON.stringify(['?']));
     assert.match(startupRefusal(vault, { home }), /format inconnu|illisible/);
   });

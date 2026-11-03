@@ -16,7 +16,7 @@
  * absence ne concerne que les pages du domaine qui l'utilise.
  */
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 export const CONFIG_NAME = 'kioku.config.json';
@@ -28,6 +28,68 @@ const EXTENSIONS = new Set(['org']);
 const MODULES = new Set(['plaud', 'dashboard']);
 
 export const configFile = (vaultDir) => path.join(vaultDir, CONFIG_NAME);
+
+// Dossiers propres a un coffre : l'un d'eux sans configuration lisible = coffre abime (chantier 1, plan apres U12).
+export const VAULT_MARKERS = ['wiki', 'raw', 'silver', 'domains', '.kioku'];
+// Les seuls marqueurs cherches chez les parents : propres a Kioku. `wiki/` ou `raw/` existent hors de tout coffre ;
+// un `~/raw` couperait sinon la garde de tous les projets sous le dossier personnel.
+const ANCESTOR_MARKERS = [CONFIG_NAME, '.kioku'];
+
+const isDir = (p) => {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Ce qu'est un dossier projet pour la garde, avant de charger quoi que ce soit :
+ *   'vault'   la configuration est la (lisible ou non : loadConfig tranchera, et un echec vaut refus)
+ *   'broken'  pas de configuration, mais un marqueur de coffre ici, ou un marqueur Kioku chez un parent
+ *   'none'    rien : un projet ordinaire, ou un dossier vide avant `kioku init`
+ * Un parent porteur d'un marqueur rend 'broken', jamais 'vault' : la garde ne se rabat pas sur une autre racine que
+ * celle du projet ; une session ouverte dans un sous-dossier du coffre est refusee, pas silencieusement deplacee.
+ */
+export const locateVault = (dir) => {
+  if (existsSync(configFile(dir))) return 'vault';
+  if (vaultMarkers(dir).length) return 'broken';
+  // Un projet dont les settings declarent Kioku a ete un coffre : marqueurs et configuration absents = effaces depuis
+  // une session (revue de securite : `mv wiki w`, `mv kioku.config.j* …`), pas un projet ordinaire. Ces settings sont
+  // en zone garde : aucune session ne les ecrit tant que la garde tient.
+  return declaresKioku(dir) ? 'broken' : 'none';
+};
+
+/**
+ * Les settings du projet declarent-ils Kioku (catalogue kioku-pin, plugin kioku@*, hook vers une garde) ? Illisibles :
+ * oui (echec ferme : on ne sait pas, donc on garde).
+ */
+export const declaresKioku = (dir) => {
+  for (const name of ['settings.json', 'settings.local.json']) {
+    const file = path.join(dir, '.claude', name);
+    if (!existsSync(file)) continue;
+    let s;
+    try {
+      s = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+      return true;
+    }
+    if (!isObject(s)) return true;
+    if (Object.keys(s.extraKnownMarketplaces ?? {}).some((k) => /kioku/i.test(k))) return true;
+    if (Object.keys(s.enabledPlugins ?? {}).some((k) => /^kioku@/.test(k))) return true;
+    if (JSON.stringify(s.hooks ?? {}).includes('guard.mjs')) return true;
+  }
+  return false;
+};
+
+/** Les marqueurs trouves, en chemins absolus : ceux du dossier, puis ceux des parents (pour le dire dans doctor). */
+export const vaultMarkers = (dir) => {
+  const found = VAULT_MARKERS.map((m) => path.join(dir, m)).filter(isDir);
+  for (let p = path.dirname(dir); p !== path.dirname(p); p = path.dirname(p)) {
+    found.push(...ANCESTOR_MARKERS.map((m) => path.join(p, m)).filter((f) => existsSync(f)));
+  }
+  return found;
+};
 
 // Un chemin de la config est relatif au coffre et y reste : ni absolu, ni remontee.
 const vaultRelative = (value) =>
@@ -76,6 +138,9 @@ export const loadConfig = (vaultDir) => {
     if (modules.plaud !== undefined && !vaultRelative(modules.plaud?.state)) problems.push('module plaud : "state" doit etre un chemin relatif au coffre');
   }
   if (data?.core !== undefined && (typeof data.core !== 'string' || data.core === '')) problems.push('"core" doit etre un chemin');
+  // Le format de coffre exige (entier >= 1, 1 s'il manque) : compare au format du core par doctor, le lanceur et le
+  // relais (tools/plugin-install.mjs), pas par la garde, qui doit charger la configuration quelle que soit sa version.
+  if (data?.format !== undefined && !(Number.isInteger(data.format) && data.format >= 1)) problems.push('"format" doit etre un entier >= 1');
 
   const ds = data?.default_session;
   if (ds !== undefined) {
@@ -107,6 +172,7 @@ export const loadConfig = (vaultDir) => {
     defaultSession: ds === undefined ? null : { mode: ds.mode, domain: ds.domain },
     modules: isObject(modules) ? modules : {},
     core: data.core ?? null,
+    format: data.format ?? 1,
     // Fichiers qui configurent la garde ou la gate : aucune session ne les ecrit (KTD6). Chemins absolus.
     protectedPaths: [file, ...domains.map(orgRegistry).filter(Boolean)],
   };

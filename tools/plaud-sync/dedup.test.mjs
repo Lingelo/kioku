@@ -105,3 +105,21 @@ describe('amorcage : domaine du brut existant', () => {
     assert.equal(legacyDomain({ fileName: 'inconnu.md', markdown: '# Inconnu\n' }, known), null);
   });
 });
+
+// Chantier 2 : les domaines viennent de la configuration du coffre, pas d'une liste figee pro|perso.
+describe('domaines declares, quels qu ils soient', () => {
+  let v2;
+  before(() => {
+    v2 = mkdtempSync(path.join(tmpdir(), 'plaud-dedup-domaines-'));
+    writeFileSync(path.join(v2, 'kioku.config.json'), JSON.stringify({ version: 1, domains: [{ id: 'travail' }, { id: 'famille' }] }));
+    mkdirSync(path.join(v2, 'raw', 'travail', 'meetings'), { recursive: true });
+    writeFileSync(path.join(v2, 'raw', 'travail', 'meetings', '2026-04-01-point.md'), BODY);
+  });
+  after(() => rmSync(v2, { recursive: true, force: true }));
+
+  test('une note deja dans raw/travail est connue, et son domaine retrouve', () => {
+    const known = scanKnown(v2);
+    assert.equal(classify({ id: 'of_t', fileName: 'autre.md', markdown: BODY }, { known, registry: [] }), 'connu:contenu');
+    assert.equal(legacyDomain({ fileName: 'x.md', markdown: BODY }, known), 'travail');
+  });
+});
