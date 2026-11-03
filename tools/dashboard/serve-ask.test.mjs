@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { writeDashboardFile } from './run.mjs';
 import { ASK_TOKEN_HEADER, startServer } from './serve.mjs';
-import { declareFakeGuard, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, isolateHome, writeTestConfig } from '../test-vault.mjs';
 
 const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-claude.mjs');
 
@@ -102,10 +102,13 @@ const askWhenFree = async (port, payload, extra) => {
   throw new Error('verrou jamais libere');
 };
 
+// La garde declaree est le hook factice : les settings de la machine (plugin kioku active) n'entrent pas en jeu.
+let restoreHome = () => {};
 beforeEach(() => {
   vault = mkdtempSync(path.join(tmpdir(), 'serve-ask-test-'));
   writeTestConfig(vault);
   declareFakeGuard(vault);
+  restoreHome = isolateHome(vault);
   put('wiki/pro/projects/atlas.md', '---\ntitle: Atlas\ntype: project\n---\nAtlas.\n');
   put('wiki/perso/projects/maison.md', '---\ntitle: Maison\ntype: project\n---\nMaison.\n');
   record = path.join(vault, 'record.jsonl');
@@ -118,6 +121,7 @@ afterEach(async () => {
   instance = null;
   delete process.env.FAKE_CLAUDE_RECORD;
   delete process.env.FAKE_CLAUDE_SCENARIO;
+  restoreHome();
   rmSync(vault, { recursive: true, force: true });
 });
 

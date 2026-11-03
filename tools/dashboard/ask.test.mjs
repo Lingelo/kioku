@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { createAsker, translateLine } from './ask.mjs';
 import { CORE_BIN } from '../core-path.mjs';
-import { declareFakeGuard, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, isolateHome, writeTestConfig } from '../test-vault.mjs';
 
 const FAKE = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-claude.mjs');
 
@@ -53,10 +53,13 @@ const calls = () =>
     .filter(Boolean)
     .map((l) => JSON.parse(l));
 
+// La garde declaree est le hook factice : les settings de la machine (plugin kioku active) n'entrent pas en jeu.
+let restoreHome = () => {};
 beforeEach(() => {
   vault = mkdtempSync(path.join(tmpdir(), 'ask-test-'));
   writeTestConfig(vault);
   declareFakeGuard(vault);
+  restoreHome = isolateHome(vault);
   record = path.join(vault, 'record.jsonl');
   writeFileSync(record, '');
   process.env.FAKE_CLAUDE_RECORD = record;
@@ -65,6 +68,7 @@ beforeEach(() => {
 afterEach(() => {
   delete process.env.FAKE_CLAUDE_RECORD;
   delete process.env.FAKE_CLAUDE_SCENARIO;
+  restoreHome();
   rmSync(vault, { recursive: true, force: true });
 });
 

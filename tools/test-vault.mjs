@@ -34,3 +34,26 @@ export const declareFakeGuard = (vault) => {
   const command = `node "${path.join(dir, 'guard.mjs')}"`;
   writeFileSync(path.join(dir, 'settings.json'), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Write|Edit|Read|Grep|Glob|Bash', hooks: [{ type: 'command', command }] }] } }));
 };
+
+/**
+ * HOME factice pour un test qui appelle le demarrage (startupRefusal) dans son propre processus : sinon il lit les
+ * settings de la machine (~/.claude/settings.json), et un plugin kioku active par l'utilisateur ajoute une seconde
+ * garde au hook factice du test (« double garde »). Rend la fonction qui restaure HOME.
+ */
+/** Meme raison, pour un processus enfant : un HOME vierge sous `dir`, a passer dans son environnement. */
+export const testHome = (dir) => {
+  const home = path.join(dir, '.home-test');
+  mkdirSync(home, { recursive: true });
+  return home;
+};
+
+export const isolateHome = (dir) => {
+  const previous = process.env.HOME;
+  const home = path.join(dir, '.home-test');
+  mkdirSync(home, { recursive: true });
+  process.env.HOME = home;
+  return () => {
+    if (previous === undefined) delete process.env.HOME;
+    else process.env.HOME = previous;
+  };
+};
