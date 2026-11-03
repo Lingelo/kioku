@@ -227,6 +227,29 @@ describe('init', () => {
     assert.ok(!existsSync(vault));
     assert.equal(kioku(['init', vault, '--domains', 'a,b'], { CLAUDECODE: '1', VAULT_MODE: 'setup' }).status, EXIT.ok);
   });
+
+  // /kioku:setup create : une session ouverte dans un dossier vide n'a pas de VAULT_MODE (aucun coffre pour le poser),
+  // et la garde ne s'y applique pas. init y est permis, et seulement la : rien a proteger, rien a ecraser.
+  test('session Claude sans mode, cible hors coffre (dossier vide ou .git seul) : init permis', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a,b'], { CLAUDECODE: '1' }).status, EXIT.ok);
+    const withGit = path.join(root, 'avec-git');
+    mkdirSync(path.join(withGit, '.git'), { recursive: true });
+    assert.equal(kioku(['init', withGit, '--domains', 'a'], { CLAUDECODE: '1' }).status, EXIT.ok);
+  });
+
+  test('session Claude sans mode, cible deja coffre ou dans un coffre : refus', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a'], { CLAUDECODE: '1' }).status, EXIT.ok);
+    const sub = path.join(vault, 'sous-coffre');
+    const r = kioku(['init', sub, '--domains', 'b'], { CLAUDECODE: '1' });
+    assert.equal(r.status, EXIT.precondition, 'un dossier dans un coffre n est pas hors coffre');
+    assert.ok(!existsSync(path.join(sub, 'kioku.config.json')));
+  });
+
+  test('session Claude sans mode : add-domain et upgrade --write restent refuses (ils visent un coffre)', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a']).status, EXIT.ok);
+    assert.equal(kioku(['add-domain', 'b', '--vault', vault], { CLAUDECODE: '1' }).status, EXIT.precondition);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault], { CLAUDECODE: '1' }).status, EXIT.precondition);
+  });
 });
 
 describe('add-domain : package.json (parties gerees)', () => {

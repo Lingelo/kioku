@@ -32,7 +32,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { CONFIG_NAME, DOMAIN_ID, loadConfig, vaultMarkers } from '../hooks/config.mjs';
+import { CONFIG_NAME, DOMAIN_ID, loadConfig, locateVault, vaultMarkers } from '../hooks/config.mjs';
 import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, managedScripts, mergeConfig, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
 import { formatRefusal } from './plugin-install.mjs';
 import { acquire, release } from './plaud-sync/lock.mjs';
@@ -100,9 +100,20 @@ const skeleton = (vault, domain) => {
   create(path.join(vault, 'silver', domain, '.gitkeep'), '');
 };
 
-/** Hors session Claude (terminal) : permis. En session : seulement en mode setup. */
-const sessionRefusal = (env) => {
+/** Le dossier lui-meme s'il existe, sinon son premier parent existant. */
+const existingDir = (dir) => {
+  let d = path.resolve(dir);
+  while (!existsSync(d) && path.dirname(d) !== d) d = path.dirname(d);
+  return d;
+};
+
+/** Hors session Claude (terminal) : permis. En session : seulement en mode setup (ou init hors coffre, voir plus bas). */
+const sessionRefusal = (env, { initTarget } = {}) => {
   if (!env.CLAUDECODE && env.VAULT_MODE === undefined) return null;
+  // /kioku:setup create : une session ouverte dans un dossier qui n'est pas un coffre n'a pas de VAULT_MODE (aucun
+  // coffre ne le pose) et la garde ne s'y applique pas (chantier 1). init y est permis, et seulement la : meme regle
+  // que la garde (locateVault), evaluee sur la cible ou, si elle n'existe pas encore, sur son premier parent existant.
+  if (initTarget && env.VAULT_MODE === undefined && env.VAULT_DOMAIN === undefined && locateVault(existingDir(initTarget)) === 'none') return null;
   return env.VAULT_MODE === 'setup' ? null : `session ${env.VAULT_MODE ?? '(sans mode)'} : configurer le coffre se fait depuis un terminal hors de Claude Code, ou en session setup (npm run setup, ou kioku session --mode setup)`;
 };
 
@@ -648,7 +659,7 @@ const main = (argv, env) => {
   const vault = path.resolve(opt('--vault') ?? env.CLAUDE_PROJECT_DIR ?? process.cwd());
   if (cmd === 'doctor') return doctor(vault, { live: rest.includes('--live'), pluginDir: opt('--plugin-dir') });
   if (cmd === 'init' || cmd === 'add-domain') {
-    const refusal = sessionRefusal(env);
+    const refusal = sessionRefusal(env, { initTarget: cmd === 'init' && positional[0] ? path.resolve(positional[0]) : undefined });
     if (refusal) return { code: EXIT.precondition, lines: [`${cmd} : ${refusal}`] };
   }
   if (cmd === 'init') {
