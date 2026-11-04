@@ -7,9 +7,9 @@
  * Les domaines sont ceux de la configuration du coffre (kioku.config.json).
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { readHeldAndCandidates } from './held-read.mjs';
 import { readLocalState } from './local-state.mjs';
@@ -30,7 +30,7 @@ import { assertDomain, loadConfig } from '../vault-config.mjs';
 export const generateDashboardHtml = (vaultRoot, domain, options = {}) => {
   assertDomain(vaultRoot, domain);
 
-  const { mode = 'static', version = null, now = new Date(), askToken = null } = options;
+  const { mode = 'static', version = null, now = new Date(), askToken = null, assets = null } = options;
   const generatedAt = (now instanceof Date ? now : new Date(now)).toISOString();
 
   // 1. Lecture de l'or (topologie du graphe et anomalies)
@@ -186,27 +186,75 @@ export const generateDashboardHtml = (vaultRoot, domain, options = {}) => {
     medallion,
     localState,
     heldAndCandidates,
+    // Ressources embarquees (fichier statique seulement, voir writeDashboardFile) ; sinon URLs `vendor/…`
+    assets,
   };
 
   return renderPage(vaultData);
 };
 
+const VENDOR_DIR = fileURLToPath(new URL('./vendor', import.meta.url));
+const VIDEO_REL = path.join('tools', 'dashboard', 'vendor', 'media', 'kioku-explainer.mp4');
+
 /**
- * Genere et ecrit le fichier HTML sur disque.
+ * Ressources du fichier statique. Il est ecrit dans le coffre, le vendor reste dans le plugin (chemin qui change a
+ * chaque version) : polices, script du graphe et sous-titres sont embarques. La video ne l'est pas (trop lourde) :
+ * lien relatif vers le mp4 du coffre s'il existe au moment du build, sinon pas de bloc video.
+ *
+ * @param {string} vaultRoot - Racine absolue du coffre
+ * @param {string} outDir - Dossier ou le HTML sera ecrit (base du lien relatif vers la video)
+ * @param {string} [vendorDir=VENDOR_DIR] - Vendor du core
+ * @returns {{ fonts: Record<string, string>, graphScript: string, video: { mp4: string|null, vtt: string|null } }}
+ * @throws {Error} Ressource du core absente, ou script du graphe impossible a embarquer tel quel
+ */
+export const inlineAssets = (vaultRoot, outDir, vendorDir = VENDOR_DIR) => {
+  const need = (rel) => {
+    const file = path.join(vendorDir, rel);
+    if (!existsSync(file)) throw new Error(`Ressource du dashboard absente : ${file} (installation du plugin incomplete ?)`);
+    return file;
+  };
+  const fontsDir = need('fonts');
+  const fonts = {};
+  for (const name of readdirSync(fontsDir).filter((n) => n.endsWith('.woff2')).sort()) {
+    fonts[name] = `data:font/woff2;base64,${readFileSync(path.join(fontsDir, name)).toString('base64')}`;
+  }
+  if (Object.keys(fonts).length === 0) throw new Error(`Aucune police dans ${fontsDir}`);
+
+  const graphScript = readFileSync(need('3d-force-graph.min.js'), 'utf8');
+  // Embarque tel quel, jamais reecrit : une de ces sequences fermerait ou derouterait la balise <script>.
+  const unsafe = ['</script', '<!--', '<script'].find((seq) => graphScript.toLowerCase().includes(seq));
+  if (unsafe) throw new Error(`3d-force-graph.min.js contient « ${unsafe} » : impossible de l'embarquer sans le modifier`);
+
+  const mp4 = path.join(vaultRoot, VIDEO_REL);
+  const vttFile = path.join(vendorDir, 'media', 'kioku-explainer.vtt');
+  const video = existsSync(mp4)
+    ? {
+        mp4: path.relative(outDir, mp4).split(path.sep).join('/'),
+        vtt: existsSync(vttFile) ? `data:text/vtt;base64,${readFileSync(vttFile).toString('base64')}` : null,
+      }
+    : { mp4: null, vtt: null };
+
+  return { fonts, graphScript, video };
+};
+
+/**
+ * Genere et ecrit le fichier HTML sur disque, autonome (voir inlineAssets).
  *
  * @param {string} vaultRoot - Racine absolue du coffre
  * @param {string} domain - un domaine declare
  * @param {string} [outDir=null] - Dossier de sortie optionnel
- * @param {object} [options={}] - Options de rendu
+ * @param {object} [options={}] - Options de rendu ; `vendorDir` remplace le vendor du core (tests)
  * @returns {string} Chemin absolu du fichier genere
  */
 export const writeDashboardFile = (vaultRoot, domain, outDir = null, options = {}) => {
   const targetDir = outDir || path.join(vaultRoot, 'tools', 'dashboard');
+  // Avant tout mkdir : une ressource manquante ne laisse ni dossier ni fichier a moitie fait.
+  const assets = inlineAssets(vaultRoot, targetDir, options.vendorDir);
   if (!existsSync(targetDir)) {
     mkdirSync(targetDir, { recursive: true });
   }
 
-  const html = generateDashboardHtml(vaultRoot, domain, options);
+  const html = generateDashboardHtml(vaultRoot, domain, { ...options, assets });
   const outFile = path.join(targetDir, `dashboard-${domain}.html`);
   writeFileSync(outFile, html, 'utf8');
 

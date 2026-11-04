@@ -112,3 +112,58 @@ describe('U6 : Assembleur et page HTML du dashboard', () => {
     });
   });
 });
+
+// Le fichier statique est ecrit dans le coffre, le vendor reste dans le plugin : toute reference relative a
+// vendor/ casse a l'ouverture. Le coffre de test est hors du core, comme un vrai coffre.
+describe('Fichier statique autonome : ressources embarquees', () => {
+  const vendorRefs = (html) => [...html.matchAll(/(?:src=|url\()['"]?(vendor\/[^'")\s]+)/g)].map((m) => m[1]);
+  const fakeVendor = (script) => {
+    const dir = path.join(vault, 'fake-vendor');
+    put('fake-vendor/fonts/inter-latin-400.woff2', 'woff2');
+    put('fake-vendor/3d-force-graph.min.js', script);
+    return dir;
+  };
+
+  test('aucune reference vendor/ : polices et script du graphe embarques, sans bloc video sans mp4', () => {
+    const html = readFileSync(writeDashboardFile(vault, 'pro'), 'utf8');
+    assert.deepEqual(vendorRefs(html), []);
+    assert.ok(html.includes("url('data:font/woff2;base64,"));
+    assert.ok(!html.includes('<script src='));
+    assert.ok(html.includes('ForceGraph3D'));
+    assert.ok(!html.includes('class="guide-video"'), 'pas de lecteur vide quand le coffre n a pas la video');
+  });
+
+  test('video du coffre : lien relatif au dossier de sortie, sous-titres embarques', () => {
+    put('tools/dashboard/vendor/media/kioku-explainer.mp4', 'mp4');
+    const html = readFileSync(writeDashboardFile(vault, 'pro'), 'utf8');
+    assert.deepEqual(vendorRefs(html), ['vendor/media/kioku-explainer.mp4']);
+    assert.ok(html.includes('src="data:text/vtt;base64,'));
+
+    const other = readFileSync(writeDashboardFile(vault, 'pro', path.join(vault, 'out', 'sub')), 'utf8');
+    assert.ok(other.includes('src="../../tools/dashboard/vendor/media/kioku-explainer.mp4"'));
+  });
+
+  test('la page servie garde les URLs vendor/ (serve.mjs les sert depuis le plugin)', () => {
+    const html = generateDashboardHtml(vault, 'pro', { mode: 'live' });
+    assert.ok(html.includes('<script src="vendor/3d-force-graph.min.js"></script>'));
+    assert.ok(html.includes("url('vendor/fonts/inter-latin-400.woff2')"));
+    assert.ok(html.includes('src="vendor/media/kioku-explainer.mp4"'));
+  });
+
+  test('ressource du core absente : erreur claire, rien n est ecrit', () => {
+    const out = path.join(vault, 'out');
+    assert.throws(() => writeDashboardFile(vault, 'pro', out, { vendorDir: path.join(vault, 'vide') }), /Ressource du dashboard absente/);
+    assert.ok(!existsSync(out));
+  });
+
+  test('script du graphe contenant </script : refuse plutot que reecrit', () => {
+    const vendorDir = fakeVendor('var a = "</script>";');
+    assert.throws(() => writeDashboardFile(vault, 'pro', null, { vendorDir }), /impossible de l'embarquer/);
+  });
+
+  test('le garde client remplace l erreur WebGL quand la bibliotheque manque', () => {
+    const html = generateDashboardHtml(vault, 'pro');
+    assert.ok(html.includes("if (typeof ForceGraph3D === 'undefined')"));
+    assert.ok(html.includes('Bibliothèque du graphe absente'));
+  });
+});
