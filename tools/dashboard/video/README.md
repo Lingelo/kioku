@@ -38,8 +38,11 @@ Le décor vient de `garden.js`, comme pour la version française. Restent propre
 slides, leurs beats, la caméra (même spirale, moins d'arrêts) et les sons ; une retouche de ces parties se
 reporte à la main d'un fichier à l'autre.
 
-Le MP4 n'est pas versionné : il est publié en **asset de release** GitHub, et le guide pointe dessus
-(vignette `docs/guide/media/kioku-explainer-en.jpg`, sous-titres `.srt` / `.vtt` à côté).
+Le MP4 anglais **est versionné**, comme celui de Kaizen : `docs/guide/media/kioku-explainer-en.mp4`
+(≈ 39 Mo), avec sa vignette `.jpg` et ses sous-titres `.srt` / `.vtt` ; le guide le lie en relatif, ce qui
+marche sur toutes les branches. Chaque re-rendu commité ajoute ≈ 40 Mo à l'historique, pour toujours :
+ne recommiter le MP4 que pour un changement qui se voit. Le MP4 français du dashboard, lui, reste hors du
+dépôt (`../vendor/media/`). La release `media-explainer-1` garde une copie de la première version.
 
 ```sh
 node fetch-assets.mjs                                             # 0. assets PBR (une fois, md5 vérifiés)
@@ -47,7 +50,7 @@ node $MS/voice.mjs narration.en.json -o voice-en                  # 1. voix (Kok
 node build-timeline.mjs voice-en kioku-explainer.en.html          # 2. recalage
 node $MS/render.mjs --home $HOME_MS kioku-explainer.en.html \
   --voice voice-en/voice.json --captions off --embed-subs --crf 22 \
-  -o kioku-explainer-en.mp4                                       # 3. rendu, puis upload en asset de release
+  -o ../../../docs/guide/media/kioku-explainer-en.mp4            # 3. rendu, directement dans le guide
 ```
 
 ## Régénérer

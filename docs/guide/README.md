@@ -1,8 +1,8 @@
 # Kioku user guide
 
-<a href="../../../../releases/download/media-explainer-1/kioku-explainer-en.mp4"><img src="media/kioku-explainer-en.jpg" alt="Kioku in under two minutes: a camera circles a zen garden with a torii, a pagoda and Mount Fuji, stopping at one card per idea" width="100%"></a>
+<a href="media/kioku-explainer-en.mp4"><img src="media/kioku-explainer-en.jpg" alt="Kioku in under two minutes: a camera circles a zen garden with a torii, a pagoda and Mount Fuji, stopping at one card per idea" width="100%"></a>
 
-*1 min 44 s presentation with voice-over: [watch the video (MP4)](../../../../releases/download/media-explainer-1/kioku-explainer-en.mp4) · [subtitles](media/kioku-explainer-en.srt). Reproducible source: [tools/dashboard/video/](../../tools/dashboard/video/README.md), rendered with the `motion-studio` plugin.*
+*1 min 44 s presentation with voice-over: [watch the video (MP4)](media/kioku-explainer-en.mp4) · [subtitles](media/kioku-explainer-en.srt). Reproducible source: [tools/dashboard/video/](../../tools/dashboard/video/README.md), rendered with the `motion-studio` plugin.*
 
 This guide covers **day-to-day** use of a Kioku vault: opening a session, bringing a source in, querying the wiki, reviewing and deciding, updating. Installing Kioku and creating a vault are in the [README](../../README.md); this guide starts from a vault that exists and whose `kioku doctor` passes.
 
