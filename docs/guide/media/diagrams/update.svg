@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="470" viewBox="0 0 1100 470" role="img" aria-labelledby="t d">
+<title id="t">Updating Kioku</title>
+<desc id="d">The vault carries no plugin version, only a format number. A plugin update touches one scope at a time, and a running session keeps the old guard.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="469" rx="14"/>
+<text class="title" x="28" y="38">Updating Kioku</text>
+<text class="desc" x="28" y="58">The vault carries no plugin version, only a format number. A plugin update touches one scope at a time, and a running session keeps the old guard.</text>
+<rect class="you" x="36" y="110" width="230" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="151" y="139" text-anchor="middle">claude plugin update</text>
+<text class="sub" x="151" y="154" text-anchor="middle">kioku@&lt;marketplace&gt;</text>
+<rect class="store" x="326" y="92" width="200" height="48" rx="8" stroke-width="1.5"/>
+<text class="label" x="426" y="113" text-anchor="middle">project scope</text>
+<text class="sub" x="426" y="128" text-anchor="middle">in a vault</text>
+<rect class="store" x="326" y="150" width="200" height="48" rx="8" stroke-width="1.5"/>
+<text class="label" x="426" y="171" text-anchor="middle">user scope</text>
+<text class="sub" x="426" y="186" text-anchor="middle">--scope user</text>
+<path class="line accent" d="M266,132 L326,116" marker-end="url(#h-accent)"/>
+<path class="line accent dashed" d="M266,150 L326,174" marker-end="url(#h-accent)"/>
+<text class="small" x="276" y="196" text-anchor="start">run both</text>
+<rect class="step" x="586" y="110" width="200" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="686" y="139" text-anchor="middle">restart sessions</text>
+<text class="sub" x="686" y="154" text-anchor="middle">the guard loads at start</text>
+<path class="line accent" d="M526,116 L556,116 L556,142 L586,142" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M526,174 L556,174 L556,142" marker-end="url(#h-accent)"/>
+<rect class="gate" x="846" y="110" width="220" height="64" rx="8" stroke-width="1.5"/>
+<text class="label mono" x="956" y="139" text-anchor="middle">kioku doctor --live</text>
+<text class="sub" x="956" y="154" text-anchor="middle">a real session must be refused</text>
+<path class="line accent" d="M786,142 L846,142" marker-end="url(#h-accent)"/>
+<rect class="region" x="36" y="236" width="500" height="190" rx="10"/>
+<text class="regionlabel" x="48" y="254">KIOKU UPGRADE: BACK TO WHAT INIT PRODUCES</text>
+<text class="small" x="56" y="276" text-anchor="start"><tspan class="mono">kioku upgrade</tspan>            simulation, shows the diff</text>
+<text class="small" x="56" y="296" text-anchor="start"><tspan class="mono">kioku upgrade --write</tspan>    applies it (idempotent)</text>
+<text class="small" x="56" y="326" text-anchor="start">rewrites: package.json scripts starting with "kioku ",</text>
+<text class="small" x="56" y="342" text-anchor="start">the # &gt;&gt;&gt; kioku .gitignore block, the plugin activation,</text>
+<text class="small" x="56" y="358" text-anchor="start">config additions only, .kioku/schema.md</text>
+<text class="small" x="56" y="392" text-anchor="start">never touched: wiki/ · raw/ · silver/ · CLAUDE.md · domain rules · registry</text>
+<rect class="region" x="566" y="236" width="500" height="190" rx="10"/>
+<text class="regionlabel" x="578" y="254">FORMAT</text>
+<text class="small" x="586" y="276" text-anchor="start">plugin older than the vault’s format → refuses to start,</text>
+<text class="small" x="586" y="292" text-anchor="start">prints the update command</text>
+<text class="small" x="586" y="322" text-anchor="start">plugin newer → reads older vaults;</text>
+<text class="small" x="586" y="338" text-anchor="start">kioku upgrade brings them to the current shape</text>
+<text class="small" x="586" y="368" text-anchor="start">new machine: install the plugin, git clone the vault,</text>
+<text class="small" x="586" y="384" text-anchor="start">open it once in claude, then kioku doctor --live</text>
+<text class="sub" x="586" y="404" text-anchor="start">the inbox never travels: triage it before leaving</text>
+</svg>

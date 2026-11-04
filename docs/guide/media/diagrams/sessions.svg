@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-labelledby="t d">
+<title id="t">Sessions: one mode, one domain</title>
+<desc id="d">The launcher sets VAULT_MODE and VAULT_DOMAIN; the guard reads them on every tool call and refuses what lies outside.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="599" rx="14"/>
+<text class="title" x="28" y="38">Sessions: one mode, one domain</text>
+<text class="desc" x="28" y="58">The launcher sets VAULT_MODE and VAULT_DOMAIN; the guard reads them on every tool call and refuses what lies outside.</text>
+<rect class="you" x="36" y="96" width="190" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="131" y="123" text-anchor="middle">npm run work</text>
+<text class="sub mono" x="131" y="138" text-anchor="middle">kioku session work</text>
+<rect class="step" x="296" y="96" width="230" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="411" y="123" text-anchor="middle">launcher (tools/vault.mjs)</text>
+<text class="sub" x="411" y="138" text-anchor="middle">sets VAULT_MODE, VAULT_DOMAIN</text>
+<rect class="agent" x="596" y="96" width="200" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="696" y="123" text-anchor="middle">claude</text>
+<text class="sub" x="696" y="138" text-anchor="middle">starts on the mode’s task</text>
+<rect class="gate" x="866" y="96" width="200" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="966" y="123" text-anchor="middle">guard (PreToolUse hook)</text>
+<text class="sub" x="966" y="138" text-anchor="middle">every Read, Write, Bash</text>
+<path class="line accent" d="M226,126 L296,126" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M526,126 L596,126" marker-end="url(#h-accent)"/>
+<path class="line bad" d="M796,126 L866,126" marker-end="url(#h-bad)"/>
+<text class="small" x="831" y="116" text-anchor="middle">each call</text>
+<text class="regionlabel" x="36" y="200" text-anchor="start">WHAT EACH MODE SEES</text>
+<rect class="step" x="36" y="214" width="140" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="106" y="243.5" text-anchor="middle">query</text>
+<text class="small" x="196" y="236" text-anchor="start"><tspan class="mono">npm run &lt;D&gt; · lint:&lt;D&gt;</tspan></text>
+<text class="sub" x="196" y="254" text-anchor="start">starts on its task</text>
+<rect class="store" x="430" y="214" width="280" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="570" y="236" text-anchor="middle">reads</text>
+<text class="sub" x="570" y="251" text-anchor="middle">wiki/&lt;D&gt;/</text>
+<rect class="plain" x="730" y="214" width="336" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="898" y="236" text-anchor="middle">writes</text>
+<text class="sub" x="898" y="251" text-anchor="middle">.candidats/, index.md, log.md</text>
+<rect class="step" x="36" y="278" width="140" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="106" y="307.5" text-anchor="middle">ingest</text>
+<text class="small" x="196" y="300" text-anchor="start"><tspan class="mono">npm run ingest:&lt;D&gt;</tspan></text>
+<text class="sub" x="196" y="318" text-anchor="start">starts on its task</text>
+<rect class="store" x="430" y="278" width="280" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="570" y="300" text-anchor="middle">reads</text>
+<text class="sub" x="570" y="315" text-anchor="middle">raw/&lt;D&gt;/ silver/&lt;D&gt;/ wiki/&lt;D&gt;/</text>
+<rect class="plain" x="730" y="278" width="336" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="898" y="300" text-anchor="middle">writes</text>
+<text class="sub" x="898" y="315" text-anchor="middle">silver/, .candidats/, index, log, overview</text>
+<rect class="step" x="36" y="342" width="140" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="106" y="371.5" text-anchor="middle">triage</text>
+<text class="small" x="196" y="364" text-anchor="start"><tspan class="mono">npm run triage</tspan></text>
+<text class="sub" x="196" y="382" text-anchor="start">starts on its task</text>
+<rect class="store" x="430" y="342" width="280" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="570" y="364" text-anchor="middle">reads</text>
+<text class="sub" x="570" y="379" text-anchor="middle">inbox/</text>
+<rect class="plain" x="730" y="342" width="336" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="898" y="364" text-anchor="middle">writes</text>
+<text class="sub" x="898" y="379" text-anchor="middle">mv to raw/&lt;D&gt;/</text>
+<rect class="step" x="36" y="406" width="140" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="106" y="435.5" text-anchor="middle">setup</text>
+<text class="small" x="196" y="428" text-anchor="start"><tspan class="mono">npm run setup</tspan></text>
+<text class="sub" x="196" y="446" text-anchor="start">starts on its task</text>
+<rect class="store" x="430" y="406" width="280" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="570" y="428" text-anchor="middle">reads</text>
+<text class="sub" x="570" y="443" text-anchor="middle">config, domains/</text>
+<rect class="plain" x="730" y="406" width="336" height="50" rx="8" stroke-width="1.5"/>
+<text class="label" x="898" y="428" text-anchor="middle">writes</text>
+<text class="sub" x="898" y="443" text-anchor="middle">nothing directly: kioku init / add-domain / upgrade</text>
+<rect class="band" x="36" y="486" width="1030" height="40" rx="8" stroke-width="1.5"/>
+<text class="label" x="551" y="510.5" text-anchor="middle" style="font-size:13px">In no mode: another domain · quarantine/ · .verdicts/ · the config · git history (it holds every domain)</text>
+<text class="sub" x="36" y="560" text-anchor="start">To change domain: /exit, then npm run &lt;other&gt;. Never export VAULT_MODE or VAULT_DOMAIN in your shell: the guard would then refuse everything in your other projects.</text>
+</svg>

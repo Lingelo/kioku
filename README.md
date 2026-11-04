@@ -63,7 +63,9 @@ Jamais touchés : les données (`wiki/`, `raw/`, `silver/`), `CLAUDE.md`, `domai
 
 ## Au quotidien
 
-Le [guide d'utilisation](docs/guide/README.md) détaille chaque étape (sessions, ingestion, gate, requêtes, lint et quarantaine, dashboard, Plaud, mises à jour, dépannage) ; un [aide-mémoire](docs/guide/aide-memoire.md) tient sur une page.
+Le [guide d'utilisation](docs/guide/README.md) (en anglais, illustré de schémas) détaille chaque étape : sessions, ingestion, gate, requêtes, lint et quarantaine, dashboard, Plaud, mises à jour, dépannage ; un [cheat sheet](docs/guide/cheat-sheet.md) tient sur une page.
+
+![Le médaillon : entrant, bronze, argent et or, avec la quarantaine pour ce que le relecteur retient](docs/guide/media/diagrams/medallion.svg)
 
 | Besoin | Commande |
 |---|---|

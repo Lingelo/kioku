@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="600" viewBox="0 0 1100 600" role="img" aria-labelledby="t d">
+<title id="t">The gate</title>
+<desc id="d">The writer never judges its own page. A distinct reviewer gives a verdict bound to the page’s exact sha256 and to its domain.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="599" rx="14"/>
+<text class="title" x="28" y="38">The gate</text>
+<text class="desc" x="28" y="58">The writer never judges its own page. A distinct reviewer gives a verdict bound to the page’s exact sha256 and to its domain.</text>
+<rect class="step" x="36" y="110" width="230" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="151" y="131.5" text-anchor="middle">candidate</text>
+<text class="sub" x="151" y="146.5" text-anchor="middle">.candidats/wiki/&lt;D&gt;/…</text>
+<text class="sub" x="151" y="161.5" text-anchor="middle">&lt;folder&gt;/&lt;slug&gt;.md</text>
+<rect class="gate" x="326" y="110" width="200" height="64" rx="8" stroke-width="1.5"/>
+<text class="label mono" x="426" y="139" text-anchor="middle">kioku check</text>
+<text class="sub" x="426" y="154" text-anchor="middle">deterministic, no model</text>
+<rect class="agent" x="596" y="110" width="200" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="696" y="139" text-anchor="middle">reviewer agent</text>
+<text class="sub" x="696" y="154" text-anchor="middle">reads the page alone</text>
+<rect class="gate" x="866" y="110" width="200" height="64" rx="8" stroke-width="1.5"/>
+<text class="label mono" x="966" y="139" text-anchor="middle">kioku promote</text>
+<text class="sub" x="966" y="154" text-anchor="middle">writes the gate: line</text>
+<path class="line accent" d="M266,142 L326,142" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M526,142 L596,142" marker-end="url(#h-accent)"/>
+<text class="small" x="561" y="132" text-anchor="middle">conform</text>
+<path class="line accent" d="M796,142 L866,142" marker-end="url(#h-accent)"/>
+<text class="small" x="831" y="132" text-anchor="middle">verdict</text>
+<text class="small" x="326" y="196" text-anchor="start">format, frontmatter, provenance</text>
+<text class="small" x="326" y="212" text-anchor="start">(raw:, silver sheet), no Markdown</text>
+<text class="small" x="326" y="228" text-anchor="start">link, no secret, no cross-domain link</text>
+<text class="small" x="596" y="196" text-anchor="start">common base + domains/&lt;D&gt;/rules.md</text>
+<text class="small" x="596" y="212" text-anchor="start"><tspan class="mono">ok</tspan> | <tspan class="mono">hold &lt;code&gt;</tspan></text>
+<text class="small" x="596" y="228" text-anchor="start">bound to sha256 + domain</text>
+<rect class="plain" x="36" y="280" width="230" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="151" y="305" text-anchor="middle">refused</text>
+<text class="sub" x="151" y="320" text-anchor="middle">fix what check names</text>
+<path class="line bad dashed" d="M340,174 L340,250 L151,250 L151,280" marker-end="url(#h-bad)"/>
+<rect class="store" x="866" y="280" width="200" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="966" y="305" text-anchor="middle">admitted · wiki/&lt;D&gt;/</text>
+<text class="sub" x="966" y="320" text-anchor="middle">gate: passe … juge=relecteur</text>
+<rect class="gate" x="596" y="280" width="200" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="696" y="305" text-anchor="middle">held · quarantine/&lt;D&gt;/</text>
+<text class="sub" x="696" y="320" text-anchor="middle">you decide at the lint</text>
+<rect class="plain" x="326" y="280" width="200" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="426" y="305" text-anchor="middle">no verdict</text>
+<text class="sub" x="426" y="320" text-anchor="middle">nothing enters</text>
+<path class="line ok" d="M966,174 L966,280" marker-end="url(#h-ok)"/>
+<text class="small" x="974" y="236" text-anchor="start">ok</text>
+<path class="line bad" d="M926,174 L926,252 L696,252 L696,280" marker-end="url(#h-bad)"/>
+<text class="small" x="800" y="246" text-anchor="middle">hold</text>
+<path class="line dashed" d="M886,174 L886,262 L426,262 L426,280" marker-end="url(#h-default)"/>
+<text class="small" x="326" y="356" text-anchor="start">page changed after review,</text>
+<text class="small" x="326" y="372" text-anchor="start">or verdict from another domain</text>
+<rect class="region" x="36" y="410" width="500" height="160" rx="10"/>
+<text class="regionlabel" x="48" y="428">HOLD CODES</text>
+<text class="small" x="56" y="452" text-anchor="start"><tspan class="mono">insulte</tspan>  insult</text>
+<text class="small" x="56" y="474" text-anchor="start"><tspan class="mono">jugement-personne</tspan>  trait, portrait, unattributed feedback</text>
+<text class="small" x="56" y="496" text-anchor="start"><tspan class="mono">diffamation</tspan>  accusation presented as fact</text>
+<text class="small" x="56" y="518" text-anchor="start"><tspan class="mono">domaine</tspan>  content of another domain</text>
+<text class="small" x="56" y="540" text-anchor="start"><tspan class="mono">sensible</tspan>  what the domain rules call sensitive</text>
+<rect class="region" x="566" y="410" width="500" height="160" rx="10"/>
+<text class="regionlabel" x="578" y="428">THE LINE</text>
+<text class="label" x="586" y="452" text-anchor="start">passes</text>
+<text class="small" x="586" y="472" text-anchor="start">a dated fact · a stated expectation · work feedback that is</text>
+<text class="small" x="586" y="488" text-anchor="start">attributed, dated, about a situation, not assembled</text>
+<text class="label" x="586" y="516" text-anchor="start">held</text>
+<text class="small" x="586" y="536" text-anchor="start">a trait · a portrait (also built from harmless facts)</text>
+<text class="small" x="586" y="552" text-anchor="start">an accusation as fact · in doubt, held: you decide</text>
+</svg>

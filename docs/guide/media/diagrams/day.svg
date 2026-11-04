@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="400" viewBox="0 0 1100 400" role="img" aria-labelledby="t d">
+<title id="t">A working day</title>
+<desc id="d">Capture in the morning, ask during the day, review at the end of the week. Each line is a separate session on one domain.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="399" rx="14"/>
+<text class="title" x="28" y="38">A working day</text>
+<text class="desc" x="28" y="58">Capture in the morning, ask during the day, review at the end of the week. Each line is a separate session on one domain.</text>
+<rect class="you" x="36" y="96" width="150" height="68" rx="8" stroke-width="1.5"/>
+<text class="label" x="111" y="127" text-anchor="middle">morning</text>
+<text class="sub" x="111" y="142" text-anchor="middle">capture</text>
+<rect class="step" x="236" y="102" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="361" y="127" text-anchor="middle">npm run plaud:sync</text>
+<text class="sub" x="361" y="142" text-anchor="middle">meetings → gold</text>
+<rect class="plain" x="516" y="102" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="641" y="127" text-anchor="middle">npm run triage</text>
+<text class="sub" x="641" y="142" text-anchor="middle">files from inbox/</text>
+<rect class="plain" x="796" y="102" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="921" y="127" text-anchor="middle">npm run ingest:&lt;D&gt;</text>
+<text class="sub" x="921" y="142" text-anchor="middle">what is left</text>
+<path class="line accent" d="M186,130 L236,130" marker-end="url(#h-accent)"/>
+<rect class="you" x="36" y="192" width="150" height="68" rx="8" stroke-width="1.5"/>
+<text class="label" x="111" y="223" text-anchor="middle">day</text>
+<text class="sub" x="111" y="238" text-anchor="middle">ask</text>
+<rect class="step" x="236" y="198" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="361" y="223" text-anchor="middle">npm run &lt;D&gt;</text>
+<text class="sub" x="361" y="238" text-anchor="middle">"what did we decide on X?"</text>
+<rect class="plain" x="516" y="198" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="641" y="223" text-anchor="middle">/kioku:save</text>
+<text class="sub" x="641" y="238" text-anchor="middle">keep a durable answer</text>
+<rect class="plain" x="796" y="198" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="921" y="223" text-anchor="middle">dashboard:serve:&lt;D&gt;</text>
+<text class="sub" x="921" y="238" text-anchor="middle">ask from the browser</text>
+<path class="line accent" d="M186,226 L236,226" marker-end="url(#h-accent)"/>
+<rect class="you" x="36" y="288" width="150" height="68" rx="8" stroke-width="1.5"/>
+<text class="label" x="111" y="319" text-anchor="middle">week</text>
+<text class="sub" x="111" y="334" text-anchor="middle">review</text>
+<rect class="step" x="236" y="294" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="361" y="319" text-anchor="middle">npm run lint:&lt;D&gt;</text>
+<text class="sub" x="361" y="334" text-anchor="middle">audit, legacy pages, quarantine</text>
+<rect class="plain" x="516" y="294" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="641" y="319" text-anchor="middle">kioku undecided</text>
+<text class="sub" x="641" y="334" text-anchor="middle">nature, code, actions</text>
+<rect class="plain" x="796" y="294" width="250" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="921" y="319" text-anchor="middle">kioku rotate-log &lt;D&gt;</text>
+<text class="sub" x="921" y="334" text-anchor="middle">archive past months</text>
+<path class="line accent" d="M186,322 L236,322" marker-end="url(#h-accent)"/>
+</svg>

@@ -1,58 +1,57 @@
 # 8. Plaud
 
-[← Sommaire](README.md)
+[← Contents](README.md)
 
-Module optionnel (`modules.plaud` dans `kioku.config.json`, posé par `kioku init --plaud`). Il fait entrer les notes d'un enregistreur Plaud dans le coffre, en une commande.
+An optional module (`modules.plaud` in `kioku.config.json`, set by `kioku init --plaud`). It brings the notes of a Plaud recorder into the vault, in one command.
 
-## Une fois par machine
+![Plaud: from the recorder to gold, with triage, confirmation per domain and ingestion](media/diagrams/plaud.svg)
+
+## Once per machine
 
 ```bash
-npx -y @plaud-ai/mcp@latest      # OAuth dans le navigateur ; le jeton reste dans ~/.plaud/
+npx -y @plaud-ai/mcp@latest      # OAuth in the browser; the token stays in ~/.plaud/
 ```
 
-Le circuit ne lit aucun jeton lui-même : l'authentification est déléguée au MCP officiel.
+The circuit never reads a token itself: authentication is delegated to the official MCP.
 
-## Le circuit
+## The circuit
 
-```
- npm run plaud:sync
-   1. dépôt      notes Plaud des 7 derniers jours → inbox/   (déjà vues ou exclues : ignorées)
-   2. tri        session triage : rangé dans raw/<D>/  ou  parqué dans inbox/a-trancher/ (raison écrite)
-   3. confirmation   liste de ce qui va entrer dans l'or, PAR DOMAINE → « oui » attendu (Entrée = non)
-   4. ingestion  une session ingest par source (ou par journée avec --group-by-day), gate comprise
-   5. rapport    ingérées / pas entrées (à reprendre) / à trancher / à décider (quarantaine)
-```
+1. **Drop**: Plaud notes from the last 7 days go to `inbox/` (already seen or excluded ones are skipped).
+2. **Triage**: a triage session files them in `raw/<D>/`, or parks them in `inbox/a-trancher/` with a written reason.
+3. **Confirmation**: the list of what is about to enter gold, **per domain**, waits for a "yes" (Enter = no).
+4. **Ingestion**: one ingest session per source (or per day with `--group-by-day`), gate included.
+5. **Report**: ingested / not in (to resume) / to route / to decide (quarantine).
 
-**La confirmation de l'étape 3 est le dernier moment** où une erreur de domaine se corrige sans effort : après, la source est dans le wiki du mauvais domaine.
+**The confirmation at step 3 is the last moment** a domain mistake is cheap to fix: after it, the source is in the wrong domain's wiki.
 
-Lancé **par vous, jamais planifié**, depuis le checkout principal du coffre (`inbox/` n'est pas versionné ; refus dans un worktree sauf `--allow-worktree`).
+Launched **by you, never scheduled**, from the vault's main checkout (`inbox/` is not versioned; refused in a worktree unless `--allow-worktree`).
 
-## Commandes
+## Commands
 
-| Commande | Effet |
+| Command | Effect |
 |---|---|
-| `npm run plaud:sync` | circuit complet, 7 derniers jours |
-| `npm run plaud:sync -- --since 2026-03-01` | depuis une date |
-| `npm run plaud:dry-run` | montre ce qui serait déposé ; aucune session |
-| `npm run plaud:pending` | tri + ingestion de ce qui est déjà dans l'entrant ou la file (`--skip-fetch`) |
-| `npm run plaud:sync -- --group-by-day` | une session par journée et par domaine : les séances d'un même jour se recoupent |
-| `npm run plaud:sync -- --skip <id>` | écarte un enregistrement pour de bon |
-| `npm run plaud:sync -- --yes` | ingère sans demander (requis sans terminal) |
+| `npm run plaud:sync` | full circuit, last 7 days |
+| `npm run plaud:sync -- --since 2026-03-01` | since a date |
+| `npm run plaud:dry-run` | shows what would be dropped; no session |
+| `npm run plaud:pending` | triage + ingest what is already in the inbox or the queue (`--skip-fetch`) |
+| `npm run plaud:sync -- --group-by-day` | one session per day and per domain: meetings of the same day cross-check |
+| `npm run plaud:sync -- --skip <id>` | drop a recording for good |
+| `npm run plaud:sync -- --yes` | ingest without asking (required without a terminal) |
 
-## Les sources parquées (`inbox/a-trancher/`)
+## Parked sources (`inbox/a-trancher/`)
 
-Le tri s'abstient au moindre doute. Lisez `inbox/a-trancher/_raisons.md` et les fichiers **dans votre éditeur**, hors session (aucune session `query` ne lit l'entrant). Puis :
+Triage abstains in the slightest doubt. Read `inbox/a-trancher/_raisons.md` and the files **in your editor**, outside any session (no `query` session reads the inbox). Then:
 
-| Issue | Commande |
+| Outcome | Command |
 |---|---|
-| ranger dans un domaine | `kioku plaud --skip-fetch --decide <fichier>=<D>` |
-| écarter pour de bon | `npm run plaud:drop -- <fichier>` |
-| laisser pour plus tard | rien |
+| route to a domain | `kioku plaud --skip-fetch --decide <file>=<D>` |
+| drop for good | `npm run plaud:drop -- <file>` |
+| leave for later | nothing |
 
-## Exclure un enregistrement à la source
+## Excluding a recording at the source
 
-Ajoutez son identifiant `of_…` à `tools/plaud-sync/exclusions.txt`, avec un commentaire : il ne sera jamais déposé.
+Add its `of_…` id to `tools/plaud-sync/exclusions.txt`, with a comment: it will never be dropped.
 
-## Codes de sortie
+## Exit codes
 
-`0` tout est rangé et ingéré ; `2` il reste des sources à reprendre ou à trancher ; `1` erreur.
+`0` everything is filed and ingested; `2` sources are left to resume or to route; `1` error.

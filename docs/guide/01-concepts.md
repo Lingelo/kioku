@@ -1,64 +1,55 @@
 # 1. Concepts
 
-[← Sommaire](README.md)
+[← Contents](README.md)
 
-## Le médaillon : trois étages
+## The medallion: three tiers
 
-```
- inbox/              raw/<D>/              silver/<D>/             wiki/<D>/
- ┌──────────┐ tri   ┌──────────┐ ingest   ┌──────────┐ gate      ┌──────────┐
- │ entrant  │ ────► │  bronze  │ ───────► │  argent  │ ────────► │    or    │ ◄── on requête ici
- │ (local)  │       │ immuable │          │ 1 fiche  │ check +   │  pages   │
- └──────────┘       └──────────┘          │ / source │ relecteur └──────────┘
-   sans domaine       tel qu'entré        └──────────┘                │ retenu
-                                           nettoyée                   ▼
-                                                                ┌──────────────┐
-                                                                │ quarantine/  │ l'utilisateur décide
-                                                                └──────────────┘
-```
+![The medallion: inbox, bronze, silver and gold, with quarantine for what the reviewer holds](media/diagrams/medallion.svg)
 
-| Étage | Dossier | Rôle |
+| Tier | Folder | Role |
 |---|---|---|
-| Entrant | `inbox/` | ce qui n'est pas encore classé. **Jamais versionné** (`.gitignore`) : à trier avant de changer de machine. |
-| Bronze | `raw/<D>/{meetings,articles,pdfs,transcripts,assets}/` | la source telle qu'elle est entrée. Personne ne la réécrit. |
-| Argent | `silver/<D>/<slug>.md` | une fiche par source : résumée, locuteurs résolus (en hypothèse), passages sensibles retirés. |
-| Or | `wiki/<D>/{sources,meetings,people,organizations,projects,concepts,decisions,syntheses}/` | les pages du wiki, avec `index.md`, `log.md`, `overview.md`. |
-| Quarantaine | `quarantine/<D>/` | ce que la gate a retenu, ce que le lint a signalé, les passages écartés à l'ingestion. |
+| Inbox | `inbox/` | what hasn't been sorted yet. **Never versioned** (`.gitignore`): triage it before changing machines. |
+| Bronze | `raw/<D>/{meetings,articles,pdfs,transcripts,assets}/` | the source as it came in. Nobody rewrites it. |
+| Silver | `silver/<D>/<slug>.md` | one sheet per source: summarised, speakers resolved (as a stated hypothesis), sensitive passages removed. |
+| Gold | `wiki/<D>/{sources,meetings,people,organizations,projects,concepts,decisions,syntheses}/` | the wiki pages, with `index.md`, `log.md`, `overview.md`. |
+| Quarantine | `quarantine/<D>/` | what the gate held, what the lint flagged, passages set aside at ingest. |
 
-## Les domaines (silos)
+## Domains (silos)
 
-Un coffre a un ou plusieurs domaines, déclarés dans `kioku.config.json`. Chacun a ses quatre étages, ses règles (`domains/<D>/rules.md`) et son wiki. **Une page ne change jamais de domaine**, et aucun lien ne traverse deux domaines.
+A vault has one or more domains, declared in `kioku.config.json`. Each has its own four tiers, its rules (`domains/<D>/rules.md`) and its wiki. **A page never changes domain**, and no link crosses two domains.
 
-Le domaine se décide **une seule fois**, au tri. Au moindre doute, le tri s'abstient et pose la question.
+The domain is decided **once**, at triage. In the slightest doubt, triage abstains and asks.
 
-## La garde
+## The guard
 
-Un hook `PreToolUse` du plugin. À chaque appel d'outil de Claude Code (lecture, écriture, commande shell), il compare la cible au **mode** et au **domaine** de la session (`VAULT_MODE`, `VAULT_DOMAIN`, posés par le lanceur), et refuse ce qui sort du périmètre.
+A `PreToolUse` hook shipped by the plugin. On every Claude Code tool call (read, write, shell command), it compares the target with the session's **mode** and **domain** (`VAULT_MODE`, `VAULT_DOMAIN`, set by the launcher) and refuses what lies outside.
 
-- Hors d'un coffre, elle ne s'applique pas : le plugin ne gêne pas vos autres projets.
-- Elle filtre les outils de Claude, **pas vos propres commandes** dans un terminal.
-- Elle juge le texte des commandes shell, pas leurs effets : elle bloque des formes connues, elle ne sandboxe pas.
-- Elle ne se modifie depuis aucune session.
+- Outside a vault it does not apply: the plugin doesn't get in the way of your other projects.
+- It filters Claude's tools, **not your own commands** in a terminal.
+- It judges the text of shell commands, not their effects: it blocks known forms, it is not a sandbox.
+- No session can modify it.
 
-## La gate
+## The gate
 
-Le passage obligé vers l'or. Le rédacteur ne juge pas sa propre page : un **relecteur distinct** rend un verdict lié à l'empreinte exacte (sha256) de la page. Une virgule changée, et le verdict ne vaut plus. Détail : [4. La gate](04-gate.md).
+The only way into gold. The writer never judges its own page: a **distinct reviewer** gives a verdict bound to the page's exact sha256. Change a comma, and the verdict no longer holds. Details: [4. The gate](04-gate.md).
 
-## L'or hérité
+## Legacy gold
 
-Des pages présentes sous `wiki/<D>/` **sans ligne `gate:`** sont de l'or hérité (un wiki existant avant Kioku). Elles se lisent comme les autres ; le lint les sonde par échantillon ; une page héritée que l'on modifie repasse la gate.
+Pages under `wiki/<D>/` **without a `gate:` line** are legacy gold (a wiki that existed before Kioku). They are read like the others; the lint samples them; a legacy page that gets modified goes through the gate again.
 
-## Les fichiers du coffre
+## The vault's files
 
 ```
-<coffre>/
-├── CLAUDE.md                 identité du coffre, décisions ; importe .kioku/schema.md
-├── kioku.config.json         domaines, extensions, modules, format (géré : ne pas éditer en session)
-├── .kioku/schema.md          le schéma commun, réécrit à chaque montée de version
-├── domains/<D>/rules.md      règles du domaine : Périmètre, Ingestion, Requête, Lint, Relecture
-├── package.json              scripts npm (ceux qui commencent par « kioku » sont gérés)
+<vault>/
+├── CLAUDE.md                 the vault's identity and decisions; imports .kioku/schema.md
+├── kioku.config.json         domains, extensions, modules, format (managed: don't edit it in a session)
+├── .kioku/schema.md          the common schema, rewritten on every upgrade
+├── domains/<D>/rules.md      domain rules: Périmètre, Ingestion, Requête, Lint, Relecture
+├── package.json              npm scripts (those starting with "kioku" are managed)
 ├── raw/<D>/ silver/<D>/ wiki/<D>/ quarantine/<D>/
-├── .candidats/wiki/<D>/      pages en attente de la gate
-├── .verdicts/                verdicts du relecteur
-└── inbox/                    entrant (jamais versionné)
+├── .candidats/wiki/<D>/      pages waiting for the gate
+├── .verdicts/                reviewer verdicts
+└── inbox/                    inbox (never versioned)
 ```
+
+The section names in `rules.md` and some folder names (`.candidats/`) are in French: they are read by the code, and kept as is.

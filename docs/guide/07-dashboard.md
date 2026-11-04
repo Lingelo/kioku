@@ -1,37 +1,37 @@
 # 7. Dashboard
 
-[← Sommaire](README.md)
+[← Contents](README.md)
 
-Une vue de l'état du coffre : progression du médaillon (bronze relié, argent, gate), file d'actions par criticité, graphe 3D des pages de l'or, mode d'emploi.
+A view of the vault's state: medallion progress (linked bronze, silver, gate), an action queue by severity, a 3D graph of the gold pages, a user manual.
 
-## Lancer
+## Launching
 
-| Commande | Effet |
+| Command | Effect |
 |---|---|
-| `npm run dashboard:<D>` | génère un HTML statique (`tools/dashboard/dashboard-<D>.html`) |
-| `npm run dashboard:serve:<D>` | serveur local au premier plan, URL affichée ; **Ctrl-C** pour l'arrêter |
-| `npm run dashboard:all` | tous les domaines (hors session seulement) |
-| `npm run dashboard` · `dashboard:serve` | le premier domaine déclaré |
+| `npm run dashboard:<D>` | writes a static HTML file (`tools/dashboard/dashboard-<D>.html`) |
+| `npm run dashboard:serve:<D>` | local server in the foreground, URL printed; **Ctrl-C** to stop it |
+| `npm run dashboard:all` | every domain (outside a session only) |
+| `npm run dashboard` · `dashboard:serve` | the first declared domain |
 
-## Ce que le serveur garantit
+## What the server guarantees
 
-- Écoute **uniquement** sur `127.0.0.1`, en-tête `Host` vérifié, aucune lecture inter-origines.
-- **Un domaine par processus.** Depuis une session, `all` et les autres domaines sont refusés.
-- Le serveur n'écrit rien. Le champ de question lance une session `claude -p` en mode `query`, **sous la garde** : c'est elle qui peut écrire (journal, index, candidates de `/kioku:save`), comme en ligne de commande.
+- Listens **only** on `127.0.0.1`, `Host` header checked, no cross-origin read.
+- **One domain per process.** From a session, `all` and the other domains are refused.
+- The server writes nothing. The question field starts a `claude -p` session in `query` mode, **under the guard**: that session, and only it, can write (log, index, `/kioku:save` candidates), as on the command line.
 
-## La file d'actions
+## The action queue
 
-Chaque ligne propose une commande à copier.
+Each row offers a command to copy.
 
-| Catégorie | Commande proposée |
+| Category | Command offered |
 |---|---|
-| Quarantaine, pointeur | `kioku decide <D> <nom> drop` |
-| Quarantaine, page retenue ou signalée | `kioku decide <D> <nom>` **sans action** : complétez par `keep`, `correct` ou `drop`. Pas de `drop` par défaut, il supprimerait une page. |
-| Candidate en attente | `kioku check …` |
-| Bronze sans or | `npm run ingest:<D> -- "/ingest <fichier>"` |
+| Quarantine, pointer | `kioku decide <D> <name> drop` |
+| Quarantine, held or flagged page | `kioku decide <D> <name>` **without an action**: add `keep`, `correct` or `drop`. No default `drop`: it would delete a page. |
+| Waiting candidate | `kioku check …` |
+| Bronze without gold | `npm run ingest:<D> -- "/ingest <file>"` |
 | Anomalies | `npm run audit:<D>` |
 
-## Attention
+## Watch out
 
-- **Le HTML généré contient le wiki en clair.** Le motif `tools/dashboard/dashboard-*.html` est dans le bloc géré du `.gitignore` : ne le versionnez pas, ne le partagez pas.
-- La vidéo de l'onglet Mode d'emploi n'est pas versionnée ; sans elle, le lecteur est vide.
+- **The generated HTML holds the wiki in clear text.** The `tools/dashboard/dashboard-*.html` pattern is in the managed `.gitignore` block: don't version it, don't share it.
+- The video of the user manual tab is not versioned; without it, the player is empty.

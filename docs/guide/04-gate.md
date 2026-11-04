@@ -1,60 +1,53 @@
-# 4. La gate
+# 4. The gate
 
-[← Sommaire](README.md)
+[← Contents](README.md)
 
-Toute page entre dans l'or par le même chemin, que la session l'écrive en ingestion, en synthèse ou en correction.
+Every page enters gold the same way, whether the session writes it during an ingestion, a synthesis or a correction.
 
-```
- .candidats/wiki/<D>/<dossier>/<slug>.md
-          │
-          │ kioku check <fichiers>          déterministe, sans modèle : format, frontmatter, provenance (raw:
-          ▼                                 existant, fiche argent), pas de lien Markdown, pas de secret,
-   conforme ?  ── non ──► refusée           pas de lien vers un autre domaine
-          │ oui                (on corrige)
-          ▼
-   agent reviewer                           un appel distinct du rédacteur ; lit la page seule, le socle
-   verdict ok | hold <code>                 commun et domains/<D>/rules.md ; verdict lié au sha256 exact
-          │                                 et au domaine
-          ▼
- kioku promote <fichiers>
-    ├── ok   ──► wiki/<D>/…  avec  gate: passe <date> juge=relecteur
-    ├── hold ──► quarantine/<D>/  (retenue : vous décidez)
-    └── aucun verdict pour CETTE version ──► rien n'entre
-```
+![The gate: candidate, kioku check, reviewer agent, kioku promote; refused, held, admitted or no verdict](media/diagrams/gate.svg)
 
-## Les codes de retenue
+## Outcomes
 
-| Code | Sens |
+| Outcome | Why | What to do |
+|---|---|---|
+| **admitted** | `check` passes and the reviewer of the page's domain says `ok` for this exact version | nothing: the page is in `wiki/<D>/` with `gate: passe <date> juge=relecteur` |
+| **refused** | format, frontmatter or provenance | fix what `check` names, run it again |
+| **held** | verdict `hold <code>` | don't rewrite it; decide at the lint ([6](06-lint-quarantine.md)) |
+| **no verdict** | the page changed after review, or the verdict was given for another domain | run the reviewer again on the current version, from a session of the page's domain |
+
+## Hold codes
+
+| Code | Meaning |
 |---|---|
-| `insulte` | propos insultant |
-| `jugement-personne` | trait ou portrait d'une personne, retour non attribué présenté comme un fait |
-| `diffamation` | accusation présentée comme un fait |
-| `domaine` | contenu d'un autre domaine |
-| `sensible` | donnée que les règles du domaine disent sensible |
+| `insulte` | insulting words |
+| `jugement-personne` | a trait or portrait of a person, unattributed feedback presented as fact |
+| `diffamation` | an accusation presented as fact |
+| `domaine` | content of another domain |
+| `sensible` | data the domain rules call sensitive |
 
-## La frontière : retour de travail contre portrait
+## The line: work feedback versus portrait
 
-**Passe** : un fait daté ; une attente exprimée ; un **retour de travail attribué**, s'il remplit quatre conditions :
+**Passes**: a dated fact; a stated expectation; **attributed work feedback**, if it meets four conditions:
 
-1. il porte sur la conduite professionnelle ou les résultats ;
-2. il est attribué et daté, avec sa source ;
-3. c'est une observation sur une situation, pas un trait permanent ;
-4. il n'est pas assemblé en portrait.
+1. it is about professional conduct or results;
+2. it is attributed and dated, with its source;
+3. it is an observation about a situation, not a permanent trait;
+4. it is not assembled into a portrait.
 
-> « Selon Alice, le 10/03, la livraison du module a glissé d'une semaine faute de recette. » — passe.
-> « Bruno est lent. » — retenu (trait).
-> Une liste de faits anodins qui, mise bout à bout, dessine un profil — retenu (portrait par assemblage).
+> "According to Alice, on 10/03, the module delivery slipped by a week for lack of acceptance testing." — passes.
+> "Bob is slow." — held (trait).
+> A list of harmless facts that, put end to end, draws a profile — held (portrait by assembly).
 
-**Dans le doute, on retient** : vous tranchez au lint, et votre décision peut devenir une règle du domaine.
+**In doubt, it is held**: you decide at the lint, and your decision can become a domain rule.
 
-## Bon à savoir
+## Good to know
 
-- **Toute modification annule le verdict.** Le verdict est lié au contenu exact ; une page modifiée après relecture doit être relue.
-- **Le verdict appartient à un domaine.** Un verdict rendu pour `perso` ne permet pas de promouvoir une page `travail`.
-- **Si le relecteur ne répond pas, rien n'entre.** On le dit, on ne boucle pas.
-- **La ligne `gate:` est posée par `promote`**, jamais à la main.
-- `overview.md` est hors gate (écrit en session `ingest`) et relu au lint.
+- **Any change voids the verdict.** It is bound to the exact content; a page changed after review must be reviewed again.
+- **A verdict belongs to one domain.** A verdict given for `home` cannot promote a `work` page.
+- **If the reviewer doesn't answer, nothing enters.** Say so, don't loop.
+- **The `gate:` line is written by `promote`**, never by hand.
+- `overview.md` is outside the gate (written in an ingest session) and reviewed at the lint.
 
-## Ce que la gate ne fait pas
+## What the gate doesn't do
 
-Elle vérifie la **provenance**, pas la **vérité** : une source fausse donne une page fausse, bien sourcée. Le lint garde ce rôle (contradictions, claims périmées). Le relecteur est un autre appel de modèle dans la même session : indépendance de contexte, pas de processus.
+It checks **provenance**, not **truth**: a wrong source gives a wrong page, well sourced. The lint keeps that role (contradictions, stale claims). The reviewer is another model call in the same session: independence of context, not of process.

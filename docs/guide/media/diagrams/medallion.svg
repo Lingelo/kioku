@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="520" viewBox="0 0 1100 520" role="img" aria-labelledby="t d">
+<title id="t">The medallion</title>
+<desc id="d">A source climbs three tiers. Each tier is written by one step, and only the top one is ever queried.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="519" rx="14"/>
+<text class="title" x="28" y="38">The medallion</text>
+<text class="desc" x="28" y="58">A source climbs three tiers. Each tier is written by one step, and only the top one is ever queried.</text>
+<rect class="plain" x="36" y="120" width="150" height="80" rx="8" stroke-width="1.5"/>
+<text class="label" x="111" y="149.5" text-anchor="middle">inbox/</text>
+<text class="sub" x="111" y="164.5" text-anchor="middle">unsorted</text>
+<text class="sub" x="111" y="179.5" text-anchor="middle">never versioned</text>
+<rect class="store" x="252" y="120" width="170" height="80" rx="8" stroke-width="1.5"/>
+<text class="label" x="337" y="149.5" text-anchor="middle">raw/&lt;D&gt;/  bronze</text>
+<text class="sub" x="337" y="164.5" text-anchor="middle">as it came in</text>
+<text class="sub" x="337" y="179.5" text-anchor="middle">immutable</text>
+<rect class="store" x="488" y="120" width="170" height="80" rx="8" stroke-width="1.5"/>
+<text class="label" x="573" y="149.5" text-anchor="middle">silver/&lt;D&gt;/  silver</text>
+<text class="sub" x="573" y="164.5" text-anchor="middle">one sheet per source</text>
+<text class="sub" x="573" y="179.5" text-anchor="middle">cleaned, flags set</text>
+<rect class="store" x="724" y="120" width="170" height="80" rx="8" stroke-width="1.5"/>
+<text class="label" x="809" y="149.5" text-anchor="middle">wiki/&lt;D&gt;/  gold</text>
+<text class="sub" x="809" y="164.5" text-anchor="middle">the wiki pages</text>
+<text class="sub" x="809" y="179.5" text-anchor="middle">index · log · overview</text>
+<rect class="agent" x="950" y="128" width="116" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="1008" y="157" text-anchor="middle">queries</text>
+<text class="sub" x="1008" y="172" text-anchor="middle">read gold only</text>
+<path class="line accent" d="M186,160 L252,160" marker-end="url(#h-accent)"/>
+<text class="small" x="219" y="150" text-anchor="middle">triage</text>
+<path class="line accent" d="M422,160 L488,160" marker-end="url(#h-accent)"/>
+<text class="small" x="455" y="150" text-anchor="middle">ingest</text>
+<path class="line accent" d="M658,160 L724,160" marker-end="url(#h-accent)"/>
+<text class="small" x="691" y="150" text-anchor="middle">gate</text>
+<path class="line blue" d="M894,160 L950,160" marker-end="url(#h-blue)"/>
+<rect class="gate" x="600" y="268" width="200" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="700" y="297" text-anchor="middle">quarantine/&lt;D&gt;/</text>
+<text class="sub" x="700" y="312" text-anchor="middle">held, flagged, pointers</text>
+<path class="line bad dashed" d="M691,200 L691,236 L700,236 L700,268" marker-end="url(#h-bad)"/>
+<text class="small" x="708" y="250" text-anchor="start">held by the reviewer</text>
+<rect class="you" x="860" y="268" width="170" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="945" y="297" text-anchor="middle">you decide</text>
+<text class="sub" x="945" y="312" text-anchor="middle">keep · correct · drop</text>
+<path class="line" d="M800,300 L860,300" marker-end="url(#h-default)"/>
+<rect class="region" x="36" y="370" width="1030" height="84" rx="10"/>
+<text class="regionlabel" x="48" y="388">WHO READS EACH TIER</text>
+<text class="small" x="56" y="414" text-anchor="start">inbox/ → triage session only</text>
+<text class="small" x="276" y="414" text-anchor="start">raw/, silver/ → ingest session only</text>
+<text class="small" x="546" y="414" text-anchor="start">wiki/ → query and ingest sessions</text>
+<text class="small" x="806" y="414" text-anchor="start">quarantine/ → no session (you, in an editor)</text>
+<text class="sub" x="56" y="436" text-anchor="start">Each tier also exists once per domain &lt;D&gt;: a page never crosses domains.</text>
+<rect class="plain" x="36" y="482" width="14" height="14" rx="3" stroke-width="1.5"/><text class="small" x="56" y="493.5" text-anchor="start">unsorted</text>
+<rect class="store" x="186" y="482" width="14" height="14" rx="3" stroke-width="1.5"/><text class="small" x="206" y="493.5" text-anchor="start">tier (folder)</text>
+<rect class="gate" x="336" y="482" width="14" height="14" rx="3" stroke-width="1.5"/><text class="small" x="356" y="493.5" text-anchor="start">held</text>
+<rect class="agent" x="486" y="482" width="14" height="14" rx="3" stroke-width="1.5"/><text class="small" x="506" y="493.5" text-anchor="start">reader</text>
+<rect class="you" x="636" y="482" width="14" height="14" rx="3" stroke-width="1.5"/><text class="small" x="656" y="493.5" text-anchor="start">you</text>
+</svg>

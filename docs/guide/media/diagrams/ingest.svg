@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="640" viewBox="0 0 1100 640" role="img" aria-labelledby="t d">
+<title id="t">Ingesting a source</title>
+<desc id="d">Two ways in, three tiers, then the gate. An ingestion is only finished when the pages are in gold (or in quarantine) and the index and log are updated.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="639" rx="14"/>
+<text class="title" x="28" y="38">Ingesting a source</text>
+<text class="desc" x="28" y="58">Two ways in, three tiers, then the gate. An ingestion is only finished when the pages are in gold (or in quarantine) and the index and log are updated.</text>
+<rect class="you" x="36" y="96" width="220" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="146" y="123" text-anchor="middle">drop in inbox/</text>
+<text class="sub" x="146" y="138" text-anchor="middle">domain unknown, or many</text>
+<rect class="you" x="36" y="196" width="220" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="146" y="223" text-anchor="middle">drop in raw/&lt;D&gt;/&lt;type&gt;/</text>
+<text class="sub" x="146" y="238" text-anchor="middle">you know the domain</text>
+<rect class="step" x="316" y="96" width="200" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="416" y="123" text-anchor="middle">npm run triage</text>
+<text class="sub" x="416" y="138" text-anchor="middle">one declared domain, or abstain</text>
+<path class="line accent" d="M256,126 L316,126" marker-end="url(#h-accent)"/>
+<rect class="plain" x="576" y="96" width="190" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="671" y="123" text-anchor="middle">stays in inbox/</text>
+<text class="sub" x="671" y="138" text-anchor="middle">question asked, reason written</text>
+<path class="line dashed" d="M516,126 L576,126" marker-end="url(#h-default)"/>
+<text class="small" x="546" y="116" text-anchor="middle">doubt</text>
+<rect class="step" x="316" y="290" width="200" height="60" rx="8" stroke-width="1.5"/>
+<text class="label" x="416" y="317" text-anchor="middle">npm run ingest:&lt;D&gt;</text>
+<text class="sub" x="416" y="332" text-anchor="middle">lists what is not in gold, asks</text>
+<path class="line accent" d="M416,156 L416,290" marker-end="url(#h-accent)"/>
+<text class="small" x="424" y="226" text-anchor="start">moved to raw/&lt;D&gt;/</text>
+<path class="line accent" d="M146,256 L146,320 L316,320" marker-end="url(#h-accent)"/>
+<rect class="region" x="560" y="200" width="506" height="330" rx="10"/>
+<text class="regionlabel" x="572" y="218">PER SOURCE, IN DATE ORDER</text>
+<rect class="store" x="590" y="236" width="210" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="695" y="261" text-anchor="middle">1 · bronze → silver</text>
+<text class="sub" x="695" y="276" text-anchor="middle">silver/&lt;D&gt;/&lt;slug&gt;.md</text>
+<rect class="gate" x="840" y="236" width="196" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="938" y="261" text-anchor="middle">pointer in quarantine</text>
+<text class="sub" x="938" y="276" text-anchor="middle">insult, portrait, sensitive</text>
+<path class="line bad dashed" d="M800,264 L840,264" marker-end="url(#h-bad)"/>
+<rect class="store" x="590" y="320" width="210" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="695" y="345" text-anchor="middle">2 · silver → candidates</text>
+<text class="sub" x="695" y="360" text-anchor="middle">.candidats/wiki/&lt;D&gt;/…</text>
+<text class="small" x="820" y="340" text-anchor="start">source, meeting, decisions,</text>
+<text class="small" x="820" y="356" text-anchor="start">people and concepts touched</text>
+<rect class="gate" x="590" y="404" width="210" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="695" y="429" text-anchor="middle">3 · gate</text>
+<text class="sub" x="695" y="444" text-anchor="middle">check → reviewer → promote</text>
+<rect class="store" x="840" y="404" width="196" height="56" rx="8" stroke-width="1.5"/>
+<text class="label" x="938" y="429" text-anchor="middle">wiki/&lt;D&gt;/</text>
+<text class="sub" x="938" y="444" text-anchor="middle">index + log updated</text>
+<path class="line accent" d="M695,292 L695,320" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M695,376 L695,404" marker-end="url(#h-accent)"/>
+<path class="line ok" d="M800,432 L840,432" marker-end="url(#h-ok)"/>
+<path class="line accent" d="M516,320 L560,320 L560,264 L590,264" marker-end="url(#h-accent)"/>
+<rect class="region" x="36" y="400" width="490" height="130" rx="10"/>
+<text class="regionlabel" x="48" y="418">WHEN AN ENTITY PAGE IS CREATED</text>
+<text class="small" x="56" y="444" text-anchor="start">person · concept: central to the source, or named in ≥ 2 sources</text>
+<text class="small" x="56" y="466" text-anchor="start">identity given by the source, never guessed from a first name</text>
+<text class="small" x="56" y="488" text-anchor="start">otherwise: a link to a missing page, a wanted gap</text>
+<text class="small" x="56" y="510" text-anchor="start">existing page: <tspan class="mono">kioku stage &lt;D&gt; &lt;folder/slug&gt;</tspan>, then edit the copy</text>
+<text class="sub" x="36" y="590" text-anchor="start">Several sources at once are taken one by one, but kept in mind: the afternoon meeting may confirm or contradict the morning one, and the page says so.</text>
+<text class="sub" x="36" y="610" text-anchor="start">A file name is read by every link that cites it: never a candidate’s name, an assessed person or sensitive data in a slug.</text>
+</svg>

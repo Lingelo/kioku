@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="520" viewBox="0 0 1100 520" role="img" aria-labelledby="t d">
+<title id="t">Plaud: from the recorder to gold</title>
+<desc id="d">One command, launched by you, never scheduled. Each step is a guarded session; the confirmation is the last cheap moment to fix a domain mistake.</desc>
+<style>
+  .bg { fill: #fbfaf7; stroke: #e4e0d8; }
+  text { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; fill: #1f2328; }
+  .title { font-size: 18px; font-weight: 700; }
+  .desc { font-size: 12.5px; fill: #5c6370; }
+  .label { font-size: 13.5px; font-weight: 600; }
+  .sub { font-size: 11.5px; fill: #5c6370; }
+  .small { font-size: 11px; fill: #5c6370; }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .step { fill: #fdf1ea; stroke: #d97757; }
+  .store { fill: #edf2fb; stroke: #5b7fbf; }
+  .gate { fill: #fdeeee; stroke: #c94a4a; }
+  .agent { fill: #ecf6ef; stroke: #3f8f5a; }
+  .you { fill: #f3f0fa; stroke: #7a5fc0; }
+  .state { fill: #fff8e1; stroke: #b8901c; }
+  .plain { fill: #ffffff; stroke: #c9c4ba; }
+  .closed { fill: #f2f2f2; stroke: #a0a0a0; stroke-dasharray: 4 3; }
+  .region { fill: none; stroke: #b9b3a6; stroke-dasharray: 5 4; }
+  .regionlabel { font-size: 11.5px; font-weight: 600; fill: #7d776b; letter-spacing: .04em; }
+  .band { fill: #fff4dd; stroke: #d6a645; }
+  .line { fill: none; stroke: #6e7681; stroke-width: 1.6; }
+  .line.accent { stroke: #d97757; }
+  .line.bad { stroke: #c94a4a; }
+  .line.ok { stroke: #3f8f5a; }
+  .line.blue { stroke: #5b7fbf; }
+  .line.dashed { stroke-dasharray: 5 4; }
+  .head { fill: #6e7681; } .head.accent { fill: #d97757; } .head.bad { fill: #c94a4a; } .head.ok { fill: #3f8f5a; } .head.blue { fill: #5b7fbf; }
+  .tick { fill: #3f8f5a; font-weight: 700; } .cross { fill: #c94a4a; font-weight: 700; }
+</style>
+<defs><marker id="h-default" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-bad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head bad" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-ok" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head ok" d="M0,0 L10,5 L0,10 z"/></marker><marker id="h-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head blue" d="M0,0 L10,5 L0,10 z"/></marker></defs>
+<rect class="bg" x="0.5" y="0.5" width="1099" height="519" rx="14"/>
+<text class="title" x="28" y="38">Plaud: from the recorder to gold</text>
+<text class="desc" x="28" y="58">One command, launched by you, never scheduled. Each step is a guarded session; the confirmation is the last cheap moment to fix a domain mistake.</text>
+<rect class="plain" x="36" y="110" width="150" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="111" y="139" text-anchor="middle">Plaud</text>
+<text class="sub" x="111" y="154" text-anchor="middle">meeting notes</text>
+<rect class="store" x="226" y="110" width="150" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="301" y="139" text-anchor="middle">inbox/</text>
+<text class="sub" x="301" y="154" text-anchor="middle">last 7 days</text>
+<rect class="step" x="416" y="110" width="150" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="491" y="139" text-anchor="middle">triage</text>
+<text class="sub" x="491" y="154" text-anchor="middle">session</text>
+<rect class="you" x="606" y="110" width="170" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="691" y="139" text-anchor="middle">confirmation</text>
+<text class="sub" x="691" y="154" text-anchor="middle">what enters, per domain</text>
+<rect class="step" x="816" y="110" width="150" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="891" y="139" text-anchor="middle">ingest</text>
+<text class="sub" x="891" y="154" text-anchor="middle">one session per source</text>
+<rect class="store" x="986" y="110" width="80" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="1026" y="146.5" text-anchor="middle">gold</text>
+<path class="line accent" d="M186,142 L226,142" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M376,142 L416,142" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M566,142 L606,142" marker-end="url(#h-accent)"/>
+<path class="line accent" d="M776,142 L816,142" marker-end="url(#h-accent)"/>
+<text class="small" x="796" y="132" text-anchor="middle">yes</text>
+<path class="line ok" d="M966,142 L986,142" marker-end="url(#h-ok)"/>
+<rect class="plain" x="416" y="230" width="150" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="491" y="259" text-anchor="middle">inbox/a-trancher/</text>
+<text class="sub" x="491" y="274" text-anchor="middle">reason written</text>
+<path class="line dashed" d="M491,174 L491,230" marker-end="url(#h-default)"/>
+<text class="small" x="499" y="206" text-anchor="start">abstains</text>
+<rect class="plain" x="606" y="230" width="170" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="691" y="259" text-anchor="middle">nothing ingested</text>
+<text class="sub" x="691" y="274" text-anchor="middle">Enter = no</text>
+<path class="line dashed" d="M691,174 L691,230" marker-end="url(#h-default)"/>
+<rect class="gate" x="816" y="230" width="150" height="64" rx="8" stroke-width="1.5"/>
+<text class="label" x="891" y="259" text-anchor="middle">quarantine</text>
+<text class="sub" x="891" y="274" text-anchor="middle">gate holds</text>
+<path class="line bad dashed" d="M891,174 L891,230" marker-end="url(#h-bad)"/>
+<text class="regionlabel" x="36" y="340" text-anchor="start">COMMANDS</text>
+<text class="small" x="36" y="362" text-anchor="start"><tspan class="mono">npm run plaud:sync</tspan></text>
+<text class="small" x="400" y="362" text-anchor="start">full circuit, last 7 days  (add -- --since 2026-03-01, or -- --group-by-day)</text>
+<text class="small" x="36" y="381" text-anchor="start"><tspan class="mono">npm run plaud:dry-run</tspan></text>
+<text class="small" x="400" y="381" text-anchor="start">what would be dropped in the inbox; no session</text>
+<text class="small" x="36" y="400" text-anchor="start"><tspan class="mono">npm run plaud:pending</tspan></text>
+<text class="small" x="400" y="400" text-anchor="start">triage + ingest what is already in the inbox or the queue</text>
+<text class="small" x="36" y="419" text-anchor="start"><tspan class="mono">kioku plaud --skip-fetch --decide &lt;file&gt;=&lt;D&gt;</tspan></text>
+<text class="small" x="400" y="419" text-anchor="start">route a parked source to a domain</text>
+<text class="small" x="36" y="438" text-anchor="start"><tspan class="mono">npm run plaud:drop -- &lt;file&gt;</tspan></text>
+<text class="small" x="400" y="438" text-anchor="start">drop a parked source for good</text>
+<text class="sub" x="36" y="476" text-anchor="start">Once per machine: npx -y @plaud-ai/mcp@latest (OAuth; the token stays in ~/.plaud/). Exclude a recording: its of_… id in tools/plaud-sync/exclusions.txt.</text>
+<text class="sub" x="36" y="496" text-anchor="start">Exit code 0 everything is in; 2 something is left to resume or to decide; 1 error.</text>
+</svg>

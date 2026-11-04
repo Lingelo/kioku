@@ -1,45 +1,47 @@
 # 2. Sessions
 
-[← Sommaire](README.md)
+[← Contents](README.md)
 
-Une session est un `claude` lancé dans le coffre avec un **mode** et un **domaine**. On ne la lance jamais à nu : le lanceur pose les deux variables que la garde lit, puis démarre la session sur la tâche du mode.
+A session is a `claude` started in the vault with a **mode** and a **domain**. Never start it bare: the launcher sets the two variables the guard reads, then starts the session on its mode's task.
 
-## Ouvrir une session
+![Sessions: the launcher sets the mode and the domain, the guard checks every tool call; what each mode reads and writes](media/diagrams/sessions.svg)
 
-| Commande | Mode / domaine | Démarre sur |
+## Opening a session
+
+| Command | Mode / domain | Starts on |
 |---|---|---|
-| `npm run travail` | query / travail | votre question |
-| `npm run ingest:travail` | ingest / travail | `/kioku:ingest` (liste ce qui reste à ingérer) |
-| `npm run lint:travail` | query / travail | `/kioku:lint travail` |
-| `npm run triage` | triage (sans domaine) | `/kioku:triage` |
-| `npm run setup` | setup (sans domaine) | `/kioku:setup` |
-| `npm run vault` | query, domaine demandé | votre question |
+| `npm run work` | query / work | your question |
+| `npm run ingest:work` | ingest / work | `/kioku:ingest` (lists what is left to ingest) |
+| `npm run lint:work` | query / work | `/kioku:lint work` |
+| `npm run triage` | triage (no domain) | `/kioku:triage` |
+| `npm run setup` | setup (no domain) | `/kioku:setup` |
+| `npm run vault` | query, domain asked | your question |
 
-Ces scripts appellent `kioku session …`. Options utiles, après `--` :
+These scripts call `kioku session …`. Useful options, after `--`:
 
 ```bash
-npm run travail -- "qu'a-t-on décidé sur le budget ?"   # la question part avec la session
-npm run ingest:travail -- meetings/2026-03-12-revue.md  # /kioku:ingest sur ce fichier
-kioku session travail -- --resume                       # reprendre une session (passé à claude)
+npm run work -- "what did we decide on the budget?"     # the question goes with the session
+npm run ingest:work -- meetings/2026-03-12-review.md    # /kioku:ingest on that file
+kioku session work -- --resume                          # resume a session (passed to claude)
 ```
 
-## Ce que chaque mode voit
+## What each mode sees
 
-| Mode | Lit | Écrit |
+| Mode | Reads | Writes |
 |---|---|---|
-| **query** | `wiki/<D>/` | `.candidats/wiki/<D>/`, `wiki/<D>/index.md` et `log.md` |
+| **query** | `wiki/<D>/` | `.candidats/wiki/<D>/`, `wiki/<D>/index.md` and `log.md` |
 | **ingest** | `raw/<D>/`, `silver/<D>/`, `wiki/<D>/`, `.candidats/wiki/<D>/` | `silver/<D>/`, `.candidats/wiki/<D>/`, `wiki/<D>/{index,log,overview}.md` |
-| **triage** | `inbox/` | `mv` vers `raw/<D>/` |
-| **setup** | configuration, `domains/` | rien en direct : `kioku init`, `kioku add-domain`, `kioku upgrade` |
+| **triage** | `inbox/` | `mv` to `raw/<D>/` |
+| **setup** | configuration, `domains/` | nothing directly: `kioku init`, `kioku add-domain`, `kioku upgrade` |
 
-Dans **aucun** mode : un autre domaine, `quarantine/`, `.verdicts/`, la configuration, l'historique git (`git show`, `git log -p`, `git diff`… : il contient tous les domaines).
+In **no** mode: another domain, `quarantine/`, `.verdicts/`, the configuration, the git history (`git show`, `git log -p`, `git diff`…: it holds every domain).
 
-## Changer de domaine
+## Changing domain
 
-On ne change pas de domaine en cours de session. `/exit`, puis `npm run perso`. Une question posée dans le mauvais domaine reçoit une réponse de deux lignes : le domaine visé et la commande de relance, sans rien de son contenu.
+You don't change domain within a session. `/exit`, then `npm run home`. A question asked in the wrong domain gets a two-line answer: the domain it belongs to and the command to relaunch, with nothing of its content.
 
-## Pièges
+## Pitfalls
 
-- **Ne jamais exporter `VAULT_MODE` ou `VAULT_DOMAIN` dans votre shell.** La garde se remettrait en marche hors coffre et refuserait tout dans vos autres projets. Laissez le lanceur les poser.
-- **Lancer `claude` à nu dans le coffre** ouvre la session par défaut (`default_session` de la configuration, en général `query` sur le premier domaine). Préférez les scripts npm, qui disent ce qu'ils ouvrent.
-- **Un refus de la garde n'est pas une panne.** C'est la règle qui s'applique. Si elle bloque à tort, voir [10. Dépannage](10-depannage.md).
+- **Never export `VAULT_MODE` or `VAULT_DOMAIN` in your shell.** The guard would switch on outside the vault and refuse everything in your other projects. Let the launcher set them.
+- **Starting `claude` bare in the vault** opens the default session (`default_session` in the configuration, usually `query` on the first domain). Prefer the npm scripts, which say what they open.
+- **A guard refusal is not a failure.** It is the rule applying. If it blocks wrongly, see [10. Troubleshooting](10-troubleshooting.md).
