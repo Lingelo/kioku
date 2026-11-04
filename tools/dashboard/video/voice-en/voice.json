@@ -1,0 +1,1285 @@
+{
+ "lang": "en",
+ "engine": "kokoro",
+ "duration": 101.249,
+ "narration": "narration.wav",
+ "lines": [
+  {
+   "id": "titre",
+   "text": "This is Kioku. In Japanese, the word means memory.",
+   "start": 1.6,
+   "end": 4.709,
+   "file": "line-01-00672e13.wav"
+  },
+  {
+   "id": "probleme",
+   "text": "At work, meetings, documents and decisions pile up, and what matters ends up lost.",
+   "start": 8.309,
+   "end": 13.577,
+   "file": "line-02-7ce93638.wav"
+  },
+  {
+   "id": "wiki",
+   "text": "Kioku gathers everything into a personal wiki: one page per project, per person, per meeting and per decision.",
+   "start": 16.477,
+   "end": 23.676,
+   "file": "line-03-eb3516d2.wav"
+  },
+  {
+   "id": "claude",
+   "text": "Claude writes these pages and keeps them up to date, from the sources you hand it.",
+   "start": 26.576,
+   "end": 30.761,
+   "file": "line-04-6dbe33cc.wav"
+  },
+  {
+   "id": "question",
+   "text": "Then you simply ask a question. The answer comes from the wiki, with its sources.",
+   "start": 33.661,
+   "end": 38.084,
+   "file": "line-05-ea8a6c0f.wav"
+  },
+  {
+   "id": "chemin",
+   "text": "Every piece of information follows the same path, through three layers: bronze, silver and gold. This is the medallion architecture.",
+   "start": 40.984,
+   "end": 49.401,
+   "file": "line-06-42d3c363.wav"
+  },
+  {
+   "id": "gate",
+   "text": "To reach the gold layer, a page must pass a gate.",
+   "start": 52.301,
+   "end": 55.207,
+   "file": "line-07-b801a101.wav"
+  },
+  {
+   "id": "relecteur",
+   "text": "An independent reviewer checks where it comes from, its format, and respect for the people it mentions.",
+   "start": 58.107,
+   "end": 63.861,
+   "file": "line-08-bc2b6699.wav"
+  },
+  {
+   "id": "quarantaine",
+   "text": "Whatever it holds back is set aside, and waits for a human decision.",
+   "start": 66.761,
+   "end": 70.537,
+   "file": "line-09-dce4f66d.wav"
+  },
+  {
+   "id": "silo",
+   "text": "Each domain, work or personal life for example, lives in its own silo, with its own reviewer and its own rules.",
+   "start": 73.937,
+   "end": 80.988,
+   "file": "line-10-5499e150.wav"
+  },
+  {
+   "id": "graphe",
+   "text": "A local dashboard shows the whole wiki as a 3D graph: every page is a point, linked to the pages it cites.",
+   "start": 84.388,
+   "end": 91.502,
+   "file": "line-11-1666553d.wav"
+  },
+  {
+   "id": "conclusion",
+   "text": "Kioku. A working memory that no longer gets lost: reviewed, sourced, and always one question away.",
+   "start": 94.403,
+   "end": 100.949,
+   "file": "line-12-4fde7beb.wav"
+  }
+ ],
+ "cues": [
+  {
+   "start": 1.6,
+   "end": 2.681,
+   "text": "This is Kioku.",
+   "words": [
+    {
+     "w": "This",
+     "start": 1.6,
+     "end": 1.87
+    },
+    {
+     "w": "is",
+     "start": 1.87,
+     "end": 2.051
+    },
+    {
+     "w": "Kioku.",
+     "start": 2.051,
+     "end": 2.681
+    }
+   ]
+  },
+  {
+   "start": 2.681,
+   "end": 4.959,
+   "text": "In Japanese, the word means memory.",
+   "words": [
+    {
+     "w": "In",
+     "start": 2.681,
+     "end": 2.862
+    },
+    {
+     "w": "Japanese,",
+     "start": 2.862,
+     "end": 3.492
+    },
+    {
+     "w": "the",
+     "start": 3.492,
+     "end": 3.718
+    },
+    {
+     "w": "word",
+     "start": 3.718,
+     "end": 3.988
+    },
+    {
+     "w": "means",
+     "start": 3.988,
+     "end": 4.303
+    },
+    {
+     "w": "memory.",
+     "start": 4.303,
+     "end": 4.709
+    }
+   ]
+  },
+  {
+   "start": 8.309,
+   "end": 11.042,
+   "text": "At work, meetings, documents and decisions",
+   "words": [
+    {
+     "w": "At",
+     "start": 8.309,
+     "end": 8.508
+    },
+    {
+     "w": "work,",
+     "start": 8.508,
+     "end": 9.005
+    },
+    {
+     "w": "meetings,",
+     "start": 9.005,
+     "end": 9.701
+    },
+    {
+     "w": "documents",
+     "start": 9.701,
+     "end": 10.247
+    },
+    {
+     "w": "and",
+     "start": 10.247,
+     "end": 10.496
+    },
+    {
+     "w": "decisions",
+     "start": 10.496,
+     "end": 11.042
+    }
+   ]
+  },
+  {
+   "start": 11.042,
+   "end": 13.827,
+   "text": "pile up, and what matters ends up lost.",
+   "words": [
+    {
+     "w": "pile",
+     "start": 11.042,
+     "end": 11.341
+    },
+    {
+     "w": "up,",
+     "start": 11.341,
+     "end": 11.738
+    },
+    {
+     "w": "and",
+     "start": 11.738,
+     "end": 11.987
+    },
+    {
+     "w": "what",
+     "start": 11.987,
+     "end": 12.285
+    },
+    {
+     "w": "matters",
+     "start": 12.285,
+     "end": 12.732
+    },
+    {
+     "w": "ends",
+     "start": 12.732,
+     "end": 13.03
+    },
+    {
+     "w": "up",
+     "start": 13.03,
+     "end": 13.229
+    },
+    {
+     "w": "lost.",
+     "start": 13.229,
+     "end": 13.577
+    }
+   ]
+  },
+  {
+   "start": 16.477,
+   "end": 18.929,
+   "text": "Kioku gathers everything into a personal",
+   "words": [
+    {
+     "w": "Kioku",
+     "start": 16.477,
+     "end": 16.842
+    },
+    {
+     "w": "gathers",
+     "start": 16.842,
+     "end": 17.312
+    },
+    {
+     "w": "everything",
+     "start": 17.312,
+     "end": 17.938
+    },
+    {
+     "w": "into",
+     "start": 17.938,
+     "end": 18.251
+    },
+    {
+     "w": "a",
+     "start": 18.251,
+     "end": 18.407
+    },
+    {
+     "w": "personal",
+     "start": 18.407,
+     "end": 18.929
+    }
+   ]
+  },
+  {
+   "start": 18.929,
+   "end": 20.963,
+   "text": "wiki: one page per project,",
+   "words": [
+    {
+     "w": "wiki:",
+     "start": 18.929,
+     "end": 19.45
+    },
+    {
+     "w": "one",
+     "start": 19.45,
+     "end": 19.711
+    },
+    {
+     "w": "page",
+     "start": 19.711,
+     "end": 20.024
+    },
+    {
+     "w": "per",
+     "start": 20.024,
+     "end": 20.285
+    },
+    {
+     "w": "project,",
+     "start": 20.285,
+     "end": 20.963
+    }
+   ]
+  },
+  {
+   "start": 20.963,
+   "end": 23.926,
+   "text": "per person, per meeting and per decision.",
+   "words": [
+    {
+     "w": "per",
+     "start": 20.963,
+     "end": 21.224
+    },
+    {
+     "w": "person,",
+     "start": 21.224,
+     "end": 21.85
+    },
+    {
+     "w": "per",
+     "start": 21.85,
+     "end": 22.111
+    },
+    {
+     "w": "meeting",
+     "start": 22.111,
+     "end": 22.581
+    },
+    {
+     "w": "and",
+     "start": 22.581,
+     "end": 22.841
+    },
+    {
+     "w": "per",
+     "start": 22.841,
+     "end": 23.102
+    },
+    {
+     "w": "decision.",
+     "start": 23.102,
+     "end": 23.676
+    }
+   ]
+  },
+  {
+   "start": 26.576,
+   "end": 28.545,
+   "text": "Claude writes these pages and keeps them",
+   "words": [
+    {
+     "w": "Claude",
+     "start": 26.576,
+     "end": 26.904
+    },
+    {
+     "w": "writes",
+     "start": 26.904,
+     "end": 27.232
+    },
+    {
+     "w": "these",
+     "start": 27.232,
+     "end": 27.52
+    },
+    {
+     "w": "pages",
+     "start": 27.52,
+     "end": 27.807
+    },
+    {
+     "w": "and",
+     "start": 27.807,
+     "end": 28.012
+    },
+    {
+     "w": "keeps",
+     "start": 28.012,
+     "end": 28.299
+    },
+    {
+     "w": "them",
+     "start": 28.299,
+     "end": 28.545
+    }
+   ]
+  },
+  {
+   "start": 28.545,
+   "end": 31.011,
+   "text": "up to date, from the sources you hand it.",
+   "words": [
+    {
+     "w": "up",
+     "start": 28.545,
+     "end": 28.71
+    },
+    {
+     "w": "to",
+     "start": 28.71,
+     "end": 28.874
+    },
+    {
+     "w": "date,",
+     "start": 28.874,
+     "end": 29.284
+    },
+    {
+     "w": "from",
+     "start": 29.284,
+     "end": 29.53
+    },
+    {
+     "w": "the",
+     "start": 29.53,
+     "end": 29.735
+    },
+    {
+     "w": "sources",
+     "start": 29.735,
+     "end": 30.105
+    },
+    {
+     "w": "you",
+     "start": 30.105,
+     "end": 30.31
+    },
+    {
+     "w": "hand",
+     "start": 30.31,
+     "end": 30.556
+    },
+    {
+     "w": "it.",
+     "start": 30.556,
+     "end": 30.761
+    }
+   ]
+  },
+  {
+   "start": 33.661,
+   "end": 35.497,
+   "text": "Then you simply ask a question.",
+   "words": [
+    {
+     "w": "Then",
+     "start": 33.661,
+     "end": 33.911
+    },
+    {
+     "w": "you",
+     "start": 33.911,
+     "end": 34.12
+    },
+    {
+     "w": "simply",
+     "start": 34.12,
+     "end": 34.454
+    },
+    {
+     "w": "ask",
+     "start": 34.454,
+     "end": 34.662
+    },
+    {
+     "w": "a",
+     "start": 34.662,
+     "end": 34.788
+    },
+    {
+     "w": "question.",
+     "start": 34.788,
+     "end": 35.497
+    }
+   ]
+  },
+  {
+   "start": 35.497,
+   "end": 36.79,
+   "text": "The answer comes from the",
+   "words": [
+    {
+     "w": "The",
+     "start": 35.497,
+     "end": 35.706
+    },
+    {
+     "w": "answer",
+     "start": 35.706,
+     "end": 36.039
+    },
+    {
+     "w": "comes",
+     "start": 36.039,
+     "end": 36.331
+    },
+    {
+     "w": "from",
+     "start": 36.331,
+     "end": 36.582
+    },
+    {
+     "w": "the",
+     "start": 36.582,
+     "end": 36.79
+    }
+   ]
+  },
+  {
+   "start": 36.79,
+   "end": 38.334,
+   "text": "wiki, with its sources.",
+   "words": [
+    {
+     "w": "wiki,",
+     "start": 36.79,
+     "end": 37.208
+    },
+    {
+     "w": "with",
+     "start": 37.208,
+     "end": 37.458
+    },
+    {
+     "w": "its",
+     "start": 37.458,
+     "end": 37.667
+    },
+    {
+     "w": "sources.",
+     "start": 37.667,
+     "end": 38.084
+    }
+   ]
+  },
+  {
+   "start": 40.984,
+   "end": 43.239,
+   "text": "Every piece of information follows the",
+   "words": [
+    {
+     "w": "Every",
+     "start": 40.984,
+     "end": 41.335
+    },
+    {
+     "w": "piece",
+     "start": 41.335,
+     "end": 41.685
+    },
+    {
+     "w": "of",
+     "start": 41.685,
+     "end": 41.886
+    },
+    {
+     "w": "information",
+     "start": 41.886,
+     "end": 42.537
+    },
+    {
+     "w": "follows",
+     "start": 42.537,
+     "end": 42.988
+    },
+    {
+     "w": "the",
+     "start": 42.988,
+     "end": 43.239
+    }
+   ]
+  },
+  {
+   "start": 43.239,
+   "end": 45.443,
+   "text": "same path, through three layers:",
+   "words": [
+    {
+     "w": "same",
+     "start": 43.239,
+     "end": 43.539
+    },
+    {
+     "w": "path,",
+     "start": 43.539,
+     "end": 44.04
+    },
+    {
+     "w": "through",
+     "start": 44.04,
+     "end": 44.491
+    },
+    {
+     "w": "three",
+     "start": 44.491,
+     "end": 44.842
+    },
+    {
+     "w": "layers:",
+     "start": 44.842,
+     "end": 45.443
+    }
+   ]
+  },
+  {
+   "start": 45.443,
+   "end": 47.347,
+   "text": "bronze, silver and gold.",
+   "words": [
+    {
+     "w": "bronze,",
+     "start": 45.443,
+     "end": 46.044
+    },
+    {
+     "w": "silver",
+     "start": 46.044,
+     "end": 46.445
+    },
+    {
+     "w": "and",
+     "start": 46.445,
+     "end": 46.696
+    },
+    {
+     "w": "gold.",
+     "start": 46.696,
+     "end": 47.347
+    }
+   ]
+  },
+  {
+   "start": 47.347,
+   "end": 49.651,
+   "text": "This is the medallion architecture.",
+   "words": [
+    {
+     "w": "This",
+     "start": 47.347,
+     "end": 47.647
+    },
+    {
+     "w": "is",
+     "start": 47.647,
+     "end": 47.848
+    },
+    {
+     "w": "the",
+     "start": 47.848,
+     "end": 48.098
+    },
+    {
+     "w": "medallion",
+     "start": 48.098,
+     "end": 48.649
+    },
+    {
+     "w": "architecture.",
+     "start": 48.649,
+     "end": 49.401
+    }
+   ]
+  },
+  {
+   "start": 52.301,
+   "end": 53.799,
+   "text": "To reach the gold layer,",
+   "words": [
+    {
+     "w": "To",
+     "start": 52.301,
+     "end": 52.483
+    },
+    {
+     "w": "reach",
+     "start": 52.483,
+     "end": 52.8
+    },
+    {
+     "w": "the",
+     "start": 52.8,
+     "end": 53.028
+    },
+    {
+     "w": "gold",
+     "start": 53.028,
+     "end": 53.3
+    },
+    {
+     "w": "layer,",
+     "start": 53.3,
+     "end": 53.799
+    }
+   ]
+  },
+  {
+   "start": 53.799,
+   "end": 55.457,
+   "text": "a page must pass a gate.",
+   "words": [
+    {
+     "w": "a",
+     "start": 53.799,
+     "end": 53.936
+    },
+    {
+     "w": "page",
+     "start": 53.936,
+     "end": 54.208
+    },
+    {
+     "w": "must",
+     "start": 54.208,
+     "end": 54.48
+    },
+    {
+     "w": "pass",
+     "start": 54.48,
+     "end": 54.753
+    },
+    {
+     "w": "a",
+     "start": 54.753,
+     "end": 54.889
+    },
+    {
+     "w": "gate.",
+     "start": 54.889,
+     "end": 55.207
+    }
+   ]
+  },
+  {
+   "start": 58.107,
+   "end": 60.191,
+   "text": "An independent reviewer checks where it",
+   "words": [
+    {
+     "w": "An",
+     "start": 58.107,
+     "end": 58.288
+    },
+    {
+     "w": "independent",
+     "start": 58.288,
+     "end": 58.877
+    },
+    {
+     "w": "reviewer",
+     "start": 58.877,
+     "end": 59.33
+    },
+    {
+     "w": "checks",
+     "start": 59.33,
+     "end": 59.693
+    },
+    {
+     "w": "where",
+     "start": 59.693,
+     "end": 60.01
+    },
+    {
+     "w": "it",
+     "start": 60.01,
+     "end": 60.191
+    }
+   ]
+  },
+  {
+   "start": 60.191,
+   "end": 61.732,
+   "text": "comes from, its format,",
+   "words": [
+    {
+     "w": "comes",
+     "start": 60.191,
+     "end": 60.508
+    },
+    {
+     "w": "from,",
+     "start": 60.508,
+     "end": 60.961
+    },
+    {
+     "w": "its",
+     "start": 60.961,
+     "end": 61.188
+    },
+    {
+     "w": "format,",
+     "start": 61.188,
+     "end": 61.732
+    }
+   ]
+  },
+  {
+   "start": 61.732,
+   "end": 64.111,
+   "text": "and respect for the people it mentions.",
+   "words": [
+    {
+     "w": "and",
+     "start": 61.732,
+     "end": 61.958
+    },
+    {
+     "w": "respect",
+     "start": 61.958,
+     "end": 62.366
+    },
+    {
+     "w": "for",
+     "start": 62.366,
+     "end": 62.592
+    },
+    {
+     "w": "the",
+     "start": 62.592,
+     "end": 62.819
+    },
+    {
+     "w": "people",
+     "start": 62.819,
+     "end": 63.181
+    },
+    {
+     "w": "it",
+     "start": 63.181,
+     "end": 63.363
+    },
+    {
+     "w": "mentions.",
+     "start": 63.363,
+     "end": 63.861
+    }
+   ]
+  },
+  {
+   "start": 66.761,
+   "end": 68.849,
+   "text": "Whatever it holds back is set aside,",
+   "words": [
+    {
+     "w": "Whatever",
+     "start": 66.761,
+     "end": 67.205
+    },
+    {
+     "w": "it",
+     "start": 67.205,
+     "end": 67.383
+    },
+    {
+     "w": "holds",
+     "start": 67.383,
+     "end": 67.694
+    },
+    {
+     "w": "back",
+     "start": 67.694,
+     "end": 67.96
+    },
+    {
+     "w": "is",
+     "start": 67.96,
+     "end": 68.138
+    },
+    {
+     "w": "set",
+     "start": 68.138,
+     "end": 68.36
+    },
+    {
+     "w": "aside,",
+     "start": 68.36,
+     "end": 68.849
+    }
+   ]
+  },
+  {
+   "start": 68.849,
+   "end": 70.787,
+   "text": "and waits for a human decision.",
+   "words": [
+    {
+     "w": "and",
+     "start": 68.849,
+     "end": 69.071
+    },
+    {
+     "w": "waits",
+     "start": 69.071,
+     "end": 69.382
+    },
+    {
+     "w": "for",
+     "start": 69.382,
+     "end": 69.604
+    },
+    {
+     "w": "a",
+     "start": 69.604,
+     "end": 69.737
+    },
+    {
+     "w": "human",
+     "start": 69.737,
+     "end": 70.048
+    },
+    {
+     "w": "decision.",
+     "start": 70.048,
+     "end": 70.537
+    }
+   ]
+  },
+  {
+   "start": 73.937,
+   "end": 76.37,
+   "text": "Each domain, work or personal life for",
+   "words": [
+    {
+     "w": "Each",
+     "start": 73.937,
+     "end": 74.235
+    },
+    {
+     "w": "domain,",
+     "start": 74.235,
+     "end": 74.831
+    },
+    {
+     "w": "work",
+     "start": 74.831,
+     "end": 75.129
+    },
+    {
+     "w": "or",
+     "start": 75.129,
+     "end": 75.327
+    },
+    {
+     "w": "personal",
+     "start": 75.327,
+     "end": 75.824
+    },
+    {
+     "w": "life",
+     "start": 75.824,
+     "end": 76.122
+    },
+    {
+     "w": "for",
+     "start": 76.122,
+     "end": 76.37
+    }
+   ]
+  },
+  {
+   "start": 76.37,
+   "end": 78.555,
+   "text": "example, lives in its own silo,",
+   "words": [
+    {
+     "w": "example,",
+     "start": 76.37,
+     "end": 77.016
+    },
+    {
+     "w": "lives",
+     "start": 77.016,
+     "end": 77.363
+    },
+    {
+     "w": "in",
+     "start": 77.363,
+     "end": 77.562
+    },
+    {
+     "w": "its",
+     "start": 77.562,
+     "end": 77.81
+    },
+    {
+     "w": "own",
+     "start": 77.81,
+     "end": 78.058
+    },
+    {
+     "w": "silo,",
+     "start": 78.058,
+     "end": 78.555
+    }
+   ]
+  },
+  {
+   "start": 78.555,
+   "end": 81.238,
+   "text": "with its own reviewer and its own rules.",
+   "words": [
+    {
+     "w": "with",
+     "start": 78.555,
+     "end": 78.853
+    },
+    {
+     "w": "its",
+     "start": 78.853,
+     "end": 79.101
+    },
+    {
+     "w": "own",
+     "start": 79.101,
+     "end": 79.349
+    },
+    {
+     "w": "reviewer",
+     "start": 79.349,
+     "end": 79.846
+    },
+    {
+     "w": "and",
+     "start": 79.846,
+     "end": 80.094
+    },
+    {
+     "w": "its",
+     "start": 80.094,
+     "end": 80.342
+    },
+    {
+     "w": "own",
+     "start": 80.342,
+     "end": 80.591
+    },
+    {
+     "w": "rules.",
+     "start": 80.591,
+     "end": 80.988
+    }
+   ]
+  },
+  {
+   "start": 84.388,
+   "end": 87.023,
+   "text": "A local dashboard shows the whole wiki as",
+   "words": [
+    {
+     "w": "A",
+     "start": 84.388,
+     "end": 84.546
+    },
+    {
+     "w": "local",
+     "start": 84.546,
+     "end": 84.915
+    },
+    {
+     "w": "dashboard",
+     "start": 84.915,
+     "end": 85.495
+    },
+    {
+     "w": "shows",
+     "start": 85.495,
+     "end": 85.863
+    },
+    {
+     "w": "the",
+     "start": 85.863,
+     "end": 86.127
+    },
+    {
+     "w": "whole",
+     "start": 86.127,
+     "end": 86.496
+    },
+    {
+     "w": "wiki",
+     "start": 86.496,
+     "end": 86.812
+    },
+    {
+     "w": "as",
+     "start": 86.812,
+     "end": 87.023
+    }
+   ]
+  },
+  {
+   "start": 87.023,
+   "end": 89.605,
+   "text": "a 3D graph: every page is a point,",
+   "words": [
+    {
+     "w": "a",
+     "start": 87.023,
+     "end": 87.181
+    },
+    {
+     "w": "3D",
+     "start": 87.181,
+     "end": 87.392
+    },
+    {
+     "w": "graph:",
+     "start": 87.392,
+     "end": 87.971
+    },
+    {
+     "w": "every",
+     "start": 87.971,
+     "end": 88.34
+    },
+    {
+     "w": "page",
+     "start": 88.34,
+     "end": 88.656
+    },
+    {
+     "w": "is",
+     "start": 88.656,
+     "end": 88.867
+    },
+    {
+     "w": "a",
+     "start": 88.867,
+     "end": 89.025
+    },
+    {
+     "w": "point,",
+     "start": 89.025,
+     "end": 89.605
+    }
+   ]
+  },
+  {
+   "start": 89.605,
+   "end": 91.752,
+   "text": "linked to the pages it cites.",
+   "words": [
+    {
+     "w": "linked",
+     "start": 89.605,
+     "end": 90.027
+    },
+    {
+     "w": "to",
+     "start": 90.027,
+     "end": 90.237
+    },
+    {
+     "w": "the",
+     "start": 90.237,
+     "end": 90.501
+    },
+    {
+     "w": "pages",
+     "start": 90.501,
+     "end": 90.87
+    },
+    {
+     "w": "it",
+     "start": 90.87,
+     "end": 91.08
+    },
+    {
+     "w": "cites.",
+     "start": 91.08,
+     "end": 91.502
+    }
+   ]
+  },
+  {
+   "start": 94.403,
+   "end": 95.108,
+   "text": "Kioku.",
+   "words": [
+    {
+     "w": "Kioku.",
+     "start": 94.403,
+     "end": 95.108
+    }
+   ]
+  },
+  {
+   "start": 95.108,
+   "end": 97.324,
+   "text": "A working memory that no longer gets",
+   "words": [
+    {
+     "w": "A",
+     "start": 95.108,
+     "end": 95.259
+    },
+    {
+     "w": "working",
+     "start": 95.259,
+     "end": 95.712
+    },
+    {
+     "w": "memory",
+     "start": 95.712,
+     "end": 96.115
+    },
+    {
+     "w": "that",
+     "start": 96.115,
+     "end": 96.417
+    },
+    {
+     "w": "no",
+     "start": 96.417,
+     "end": 96.619
+    },
+    {
+     "w": "longer",
+     "start": 96.619,
+     "end": 97.021
+    },
+    {
+     "w": "gets",
+     "start": 97.021,
+     "end": 97.324
+    }
+   ]
+  },
+  {
+   "start": 97.324,
+   "end": 99.187,
+   "text": "lost: reviewed, sourced,",
+   "words": [
+    {
+     "w": "lost:",
+     "start": 97.324,
+     "end": 97.827
+    },
+    {
+     "w": "reviewed,",
+     "start": 97.827,
+     "end": 98.532
+    },
+    {
+     "w": "sourced,",
+     "start": 98.532,
+     "end": 99.187
+    }
+   ]
+  },
+  {
+   "start": 99.187,
+   "end": 101.199,
+   "text": "and always one question away.",
+   "words": [
+    {
+     "w": "and",
+     "start": 99.187,
+     "end": 99.438
+    },
+    {
+     "w": "always",
+     "start": 99.438,
+     "end": 99.841
+    },
+    {
+     "w": "one",
+     "start": 99.841,
+     "end": 100.093
+    },
+    {
+     "w": "question",
+     "start": 100.093,
+     "end": 100.597
+    },
+    {
+     "w": "away.",
+     "start": 100.597,
+     "end": 100.949
+    }
+   ]
+  }
+ ]
+}

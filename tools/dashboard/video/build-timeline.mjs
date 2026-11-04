@@ -5,22 +5,24 @@
  * `voice.mjs` (changement de texte, de voix ou de pauses) : les slides, les animations et
  * les bruitages se recalent tous seuls.
  *
- *   node build-timeline.mjs
+ *   node build-timeline.mjs                                   # version française
+ *   node build-timeline.mjs voice-en kioku-explainer.en.html  # version anglaise (README)
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = path.dirname(fileURLToPath(import.meta.url));
-const voice = JSON.parse(readFileSync(path.join(dir, 'voice', 'voice.json'), 'utf8'));
-const htmlPath = path.join(dir, 'kioku-explainer.html');
+const [voiceDir = 'voice', htmlName = 'kioku-explainer.html'] = process.argv.slice(2);
+const voice = JSON.parse(readFileSync(path.join(dir, voiceDir, 'voice.json'), 'utf8'));
+const htmlPath = path.join(dir, htmlName);
 let html = readFileSync(htmlPath, 'utf8');
 
 const lines = Object.fromEntries(voice.lines.map((l) => [l.id, +l.start.toFixed(2)]));
 const end = +(voice.lines.at(-1).end + 3.4).toFixed(2);   // derniere phrase + respiration finale
 
 const swap = (re, value, label) => {
-  if (!re.test(html)) throw new Error(`marqueur ${label} absent de kioku-explainer.html`);
+  if (!re.test(html)) throw new Error(`marqueur ${label} absent de ${htmlName}`);
   html = html.replace(re, value);
 };
 swap(/\/\*LINES\*\/[\s\S]*?\/\*END\*\//, `/*LINES*/${JSON.stringify(lines)}/*END*/`, 'LINES');

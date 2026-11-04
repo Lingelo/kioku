@@ -1,7 +1,11 @@
 # Sorties de travail du rendu : regenerables
 stills/
+stills-en/
 draft.*
 render.log
 cues.json
-# Cache de voix Piper : regenere par voice.mjs (etape 1 du README)
+*.mp4
+# Cache de voix (Piper, Kokoro) : regenere par voice.mjs (etape 1 du README)
 voice/*.wav
+voice-en/*.wav
+assets/
