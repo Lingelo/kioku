@@ -2,7 +2,7 @@
 
 - **Paquet** : `3d-force-graph@1.80.0`
 - **Auteur** : Vasco Asturiano
-- **Licence** : MIT
+- **Licence** : MIT. Notices de 3d-force-graph et des bibliothèques qu'il inline (three.js, d3-force-3d) : `LICENSE-3d-force-graph.txt`
 - **Fichier** : `3d-force-graph.min.js` (build UMD officiel issu du tarball npm `dist/3d-force-graph.min.js`)
 - **Poids** : 1 313 897 octets (~1,25 Mo)
 - **Empreinte SHA-256** : `d96e738edcca580edd524730c1c6b05ed2efce028c23ca95db1bf43033a72e42`
