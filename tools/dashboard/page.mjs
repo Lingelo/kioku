@@ -19,7 +19,12 @@ import { escapeHtml } from './markdown.mjs';
 import { quarantineLabel } from './held-read.mjs';
 
 export const renderPage = (data) => {
-  const { domain, generatedAt, mode = 'static', version = null, askToken = null, topology, issues, medallion, localState, heldAndCandidates } = data;
+  const { domain, generatedAt, mode = 'static', version = null, askToken = null, topology, issues, medallion, localState, heldAndCandidates, assets = null } = data;
+  // Ressources vendor. Sans `assets` : URLs relatives `vendor/…`, servies par serve.mjs depuis le plugin. Avec : le
+  // fichier statique, ecrit dans le coffre loin du vendor du plugin, embarque polices et script (inlineAssets, run.mjs).
+  const fontSrc = (name) => assets?.fonts?.[name] ?? `vendor/fonts/${name}`;
+  const video = assets ? assets.video : { mp4: 'vendor/media/kioku-explainer.mp4', vtt: 'vendor/media/kioku-explainer.vtt' };
+  const graphScriptTag = assets ? `<script>${assets.graphScript}</script>` : '<script src="vendor/3d-force-graph.min.js"></script>';
   // Deux habillages : l'indigo du domaine `pro`, le matcha de tout autre domaine (perso aujourd'hui). Le badge
   // reprend le nom du domaine : un domaine ajoute s'affiche sous son nom, jamais sous celui d'un autre.
   const isPro = domain === 'pro';
@@ -177,7 +182,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 400;
       font-display: swap;
-      src: url('vendor/fonts/inter-latin-400.woff2') format('woff2');
+      src: url('${fontSrc('inter-latin-400.woff2')}') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     @font-face {
@@ -185,7 +190,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 400;
       font-display: swap;
-      src: url('vendor/fonts/inter-latin-ext-400.woff2') format('woff2');
+      src: url('${fontSrc('inter-latin-ext-400.woff2')}') format('woff2');
       unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
@@ -193,7 +198,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 500;
       font-display: swap;
-      src: url('vendor/fonts/inter-latin-500.woff2') format('woff2');
+      src: url('${fontSrc('inter-latin-500.woff2')}') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     @font-face {
@@ -201,7 +206,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 500;
       font-display: swap;
-      src: url('vendor/fonts/inter-latin-ext-500.woff2') format('woff2');
+      src: url('${fontSrc('inter-latin-ext-500.woff2')}') format('woff2');
       unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
@@ -209,7 +214,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 600;
       font-display: swap;
-      src: url('vendor/fonts/inter-latin-600.woff2') format('woff2');
+      src: url('${fontSrc('inter-latin-600.woff2')}') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     @font-face {
@@ -217,7 +222,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 600;
       font-display: swap;
-      src: url('vendor/fonts/inter-latin-ext-600.woff2') format('woff2');
+      src: url('${fontSrc('inter-latin-ext-600.woff2')}') format('woff2');
       unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
@@ -225,7 +230,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 400;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-latin-400.woff2') format('woff2');
+      src: url('${fontSrc('jetbrains-mono-latin-400.woff2')}') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     @font-face {
@@ -233,7 +238,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 400;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-latin-ext-400.woff2') format('woff2');
+      src: url('${fontSrc('jetbrains-mono-latin-ext-400.woff2')}') format('woff2');
       unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
@@ -241,7 +246,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 500;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-latin-500.woff2') format('woff2');
+      src: url('${fontSrc('jetbrains-mono-latin-500.woff2')}') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     @font-face {
@@ -249,7 +254,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 500;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-latin-ext-500.woff2') format('woff2');
+      src: url('${fontSrc('jetbrains-mono-latin-ext-500.woff2')}') format('woff2');
       unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
     @font-face {
@@ -257,7 +262,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 600;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-latin-600.woff2') format('woff2');
+      src: url('${fontSrc('jetbrains-mono-latin-600.woff2')}') format('woff2');
       unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
     }
     @font-face {
@@ -265,7 +270,7 @@ export const renderPage = (data) => {
       font-style: normal;
       font-weight: 600;
       font-display: swap;
-      src: url('vendor/fonts/jetbrains-mono-latin-ext-600.woff2') format('woff2');
+      src: url('${fontSrc('jetbrains-mono-latin-ext-600.woff2')}') format('woff2');
       unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
     }
 
@@ -2423,14 +2428,14 @@ export const renderPage = (data) => {
     </div>
 
     <!-- Video de presentation (rendue par motion-studio, source : tools/dashboard/video/) -->
-    <figure class="guide-video">
+    ${video.mp4 ? `<figure class="guide-video">
       <video controls preload="metadata" playsinline>
-        <source src="vendor/media/kioku-explainer.mp4" type="video/mp4" />
-        <track kind="subtitles" src="vendor/media/kioku-explainer.vtt" srclang="fr" label="Français" />
+        <source src="${escapeHtml(video.mp4)}" type="video/mp4" />
+        ${video.vtt ? `<track kind="subtitles" src="${escapeHtml(video.vtt)}" srclang="fr" label="Français" />` : ''}
         La vidéo de présentation n'est pas disponible dans ce navigateur.
       </video>
       <figcaption>Kioku en 3 min : à quoi sert le coffre, puis comment il fonctionne.</figcaption>
-    </figure>
+    </figure>` : ''}
 
     <!-- 1. Architecture Medaillon -->
     <h2 class="section-title"><span class="section-num">01.</span><span>Architecture Médaillon : Cycle de vie d'une connaissance</span></h2>
@@ -2639,7 +2644,7 @@ ${JSON.stringify({
   </script>
 
   <!-- Bibliotheque 3D Force Graph (build UMD local) -->
-  <script src="vendor/3d-force-graph.min.js"></script>
+  ${graphScriptTag}
 
   <!-- Script d'interactivite client (compatible file://, zero reseau externe) -->
   <script>
@@ -3515,6 +3520,12 @@ ${JSON.stringify({
 
       const links = rawData.topology.links.map(l => ({ ...l }));
 
+      // Bibliotheque absente (fichier statique deplace, plugin incomplet) : le dire, plutot que l'erreur WebGL du catch.
+      if (typeof ForceGraph3D === 'undefined') {
+        graphInstance = null;
+        renderWebGLError(container, 'Bibliothèque du graphe absente (vendor/3d-force-graph.min.js) : régénérer le dashboard.');
+        return;
+      }
       try {
         graphInstance = ForceGraph3D({ controlType: 'orbit' })(container)
           .graphData({ nodes, links })
