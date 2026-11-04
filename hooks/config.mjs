@@ -16,7 +16,8 @@
  * absence ne concerne que les pages du domaine qui l'utilise.
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export const CONFIG_NAME = 'kioku.config.json';
@@ -65,6 +66,11 @@ export const locateVault = (dir) => {
  * oui (echec ferme : on ne sait pas, donc on garde).
  */
 export const declaresKioku = (dir) => {
+  // Projet ouvert dans le dossier personnel : <dir>/.claude est alors la configuration UTILISATEUR de Claude Code, ou le
+  // plugin est active pour tous les projets. Ce n'est pas une declaration du projet : sans cette sortie, ~ passait pour
+  // un coffre abime et la garde refusait tout. Limite, dite : un coffre cree dans ~ dont on aurait efface configuration
+  // et marqueurs ne serait plus reconnu par ce seul test (configuration et marqueurs, eux, le sont avant).
+  if (realOrResolved(path.join(dir, '.claude')) === userClaudeDir()) return false;
   for (const name of ['settings.json', 'settings.local.json']) {
     const file = path.join(dir, '.claude', name);
     if (!existsSync(file)) continue;
@@ -81,6 +87,17 @@ export const declaresKioku = (dir) => {
   }
   return false;
 };
+
+// realpath si le chemin existe (macOS : /var -> /private/var, ~/.claude en lien symbolique), sinon le chemin resolu.
+const realOrResolved = (p) => {
+  try {
+    return realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
+};
+// Le dossier de configuration utilisateur de Claude Code : CLAUDE_CONFIG_DIR s'il est pose, sinon ~/.claude.
+const userClaudeDir = () => realOrResolved(process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'));
 
 /** Les marqueurs trouves, en chemins absolus : ceux du dossier, puis ceux des parents (pour le dire dans doctor). */
 export const vaultMarkers = (dir) => {

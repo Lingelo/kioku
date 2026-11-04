@@ -451,6 +451,38 @@ describe('chantier 1 : la sortie hors coffre ne s ouvre pas depuis une session',
     writeFileSync(path.join(vault, '.claude', 'settings.json'), '{ casse');
     assert.equal(guard(nu, read('README.md')), REFUS);
   });
+  // Projet ouvert dans le dossier personnel : <projet>/.claude/settings.json y est la configuration UTILISATEUR, ou le
+  // plugin est active pour tous les projets. Avant le correctif, ~ passait pour un coffre abime et tout etait refuse.
+  const guardHome = (home, payload, configDir) => {
+    const env = { ...process.env, HOME: home, CLAUDE_PROJECT_DIR: home };
+    delete env.VAULT_MODE;
+    delete env.VAULT_DOMAIN;
+    delete env.CLAUDE_CONFIG_DIR;
+    if (configDir !== undefined) env.CLAUDE_CONFIG_DIR = configDir;
+    return spawnSync(process.execPath, [TARGET], { input: JSON.stringify({ ...payload, cwd: home }), env, encoding: 'utf8' }).status;
+  };
+  const homeAvecPlugin = () => {
+    for (const d of ['wiki', 'raw', 'silver', 'domains', '.kioku']) rmSync(path.join(vault, d), { recursive: true, force: true });
+    rmSync(path.join(vault, 'kioku.config.json'));
+    mkdirSync(path.join(vault, '.claude'), { recursive: true });
+    writeFileSync(path.join(vault, '.claude', 'settings.json'), JSON.stringify({ enabledPlugins: { 'kioku@dojo': true } }));
+  };
+  test('dossier personnel, plugin active dans les settings utilisateur : hors coffre', () => {
+    homeAvecPlugin();
+    assert.equal(guardHome(vault, read('.zshrc')), OK);
+    assert.equal(guardHome(vault, bash('ls -la && cat .claude/settings.json')), OK);
+    assert.equal(guardHome(vault, read('.zshrc'), path.join(vault, '.claude')), OK, 'CLAUDE_CONFIG_DIR = ~/.claude');
+  });
+  test('dossier personnel avec un marqueur de coffre : toujours refuse (les marqueurs priment)', () => {
+    homeAvecPlugin();
+    mkdirSync(path.join(vault, 'wiki'));
+    assert.equal(guardHome(vault, read('.zshrc')), REFUS);
+  });
+  test('CLAUDE_CONFIG_DIR ailleurs : <projet>/.claude redevient une declaration du projet, refus', () => {
+    homeAvecPlugin();
+    assert.equal(guardHome(vault, read('.zshrc'), path.join(tmpdir(), 'autre-config-claude')), REFUS);
+  });
+
   test('projet ordinaire avec ses propres settings (sans Kioku) : toujours hors coffre', () => {
     rmSync(path.join(vault, 'kioku.config.json'));
     mkdirSync(path.join(vault, '.claude'), { recursive: true });
