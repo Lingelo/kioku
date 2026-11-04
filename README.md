@@ -63,6 +63,8 @@ Jamais touchés : les données (`wiki/`, `raw/`, `silver/`), `CLAUDE.md`, `domai
 
 ## Au quotidien
 
+Le [guide d'utilisation](docs/guide/README.md) détaille chaque étape (sessions, ingestion, gate, requêtes, lint et quarantaine, dashboard, Plaud, mises à jour, dépannage) ; un [aide-mémoire](docs/guide/aide-memoire.md) tient sur une page.
+
 | Besoin | Commande |
 |---|---|
 | Poser une question au wiki | session `query` sur le domaine, puis `/kioku:query …` ou une question libre |
