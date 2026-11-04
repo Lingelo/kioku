@@ -52,6 +52,16 @@ describe('U1 : Topologie et anomalies du gold', () => {
     assert.equal(result.issues.debt['lien-casse'].length, 0);
   });
 
+  test('une page qui cite trois fois la meme cible : une seule arete', () => {
+    put('wiki/pro/people/alice.md', '---\ntitle: Alice\ntype: person\nsources: [[[projects/alpha]]]\ngate: passe 2026-09-20\n---\n[[projects/alpha]], puis [[projects/alpha|Alpha]].\n');
+    put('wiki/pro/projects/alpha.md', '---\ntitle: Projet Alpha\ntype: project\ngate: passe 2026-09-20\n---\nRien.\n');
+    put('wiki/pro/index.md', '- [[people/alice]]\n- [[projects/alpha]]\n');
+
+    const result = readGoldTopologyAndIssues(vault, 'pro');
+
+    assert.deepEqual(result.edges, [{ source: 'people/alice', target: 'projects/alpha' }]);
+  });
+
   test('cible inexistante citee par une seule source : noeud fantome et lacune, pas d anomalie', () => {
     put('wiki/pro/people/bob.md', '---\ntitle: Bob\ntype: person\ngate: passe 2026-09-20\n---\nConnait [[concepts/unknown-concept]].\n');
     put('wiki/pro/index.md', '- [[people/bob]]\n');

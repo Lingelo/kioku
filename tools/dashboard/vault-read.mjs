@@ -200,7 +200,9 @@ export const readGoldTopologyAndIssues = (vaultRoot, domain) => {
       }
     }
 
-    for (const t of p.links) {
+    // Une cible par page, quel que soit le nombre de citations : sinon chaque occurrence fait une
+    // arete (le graphe double ses liens, les backlinks et la taille des noeuds gonflent).
+    for (const t of new Set(p.links)) {
       if (t === key) {
         // Lien vers soi-meme : ignore
         continue;
