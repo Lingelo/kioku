@@ -16,6 +16,7 @@
  */
 
 import { escapeHtml } from './markdown.mjs';
+import { quarantineLabel } from './held-read.mjs';
 
 export const renderPage = (data) => {
   const { domain, generatedAt, mode = 'static', version = null, askToken = null, topology, issues, medallion, localState, heldAndCandidates } = data;
@@ -70,9 +71,10 @@ export const renderPage = (data) => {
       title: q.id,
       badge: q.code || 'retenu',
       badgeClass: 'status-held',
-      note: q.note || 'Page retenue ou pointeur en quarantaine',
+      note: `${quarantineLabel(q.kind)}${q.actions ? ` — actions : ${q.actions.join(' | ')}` : ''}${q.note ? ` — ${q.note}` : ''}`,
       target: q.target || q.file || '',
-      command: q.command || `kioku decide ${domain} ${q.id} drop`,
+      // Jamais de drop par defaut : il supprime une page retenue ou sort une page de l'or.
+      command: q.command || `kioku decide ${domain} ${q.id}`,
       actionLabel: 'Décider',
       linkSlug: null,
     });

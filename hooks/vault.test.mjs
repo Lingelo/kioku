@@ -846,3 +846,50 @@ describe('U4 : domaines lus dans la configuration', () => {
     assert.match(out.stdout, /sources\/s-tag\tacme\ttag/);
   });
 });
+
+describe('undecided et decide : nature de chaque element de quarantaine', () => {
+  const Q = 'quarantine/pro';
+  const quarantined = () => {
+    put(`${Q}/sources-a.json`, JSON.stringify({ code: 'sensible', target: 'wiki/pro/sources/a.md', at: '2026-11-04', hash: 'h' }));
+    put(`${Q}/sources-a.md`, 'retenue');
+    put(`${Q}/concepts-b.json`, JSON.stringify({ code: 'sensible', target: 'wiki/pro/concepts/b.md', at: '2026-11-04', flagged: true }));
+    put(`${Q}/source-c.json`, JSON.stringify({ code: 'insulte', raw: 'raw/pro/meetings/c.md', at: '2026-11-04', pointeur: true }));
+  };
+
+  test('undecided : nature et actions admises sur chaque ligne', () => {
+    quarantined();
+    const out = run('undecided', 'pro');
+    assert.equal(out.status, 0);
+    assert.match(out.stdout, /^pro\/sources-a  nature=retenue  code=sensible  .*\[keep\|correct\|drop\]$/m);
+    assert.match(out.stdout, /^pro\/concepts-b  nature=signalee  code=sensible  .*\[keep\|correct\|drop\]$/m);
+    assert.match(out.stdout, /^pro\/source-c  nature=pointeur  code=insulte  .*raw\/pro\/meetings\/c\.md  \[drop\]$/m);
+  });
+
+  test('undecided : quarantaine vide, message inchange', () => {
+    assert.match(run('undecided', 'pro').stdout, /rien en attente de decision/);
+  });
+
+  test('decide : un pointeur refuse correct et keep, accepte drop sans toucher le wiki', () => {
+    quarantined();
+    put('wiki/pro/sources/c.md', 'page or de la meme source');
+    for (const action of ['correct', 'keep']) {
+      const out = run('decide', 'pro', 'source-c', action);
+      assert.equal(out.status, 1);
+      assert.match(out.stdout, /ne se promeut pas/);
+    }
+    const out = run('decide', 'pro', 'source-c', 'drop');
+    assert.equal(out.status, 0);
+    assert.match(out.stdout, /pointeur clos/);
+    assert.ok(existsSync(path.join(vault, 'wiki/pro/sources/c.md')));
+    assert.ok(!existsSync(path.join(vault, `${Q}/source-c.json`)));
+  });
+
+  test('decide : une page signalee garde son comportement (keep leve le drapeau, page intacte)', () => {
+    quarantined();
+    put('wiki/pro/concepts/b.md', 'page or signalee');
+    const out = run('decide', 'pro', 'concepts-b', 'keep');
+    assert.equal(out.status, 0);
+    assert.match(out.stdout, /drapeau leve/);
+    assert.equal(readFileSync(path.join(vault, 'wiki/pro/concepts/b.md'), 'utf8'), 'page or signalee');
+  });
+});

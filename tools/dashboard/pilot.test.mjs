@@ -120,7 +120,11 @@ describe('U7 : Onglet Pilote', () => {
 
     assert.ok(html.includes('incident-1'));
     assert.ok(html.includes('diffamation'));
-    assert.ok(html.includes('kioku decide pro incident-1 drop'));
+    // Page retenue : commande sans action par defaut (drop la supprimerait), actions admises affichees
+    assert.ok(html.includes('kioku decide pro incident-1'));
+    assert.ok(!html.includes('kioku decide pro incident-1 drop'));
+    assert.ok(html.includes('Page retenue par la gate'));
+    assert.ok(html.includes('keep | correct | drop'));
     assert.ok(html.includes('Copier'));
 
     // R11 : Jamais de texte sensible recopié

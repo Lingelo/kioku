@@ -11,7 +11,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeEach, afterEach, describe, test } from 'node:test';
 
-import { readHeldAndCandidates, computeCandidateHash } from './held-read.mjs';
+import { spawnSync } from 'node:child_process';
+import { realpathSync } from 'node:fs';
+import { readHeldAndCandidates, computeCandidateHash, quarantineKind } from './held-read.mjs';
+
+const VAULT_HOOK = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..', 'hooks', 'vault.mjs');
 
 let vault;
 const put = (rel, text) => {
@@ -68,7 +72,10 @@ describe('U3 : Lecture de la quarantaine et de la gate', () => {
     assert.equal(qPage.code, 'jugement-personne');
     assert.equal(qPage.target, 'wiki/pro/people/alice.md');
     assert.equal(qPage.type, 'held_page');
-    assert.equal(qPage.command, 'kioku decide pro people-alice drop');
+    assert.equal(qPage.kind, 'retenue');
+    assert.deepEqual(qPage.actions, ['keep', 'correct', 'drop']);
+    // Pas de drop par defaut : il supprimerait la page retenue
+    assert.equal(qPage.command, 'kioku decide pro people-alice');
     // Le texte de la page retenue ne doit pas etre recopié
     assert.equal(qPage.body, undefined);
 
@@ -76,7 +83,45 @@ describe('U3 : Lecture de la quarantaine et de la gate', () => {
     assert.ok(qSource);
     assert.equal(qSource.code, 'insulte');
     assert.equal(qSource.type, 'held_source');
+    assert.equal(qSource.kind, 'pointeur');
+    assert.deepEqual(qSource.actions, ['drop']);
     assert.equal(qSource.command, 'kioku decide pro source-audio drop');
+  });
+
+  test('page signalee (flag : target, sans .md) : nature signalee, pas retenue', () => {
+    // Forme exacte ecrite par cmdFlag (hooks/vault.mjs)
+    put(
+      'quarantine/pro/concepts-zeta.json',
+      JSON.stringify({ code: 'sensible', note: null, target: 'wiki/pro/concepts/zeta.md', at: '2026-11-04', flagged: true })
+    );
+    const [q] = readHeldAndCandidates(vault, 'pro').quarantine;
+    assert.equal(q.kind, 'signalee');
+    assert.equal(q.type, 'flagged_page');
+    assert.equal(q.command, 'kioku decide pro concepts-zeta');
+  });
+
+  test('nature : le critere est le .md, pas les marqueurs (comme decide)', () => {
+    const base = path.join(vault, 'quarantine/pro/x');
+    assert.equal(quarantineKind(base, { target: 'wiki/pro/concepts/x.md' }), 'signalee'); // ancien format sans flagged
+    put('quarantine/pro/x.md', 'retenue');
+    assert.equal(quarantineKind(base, { target: 'wiki/pro/concepts/x.md', flagged: true }), 'retenue');
+    assert.equal(quarantineKind(base, { raw: 'raw/pro/a.md' }), 'pointeur'); // sans marqueur pointeur
+  });
+
+  test('recopie conforme : la nature du dashboard egale celle de vault.mjs undecided', () => {
+    const root = realpathSync(vault);
+    put('kioku.config.json', JSON.stringify({ version: 1, domains: [{ id: 'pro' }, { id: 'perso' }] }));
+    put('quarantine/pro/sources-a.json', JSON.stringify({ code: 'sensible', target: 'wiki/pro/sources/a.md', at: '2026-11-04', hash: 'h' }));
+    put('quarantine/pro/sources-a.md', 'retenue');
+    put('quarantine/pro/concepts-b.json', JSON.stringify({ code: 'sensible', target: 'wiki/pro/concepts/b.md', at: '2026-11-04', flagged: true }));
+    put('quarantine/pro/source-c.json', JSON.stringify({ code: 'insulte', raw: 'raw/pro/c.md', at: '2026-11-04', pointeur: true }));
+
+    const out = spawnSync(process.execPath, [VAULT_HOOK, 'undecided', 'pro'], { cwd: root, env: { ...process.env, CLAUDE_PROJECT_DIR: root }, encoding: 'utf8' });
+    assert.equal(out.status, 0, out.stdout + out.stderr);
+    const fromCli = Object.fromEntries([...out.stdout.matchAll(/^pro\/(\S+)\s+nature=(\S+)/gm)].map((m) => [m[1], m[2]]));
+    const fromDashboard = Object.fromEntries(readHeldAndCandidates(root, 'pro').quarantine.map((q) => [q.id, q.kind]));
+    assert.deepEqual(fromCli, { 'concepts-b': 'signalee', 'source-c': 'pointeur', 'sources-a': 'retenue' });
+    assert.deepEqual(fromDashboard, fromCli);
   });
 
   test('candidate avec verdict ok : prete pour promote', () => {

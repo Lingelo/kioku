@@ -28,7 +28,9 @@
  *                                                         relie le bronze herite aux pages sources sans raw: (memes gardes)
  *   kioku quarantine <domaine> <slug> <code> <raw> [note]
  *                                                         consigne une source ecartee (pointeur, jamais le texte)
- *   kioku undecided [domaine]      liste ce qui attend une decision (codes, jamais d'extraits)
+ *   kioku undecided [domaine]      liste ce qui attend une decision (codes, jamais d'extraits), avec la nature
+ *                                                         (pointeur | retenue | signalee) et les actions de decide admises ;
+ *                                                         un pointeur ne se decide que par drop, qui ne touche aucune page
  *   kioku audit <domaine>          anomalies deterministes : liens casses, orphelines, index, frontmatter…
  *   kioku flag <domaine> <dossier/slug> <code> [note]
  *                                                         signale une page deja dans le wiki (ancien fonds)
@@ -331,6 +333,17 @@ const cmdQuarantine = ([domain, slug, code, raw, ...note]) => {
   return 0;
 };
 
+/**
+ * Nature d'un element de quarantaine, et ce que `decide` en accepte. Une seule regle, celle de `decide` :
+ *   pointeur  pas de target (cmdQuarantine)          -> drop seulement (classer sans suite ; aucune page touchee)
+ *   retenue   target + <base>.md present (promote)   -> keep | correct | drop (drop supprime la page retenue)
+ *   signalee  target, pas de .md (cmdFlag)           -> keep | correct | drop (drop sort la page du wiki)
+ * Le critere est la presence du .md, pas le marqueur `flagged` ni `pointeur` : decide ne lit pas ces marqueurs.
+ * Recopie conforme dans tools/dashboard/held-read.mjs (le dashboard n'importe pas hooks/) ; un test compare les deux.
+ */
+const kindOf = (base, meta) => (!meta.target ? 'pointeur' : existsSync(`${base}.md`) ? 'retenue' : 'signalee');
+const ACTIONS = { pointeur: ['drop'], retenue: ['keep', 'correct', 'drop'], signalee: ['keep', 'correct', 'drop'] };
+
 const cmdUndecided = ([domain]) => {
   if (domain && !DOMAINS.includes(domain)) return console.log(`usage : undecided [${DOMAIN_LIST}]`), 1;
   const list = domain ? [domain] : DOMAINS;
@@ -340,7 +353,8 @@ const cmdUndecided = ([domain]) => {
     if (!existsSync(dir)) continue;
     for (const f of readdirSync(dir).filter((x) => x.endsWith('.json')).sort()) {
       const meta = JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
-      console.log(`${d}/${f.slice(0, -5)}  code=${meta.code}  date=${meta.at}  ${meta.target ?? meta.raw ?? ''}`);
+      const kind = kindOf(path.join(dir, f.slice(0, -5)), meta);
+      console.log(`${d}/${f.slice(0, -5)}  nature=${kind}  code=${meta.code}  date=${meta.at}  ${meta.target ?? meta.raw ?? ''}  [${ACTIONS[kind].join('|')}]`);
       n++;
     }
   }
@@ -528,14 +542,15 @@ const cmdDecide = ([domain, name, action, ...note]) => {
   const base = path.join(VAULT, 'quarantine', domain, name);
   if (!existsSync(`${base}.json`)) return console.log(`introuvable : quarantine/${domain}/${name}.json (voir undecided)`), 1;
   const meta = JSON.parse(readFileSync(`${base}.json`, 'utf8'));
-  const held = existsSync(`${base}.md`); // retenue par la gate, sinon signalee ou pointeur
+  const kind = kindOf(base, meta);
+  const held = kind === 'retenue';
   const target = meta.target ? path.join(VAULT, meta.target) : null;
   const candidate = meta.target ? path.join(VAULT, '.candidats', meta.target) : null;
   const journal = (fait) =>
     writeFileSync(path.join(VAULT, 'quarantine', domain, 'decisions.jsonl'), `${JSON.stringify({ name, action, code: meta.code, note: note.join(' ') || null, at: today(), fait })}\n`, { flag: 'a' });
-  if (!meta.target) {
+  if (kind === 'pointeur') {
     // pointeur vers une source ecartee : seul « drop » (classer sans suite) a un sens
-    if (action !== 'drop') return console.log('un pointeur de source ecartee ne se promeut pas : reingerer la source si besoin, ou drop'), 1;
+    if (!ACTIONS.pointeur.includes(action)) return console.log('un pointeur de source ecartee ne se promeut pas : reingerer la source si besoin, ou drop'), 1;
     rmSync(`${base}.json`);
     journal('pointeur clos');
     return console.log('pointeur clos'), 0;

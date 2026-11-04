@@ -14,6 +14,18 @@ import { readText, walk } from './vault-read.mjs';
 const sha = (text) => createHash('sha256').update(text).digest('hex');
 
 /**
+ * Nature d'un element de quarantaine : recopie conforme de kindOf (hooks/vault.mjs, regle de `decide`).
+ * Le critere est la presence du .md, pas les marqueurs `pointeur`/`flagged` : une page signalee (flag) a un target
+ * et pas de .md. Un test compare cette copie a la sortie de `vault.mjs undecided`.
+ */
+export const quarantineKind = (base, meta) => (!meta.target ? 'pointeur' : existsSync(`${base}.md`) ? 'retenue' : 'signalee');
+export const QUARANTINE_ACTIONS = { pointeur: ['drop'], retenue: ['keep', 'correct', 'drop'], signalee: ['keep', 'correct', 'drop'] };
+// Noms historiques du champ `type`, gardes pour les lecteurs existants.
+const TYPE_OF_KIND = { pointeur: 'held_source', retenue: 'held_page', signalee: 'flagged_page' };
+const KIND_LABEL = { pointeur: 'Pointeur (passage écarté à l’ingestion, aucune page)', retenue: 'Page retenue par la gate', signalee: 'Page de l’or signalée' };
+export const quarantineLabel = (kind) => KIND_LABEL[kind] ?? 'En quarantaine';
+
+/**
  * Calcule l'empreinte sha256 d'une candidate exactement comme la gate (hooks/vault.mjs, empreinte des verdicts).
  * Pour une candidate de type source, l'empreinte integre la fiche argent si elle existe.
  */
@@ -49,8 +61,8 @@ export const readHeldAndCandidates = (vaultRoot, domain) => {
       const jsonPath = path.join(qDir, f);
       try {
         const meta = JSON.parse(readText(jsonPath));
-        const isPointer = meta.pointeur === true;
-        const type = isPointer ? 'held_source' : meta.target ? 'held_page' : 'flagged_page';
+        const kind = quarantineKind(path.join(qDir, id), meta);
+        const type = TYPE_OF_KIND[kind];
         const target = meta.target ?? meta.raw ?? '';
 
         quarantine.push({
@@ -63,8 +75,11 @@ export const readHeldAndCandidates = (vaultRoot, domain) => {
           raw: meta.raw ?? null,
           note: meta.note ?? null,
           type,
-          // Commande recommandee pour statuer (drop ou keep)
-          command: `kioku decide ${domain} ${id} drop`,
+          kind,
+          actions: QUARANTINE_ACTIONS[kind],
+          // Un pointeur n'admet que drop (sans effet sur les pages). Pour une page retenue ou signalee, drop
+          // supprime ou sort la page : aucune action par defaut, la commande copiee sans action est refusee par decide.
+          command: kind === 'pointeur' ? `kioku decide ${domain} ${id} drop` : `kioku decide ${domain} ${id}`,
         });
       } catch {
         // Ignorer les fichiers JSON corrompus
