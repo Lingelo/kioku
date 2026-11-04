@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Kioku — how it works</title>
+<!--
+  English short cut of kioku-explainer.html, for the public README. About 1 min 44 s, 1920×1080.
+  Derived from the French composition: same scene, 11 stops out of 20, beats re-timed on the Kokoro words.
+  Scène Three.js (îlot sacré : torii, pagode, lanternes, anneaux ensō, Fuji, pétales) autour de laquelle
+  les slides (HTML, CSS3DRenderer, même caméra) sont posées en spirale. La caméra orbite de slide en slide.
+  La timeline suit les phrases mesurées dans voice-en/voice.json (narration Kokoro, anglais).
+  Chaque élément animé porte data-at / data-anim / data-snd : l'image et son bruitage partent au même instant.
+  Rendu : voir README.md de ce dossier.
+-->
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<style>
+  :root {
+    --paper: #F4EFE6; --paper-2: #ECE6DA; --rule: #DDD4C4; --ink: #1E1C1A; --muted: #5E5A53;
+    --shu: #D1402F; --shu-ink: #A5372A; --ai: #264D73; --matcha: #2E6B47; --accent: #9B5E3C;
+    --jp: 'Hiragino Mincho ProN', 'Yu Mincho', 'Noto Serif CJK JP', serif;
+    --sans: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    --mono: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--paper); }
+  body { font-family: var(--sans); color: var(--ink); position: relative; -webkit-font-smoothing: antialiased; }
+  #gl, #grain { position: absolute; inset: 0; }
+  #grain { mix-blend-mode: multiply; opacity: .55; pointer-events: none; }
+  #css { position: absolute; inset: 0; }
+
+  .slide {
+    width: 1180px; min-height: 620px; padding: 60px 76px;
+    background: rgba(244, 239, 230, 0.985); border: 1.5px solid var(--rule); border-radius: 10px;
+  }
+  .slide.bare { background: radial-gradient(closest-side, rgba(244,239,230,.92), rgba(244,239,230,0)); border-color: transparent; }
+  .kicker { display: flex; align-items: center; gap: 16px; font-family: var(--mono); font-size: 21px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .kicker .jp { font-family: var(--jp); font-size: 36px; letter-spacing: 0; color: var(--ink); }
+  h1 { font-size: 96px; font-weight: 500; letter-spacing: -0.035em; line-height: 1.05; margin-top: 22px; }
+  h2 { font-size: 64px; font-weight: 500; letter-spacing: -0.025em; line-height: 1.12; margin-top: 22px; }
+  .lead { font-size: 33px; line-height: 1.5; color: var(--muted); margin-top: 24px; max-width: 980px; }
+  .mark { color: var(--accent); }
+  .brush-line { height: 6px; width: 420px; margin-top: 30px; background: var(--ink); border-radius: 3px; }
+
+  .seal { width: 220px; height: 220px; display: block; }
+  .center { display: flex; flex-direction: column; align-items: center; gap: 26px; text-align: center; padding-top: 34px; }
+  .brand { font-size: 128px; font-weight: 500; letter-spacing: -0.04em; display: flex; align-items: baseline; }
+  .brand .jp { font-family: var(--jp); font-size: 70px; color: var(--muted); margin-left: 24px; letter-spacing: 0; display: inline-block; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 34px; }
+  .chip { font-family: var(--mono); font-size: 25px; padding: 10px 18px; border: 1.5px solid var(--rule); border-radius: 6px; background: var(--paper-2); }
+  .chip i { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 12px; vertical-align: 1px; }
+
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 40px; border-top: 1.5px solid var(--rule); border-bottom: 1.5px solid var(--rule); }
+  .stage { padding: 30px 30px 34px; border-left: 1.5px solid var(--rule); }
+  .stage:first-child { border-left: none; }
+  .stage .jp { font-family: var(--jp); font-size: 66px; line-height: 1; }
+  .stage .name { font-family: var(--mono); font-size: 27px; margin-top: 18px; }
+  .stage .what { font-size: 25px; color: var(--muted); margin-top: 10px; }
+  .bar { height: 3px; margin-top: 26px; background: var(--rule); }
+  .bar b { display: block; height: 100%; }
+
+  .big-kanji { font-family: var(--jp); font-size: 240px; line-height: 1; display: inline-block; }
+  .stage-slide { display: grid; grid-template-columns: 300px 1fr; gap: 56px; align-items: center; padding-top: 70px; }
+  .path { font-family: var(--mono); font-size: 27px; color: var(--muted); margin-top: 18px; display: inline-block; }
+
+  .q { margin-top: 34px; display: flex; flex-direction: column; gap: 18px; }
+  .q .ask { align-self: flex-end; background: var(--ink); color: var(--paper); font-size: 29px; padding: 18px 26px; border-radius: 8px 8px 2px 8px; }
+  .q .ans { align-self: flex-start; background: var(--paper-2); border: 1.5px solid var(--rule); font-size: 27px; line-height: 1.5; padding: 20px 26px; border-radius: 8px 8px 8px 2px; max-width: 880px; }
+  .q .src { font-family: var(--mono); font-size: 21px; color: var(--ai); margin-top: 10px; display: block; }
+
+  .scatter { position: relative; height: 330px; margin-top: 26px; }
+  .doc { position: absolute; width: 230px; height: 146px; background: var(--paper-2); border: 1.5px solid var(--rule); border-radius: 6px; padding: 18px; font-family: var(--mono); font-size: 19px; color: var(--muted); }
+  .doc::after { content: ''; position: absolute; left: 18px; right: 40px; top: 60px; height: 2px; background: var(--rule); box-shadow: 0 18px 0 var(--rule), 0 36px 0 var(--rule); }
+
+  .gate-row { display: grid; grid-template-columns: 1fr 120px 1fr; align-items: center; margin-top: 52px; gap: 20px; }
+  .gate-box { border: 1.5px solid var(--rule); border-radius: 8px; padding: 28px; background: var(--paper-2); font-size: 27px; line-height: 1.45; }
+  .gate-box.held { background: rgba(209,64,47,.09); border-color: rgba(209,64,47,.45); }
+  .gate-box .t { font-family: var(--mono); font-size: 22px; color: var(--muted); margin-bottom: 10px; display: block; }
+  .arrow { font-size: 70px; text-align: center; color: var(--shu); font-family: var(--jp); display: inline-block; }
+  .checks { list-style: none; margin-top: 8px; }
+  .checks li { font-size: 27px; padding: 6px 0; }
+  .checks li::before { content: '✓'; color: var(--matcha); margin-right: 14px; font-weight: 600; }
+
+  .silos { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; margin-top: 46px; position: relative; }
+  .silo { border: 1.5px solid var(--rule); border-radius: 8px; padding: 34px; background: var(--paper-2); }
+  .silo .tag { font-family: var(--mono); font-size: 22px; padding: 4px 12px; border-radius: 5px; border: 1.5px solid; display: inline-block; }
+  .silo h3 { font-size: 42px; font-weight: 500; margin-top: 20px; }
+  .silo p { font-size: 25px; color: var(--muted); margin-top: 10px; line-height: 1.45; }
+  .wall { position: absolute; left: 50%; top: -12px; bottom: -12px; width: 4px; background: var(--ink); }
+
+  .cmds { display: flex; flex-direction: column; gap: 18px; margin-top: 40px; }
+  .cmd { display: flex; align-items: center; justify-content: space-between; border: 1.5px solid var(--rule); border-radius: 6px; background: var(--paper-2); padding: 18px 24px; }
+  .cmd code { font-family: var(--mono); font-size: 29px; }
+  .cmd span { font-size: 25px; color: var(--muted); }
+
+  .flow { display: flex; align-items: center; gap: 16px; margin-top: 54px; }
+  .flow .step { font-family: var(--mono); font-size: 24px; padding: 16px 18px; border: 1.5px solid var(--rule); border-radius: 6px; background: var(--paper-2); white-space: nowrap; display: inline-block; }
+  .flow .sep { color: var(--muted); font-size: 28px; display: inline-block; }
+
+  .later { display: flex; align-items: center; gap: 18px; margin-top: 40px; font-size: 28px; color: var(--muted); }
+  .later .tag { font-family: var(--mono); font-size: 20px; letter-spacing: .1em; text-transform: uppercase; border: 1.5px solid var(--rule); border-radius: 4px; padding: 6px 12px; color: var(--accent); white-space: nowrap; }
+  .graph-row { display: flex; align-items: center; gap: 28px; margin-top: 26px; }
+  .graph { width: 640px; height: 320px; overflow: visible; }
+  .graph circle, .graph .cursor { transform-box: fill-box; transform-origin: center; }
+  .graph .links line { stroke: rgba(133,115,107,.45); stroke-width: 1.6; }
+  .graph .cursor { fill: var(--ink); stroke: var(--paper); stroke-width: 2; }
+  .reader { width: 340px; border: 1.5px solid var(--rule); border-radius: 8px; background: var(--paper-2); padding: 22px 24px; }
+  .reader .r-k, .legend span { display: inline-flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 19px; color: var(--muted); }
+  .reader i, .legend i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .reader .r-t { font-size: 30px; margin: 12px 0 18px; }
+  .reader .r-l { height: 9px; border-radius: 4px; background: var(--rule); margin-top: 12px; }
+  .reader .r-l.s { width: 60%; }
+  .legend { display: flex; gap: 30px; margin-top: 18px; }
+  .vows { display: flex; gap: 22px; margin-top: 10px; }
+  .vows span { font-family: var(--mono); font-size: 24px; letter-spacing: .1em; text-transform: uppercase; border: 1.5px solid var(--shu); border-radius: 4px; padding: 10px 18px; color: var(--shu-ink); display: inline-block; }
+  .mini-dash { margin-top: 36px; border: 1.5px solid var(--rule); border-radius: 8px; overflow: hidden; background: var(--paper); }
+  .mini-dash .top { display: flex; align-items: center; gap: 14px; padding: 16px 22px; border-bottom: 1.5px solid var(--rule); font-size: 25px; }
+  .mini-dash .top .jp { font-family: var(--jp); color: var(--muted); }
+  .mini-dash .cols { display: grid; grid-template-columns: repeat(4, 1fr); }
+  .mini-dash .col { padding: 22px; border-left: 1.5px solid var(--rule); }
+  .mini-dash .col:first-child { border-left: none; }
+  .mini-dash .col .n { font-size: 50px; margin-top: 8px; }
+  .mini-dash .col .l { font-family: var(--mono); font-size: 21px; }
+  .mini-dash .tabs { margin-left: auto; display: flex; gap: 10px; font-family: var(--mono); font-size: 21px; color: var(--muted); }
+  .mini-dash .tabs span { padding: 6px 14px; border-radius: 5px; display: inline-block; }
+  .mini-dash .tabs .on { background: var(--ink); color: var(--paper); }
+  .ask-pane { padding: 34px 40px 30px; }
+  .ask-pane .field { display: flex; align-items: center; justify-content: space-between; border: 1.5px solid var(--rule); border-radius: 8px; background: var(--paper-2); padding: 22px 26px; font-size: 29px; }
+  .ask-pane .send { font-family: var(--mono); font-size: 21px; color: var(--muted); }
+  .ask-pane .hint { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; font-family: var(--mono); font-size: 22px; color: var(--muted); }
+  .ask-pane .guard { border: 1.5px solid var(--shu); border-radius: 4px; padding: 8px 16px; color: var(--shu-ink); display: inline-block; }
+  .silos .silo { display: flex; flex-direction: column; }
+  .silos .silo .tag { align-self: flex-start; }
+  .silos .silo p { margin-bottom: 22px; }
+  .silo .rev { display: flex; align-items: baseline; gap: 12px; margin-top: auto; padding-top: 18px; border-top: 1.5px solid var(--rule); font-family: var(--mono); font-size: 23px; flex-wrap: wrap; }
+  .silo .rev .jp { font-family: var(--jp); color: var(--shu); font-size: 28px; }
+  .silo .rev small { flex-basis: 100%; font-family: var(--sans); font-size: 22px; color: var(--muted); }
+
+  [data-anim] { will-change: transform, opacity; }
+  #veil { position: absolute; inset: 0; background: var(--paper); pointer-events: none; }
+</style>
+</head>
+<body data-width="1920" data-height="1080" data-fps="30" data-duration="104.35">
+  <canvas id="gl"></canvas>
+  <canvas id="grain" width="1920" height="1080"></canvas>
+  <div id="css"></div>
+  <div id="veil"></div>
+
+  <div id="slides" style="display:none">
+    <!-- 0. Titre (phrase 1.60 → 5.28) -->
+    <section class="slide bare" id="s-titre">
+      <div class="center">
+        <svg class="seal" viewBox="0 0 120 120" fill="none" data-anim="stamp" data-at="0.9" data-snd="impact?dur=1.4" data-gain=".55">
+          <rect x="8" y="8" width="104" height="104" rx="20" stroke="#D1402F" stroke-width="7" stroke-dasharray="100 2 80 3 60 1" stroke-linecap="round"/>
+          <rect x="15" y="15" width="90" height="90" rx="14" fill="#D1402F" fill-opacity="0.08"/>
+          <path d="M38 32 C 38 42, 37 60, 31 78 M38 34 C 42 33, 46 32, 50 32 C 50 48, 50 66, 49 84 C 47 88, 43 89, 39 88 M38 48 C 42 48, 47 47, 49 47 M37 63 C 41 63, 46 62, 49 62 M57 38 C 61 36, 68 34, 75 32 M67 36 C 66 43, 62 50, 56 55 M75 39 C 78 44, 82 50, 84 54 M63 53 C 69 52, 75 51, 80 51 M58 64 C 67 63, 76 62, 85 61 M69 63 C 69 72, 69 82, 67 86 C 65 89, 61 89, 58 87 M60 72 C 58 76, 55 80, 52 83 M76 71 C 80 76, 84 81, 88 85" stroke="#D1402F" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <div class="brand"><span data-anim="rise" data-at="@titre-0.05" data-snd="whoosh?dur=.7&from=500&to=3000" data-gain=".22">Kioku</span><span class="jp" data-anim="brush" data-at="@titre+1.1" data-snd="swoosh?dur=.7" data-gain=".22">記憶</span></div>
+        <div class="lead" style="margin-top:0" data-anim="rise" data-at="@titre+2.7" data-snd="chime?note=79" data-gain=".22">“memory” in Japanese</div>
+      </div>
+    </section>
+
+    <!-- 1. Le probleme (6.18 → 12.20) -->
+    <section class="slide" id="s-probleme">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">問</span>The problem</div>
+      <h2 data-anim="rise" data-at="+0.25">Meetings, documents, decisions… <span class="mark" data-anim="rise" data-at="+4.0" data-snd="swoosh?dur=.5" data-gain=".2">what matters gets lost.</span></h2>
+      <div class="scatter">
+        <div class="doc" data-anim="drop" data-rot="-6" data-at="+0.7" data-snd="pop?pitch=.9" data-gain=".28" style="left:20px;top:40px">meeting</div>
+        <div class="doc" data-anim="drop" data-rot="4" data-at="+1.4" data-snd="pop?pitch=1" data-gain=".28" style="left:270px;top:150px">minutes</div>
+        <div class="doc" data-anim="drop" data-rot="-2" data-at="+1.9" data-snd="pop?pitch=1.1" data-gain=".28" style="left:520px;top:20px">e-mail</div>
+        <div class="doc" data-anim="drop" data-rot="7" data-at="+2.2" data-snd="pop?pitch=1.2" data-gain=".28" style="left:760px;top:140px">decision</div>
+        <div class="doc" data-anim="drop" data-rot="-9" data-at="+2.9" data-snd="pop?pitch=.8" data-gain=".22" style="left:470px;top:190px">notes</div>
+      </div>
+    </section>
+
+    <!-- 2. Le wiki (13.00 → 19.87) -->
+    <section class="slide" id="s-wiki">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">記</span>The answer</div>
+      <h2 data-anim="rise" data-at="+-0.15">A <span class="mark">personal wiki</span> where everything has its place.</h2>
+      <p class="lead" data-anim="rise" data-at="+2.5">One page per subject, all linked together.</p>
+      <div class="chips">
+        <span class="chip" data-anim="pop" data-at="+3.8" data-snd="pop?pitch=1" data-gain=".25"><i style="background:#2E6B47"></i>projects</span>
+        <span class="chip" data-anim="pop" data-at="+4.7" data-snd="pop?pitch=1.1" data-gain=".25"><i style="background:#264D73"></i>people</span>
+        <span class="chip" data-anim="pop" data-at="+5.6" data-snd="pop?pitch=1.2" data-gain=".25"><i style="background:#B47C10"></i>meetings</span>
+        <span class="chip" data-anim="pop" data-at="+6.6" data-snd="pop?pitch=1.3" data-gain=".25"><i style="background:#6A4C93"></i>decisions</span>
+        <span class="chip" data-anim="pop" data-at="+7.1" data-snd="pop?pitch=1.4" data-gain=".22"><i style="background:#2F6E8C"></i>concepts</span>
+      </div>
+    </section>
+
+    <!-- 3. Claude (20.42 → 25.51) -->
+    <section class="slide" id="s-claude">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">筆</span>Who writes?</div>
+      <h2 data-anim="rise" data-at="+-0.15"><span class="mark">Claude</span> writes the pages and keeps them up to date.</h2>
+      <div class="brush-line" data-anim="grow" data-at="+1.4" data-snd="swoosh?dur=.9" data-gain=".22"></div>
+      <p class="lead" data-anim="rise" data-at="+2.7">From the sources you hand it: meeting recordings, documents, notes.</p>
+    </section>
+
+    <!-- 4. Question (26.21 → 31.51) -->
+    <section class="slide" id="s-question">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">答</span>What it is for</div>
+      <h2 data-anim="rise" data-at="+-0.15">You ask a question, <span class="mark">the wiki answers.</span></h2>
+      <div class="q">
+        <div class="ask" data-anim="pop" data-at="+0.9" data-snd="click?pitch=1.2" data-gain=".35">Where is the project at, and who decides?</div>
+        <div class="ans" data-anim="rise" data-at="+2.0" data-snd="pop?pitch=.85" data-gain=".25">An answer drawn from the wiki pages, every claim with its source.<span class="src" data-anim="rise" data-at="+4.0" data-snd="tick?pitch=1.3" data-gain=".25">^ source: meeting of 24 Sept</span></div>
+      </div>
+    </section>
+
+    <!-- 7. Le chemin (38.72 → 41.95) -->
+    <section class="slide" id="s-chemin">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">道</span>The path of a piece of information</div>
+      <h2 data-anim="rise" data-at="+-0.15">Three layers, always in the same order.</h2>
+      <div class="later" style="margin-top:18px" data-anim="rise" data-at="@chemin+6.9" data-snd="chime?note=74&dur=1" data-gain=".18"><span class="tag">medallion architecture</span>from raw input to quality knowledge.</div>
+      <div class="grid3">
+        <div class="stage" data-anim="rise" data-at="+4.5" data-snd="pop?pitch=.9" data-gain=".28"><div class="jp" style="color:#9B5E3C">銅</div><div class="name" style="color:#845236">Bronze</div><div class="what">the raw source</div><div class="bar"><b data-anim="grow" data-at="+4.8" style="background:#9B5E3C"></b></div></div>
+        <div class="stage" data-anim="rise" data-at="+5.1" data-snd="pop?pitch=1" data-gain=".28"><div class="jp" style="color:#7A8084">銀</div><div class="name" style="color:#5C5F62">Silver</div><div class="what">the cleaned record</div><div class="bar"><b data-anim="grow" data-at="+5.4" style="background:#7A8084"></b></div></div>
+        <div class="stage" data-anim="rise" data-at="+5.7" data-snd="pop?pitch=1.15" data-gain=".28"><div class="jp" style="color:#A77A0D">金</div><div class="name" style="color:#7A5B11">Gold</div><div class="what">the wiki you query</div><div class="bar"><b data-anim="grow" data-at="+6.0" style="background:#A77A0D"></b></div></div>
+      </div>
+    </section>
+
+    <!-- 11. Gate (59.11 → 62.47, puis relecteur 63.02 → 68.09) -->
+    <section class="slide" id="s-gate">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp" style="color:#D1402F">関</span>The gate</div>
+      <h2 data-anim="rise" data-at="+-0.15">To reach the gold layer, <span style="color:#A5372A">a page passes a gate.</span></h2>
+      <div class="gate-row">
+        <div class="gate-box" data-anim="rise" data-at="+1.0" data-snd="pop?pitch=.9" data-gain=".25"><span class="t">candidate page</span>Written by Claude, waiting.</div>
+        <div style="text-align:center"><span class="arrow" data-anim="stamp" data-at="+2.6" data-snd="impact?dur=1" data-gain=".3">関</span></div>
+        <div class="gate-box" data-anim="rise" data-at="@relecteur+0.2" data-snd="pop?pitch=1" data-gain=".25"><span class="t">independent reviewer</span>
+          <ul class="checks">
+            <li data-anim="check" data-at="@relecteur+1.6" data-snd="click?pitch=1.1" data-gain=".35">where it comes from</li>
+            <li data-anim="check" data-at="@relecteur+3.1" data-snd="click?pitch=1.25" data-gain=".35">its format</li>
+            <li data-anim="check" data-at="@relecteur+3.9" data-snd="click?pitch=1.4" data-gain=".35">respect for the people</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 12. Quarantaine (68.64 → 72.09) -->
+    <section class="slide" id="s-quarantaine">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp" style="color:#D1402F">留</span>Set aside</div>
+      <h2 data-anim="rise" data-at="+-0.15">What is held back <span style="color:#A5372A">waits for a human decision.</span></h2>
+      <div class="gate-row" style="grid-template-columns:1fr 1fr;gap:40px">
+        <div class="gate-box" data-anim="rise" data-at="+1.0" data-snd="pop?pitch=1.1" data-gain=".25"><span class="t">admitted</span>The page joins the wiki.</div>
+        <div class="gate-box held" data-anim="stamp" data-at="+1.7" data-snd="impact?dur=.9" data-gain=".22"><span class="t" style="color:#A5372A">held</span>It goes to quarantine. You decide.</div>
+      </div>
+    </section>
+
+    <!-- 13. Silos (72.99 → 77.65) -->
+    <section class="slide" id="s-silo">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">隔</span>Separate domains</div>
+      <h2 data-anim="rise" data-at="+-0.15">One silo per domain, <span class="mark">they never mix.</span></h2>
+      <div class="silos">
+        <div class="silo" data-anim="rise" data-at="+0.9" data-snd="pop?pitch=.95" data-gain=".25"><span class="tag" style="color:#264D73;border-color:#264D73">WORK</span><h3>Work</h3><p>Projects, meetings, team decisions.</p>
+          <div class="rev" data-anim="check" data-at="+5.4" data-snd="click?pitch=1.1" data-gain=".35"><span class="jp">関</span>work reviewer<small>private life stays out</small></div></div>
+        <div class="silo" data-anim="rise" data-at="+1.4" data-snd="pop?pitch=1.15" data-gain=".25"><span class="tag" style="color:#2E6B47;border-color:#2E6B47">PERSONAL</span><h3>Personal life</h3><p>Health, family, paperwork.</p>
+          <div class="rev" data-anim="check" data-at="+6.6" data-snd="click?pitch=1.3" data-gain=".35"><span class="jp">関</span>personal reviewer<small>private life belongs here</small></div></div>
+        <div class="wall" data-anim="wall" data-at="+3.9" data-snd="whoosh?dur=.8&from=1500&to=200" data-gain=".3"></div>
+      </div>
+    </section>
+
+    <!-- 18. Vue Graphe 3D -->
+    <section class="slide" id="s-graphe">
+      <div class="kicker" data-anim="rise" data-at="+-0.35" data-snd="tick" data-gain=".2"><span class="jp">図</span>The dashboard</div>
+      <h2 data-anim="rise" data-at="+-0.15">The whole wiki, <span class="mark">as a 3D graph.</span></h2>
+      <div class="graph-row">
+        <svg class="graph" viewBox="0 0 640 320">
+          <g class="links">
+          <line x1="300" y1="165" x2="175" y2="95" data-anim="fade" data-at="+4.40"/>
+          <line x1="300" y1="165" x2="420" y2="80" data-anim="fade" data-at="+4.50"/>
+          <line x1="300" y1="165" x2="455" y2="215" data-anim="fade" data-at="+4.60"/>
+          <line x1="300" y1="165" x2="190" y2="250" data-anim="fade" data-at="+4.70"/>
+          <line x1="300" y1="165" x2="330" y2="290" data-anim="fade" data-at="+4.80"/>
+          <line x1="175" y1="95" x2="80" y2="170" data-anim="fade" data-at="+4.90"/>
+          <line x1="175" y1="95" x2="70" y2="60" data-anim="fade" data-at="+5.00"/>
+          <line x1="420" y1="80" x2="560" y2="140" data-anim="fade" data-at="+5.10"/>
+          <line x1="420" y1="80" x2="255" y2="30" data-anim="fade" data-at="+5.20"/>
+          <line x1="455" y1="215" x2="545" y2="270" data-anim="fade" data-at="+5.30"/>
+          <line x1="455" y1="215" x2="330" y2="290" data-anim="fade" data-at="+5.40"/>
+          <line x1="190" y1="250" x2="80" y2="170" data-anim="fade" data-at="+5.50"/>
+          <line x1="560" y1="140" x2="610" y2="50" data-anim="fade" data-at="+5.60"/>
+          <line x1="420" y1="80" x2="610" y2="50" data-anim="fade" data-at="+5.70"/>
+          <line x1="175" y1="95" x2="255" y2="30" data-anim="fade" data-at="+5.80"/>
+          <line x1="190" y1="250" x2="330" y2="290" data-anim="fade" data-at="+5.90"/>
+          </g>
+          <circle cx="300" cy="165" r="15" fill="#2E6B47" data-anim="pop" data-at="+1.60" data-snd="pop?pitch=0.90" data-gain=".16"/>
+          <circle cx="175" cy="95" r="10" fill="#264D73" data-anim="pop" data-at="+1.75"/>
+          <circle cx="420" cy="80" r="11" fill="#B47C10" data-anim="pop" data-at="+1.90"/>
+          <circle cx="455" cy="215" r="10" fill="#6A4C93" data-anim="pop" data-at="+2.05" data-snd="pop?pitch=1.02" data-gain=".16"/>
+          <circle cx="190" cy="250" r="9" fill="#6B7A1F" data-anim="pop" data-at="+2.20"/>
+          <circle cx="80" cy="170" r="8" fill="#2F6E8C" data-anim="pop" data-at="+2.35"/>
+          <circle cx="560" cy="140" r="9" fill="#264D73" data-anim="pop" data-at="+2.50" data-snd="pop?pitch=1.14" data-gain=".16"/>
+          <circle cx="330" cy="290" r="9" fill="#B47C10" data-anim="pop" data-at="+2.65"/>
+          <circle cx="70" cy="60" r="7" fill="#6B7A1F" data-anim="pop" data-at="+2.80"/>
+          <circle cx="545" cy="270" r="7" fill="#2F6E8C" data-anim="pop" data-at="+2.95" data-snd="pop?pitch=1.26" data-gain=".16"/>
+          <circle cx="255" cy="30" r="7" fill="#6A4C93" data-anim="pop" data-at="+3.10"/>
+          <circle cx="610" cy="50" r="8" fill="#8E3B2C" data-anim="pop" data-at="+3.25"/>
+          <path class="cursor" d="M300 165 l0 34 l9 -9 l7 15 l6 -3 l-7 -15 l12 0 z" data-anim="pop" data-at="+7.3" data-snd="click?pitch=1.2" data-gain=".4"/>
+        </svg>
+        <div class="reader" data-anim="check" data-at="+7.8" data-snd="swoosh?dur=.5" data-gain=".2">
+          <div class="r-k"><i style="background:#2E6B47"></i>projects</div>
+          <div class="r-t">A wiki page</div>
+          <div class="r-l"></div><div class="r-l"></div><div class="r-l s"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span data-anim="rise" data-at="+3.4"><i style="background:#264D73"></i>people</span><span data-anim="rise" data-at="+3.6"><i style="background:#2E6B47"></i>projects</span><span data-anim="rise" data-at="+3.8"><i style="background:#B47C10"></i>meetings</span><span data-anim="rise" data-at="+4.0"><i style="background:#6A4C93"></i>decisions</span><span data-anim="rise" data-at="+4.2"><i style="background:#2F6E8C"></i>concepts</span>
+      </div>
+    </section>
+
+    <!-- 19. Conclusion -->
+    <section class="slide bare" id="s-conclusion">
+      <div class="center">
+        <div class="brand"><span data-anim="rise" data-at="+-0.2">Kioku</span><span class="jp" data-anim="brush" data-at="+0.6" data-snd="swoosh?dur=.7" data-gain=".22">記憶</span></div>
+        <div class="lead" style="margin-top:0" data-anim="rise" data-at="+0.9">A working memory that no longer gets lost.</div>
+        <div class="vows">
+          <span data-anim="stamp" data-at="+3.4" data-snd="impact?dur=.6" data-gain=".3">reviewed</span>
+          <span data-anim="stamp" data-at="+4.1" data-snd="impact?dur=.6" data-gain=".3">sourced</span>
+          <span data-anim="stamp" data-at="+5.4" data-snd="impact?dur=.6" data-gain=".34">one question away</span>
+        </div>
+      </div>
+    </section>
+  </div>
+
+<script type="module">
+  import * as THREE from 'three';
+  import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+  import { createGarden, setupRenderer } from './garden.js';
+
+  // window.__ready dit au rendu d'attendre le chargement des assets du jardin.
+  let resolveReady, rejectReady;
+  window.__ready = new Promise((ok, ko) => { resolveReady = ok; rejectReady = ko; });
+
+  // ---------------------------------------------------------------- temps
+  const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+  const seg = (t, a, b) => clamp((t - a) / (b - a));
+  const ease = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  const outExpo = (x) => (x >= 1 ? 1 : 1 - Math.pow(2, -10 * x));
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const spring = (x, k = 170, c = 13) => { if (x <= 0) return 0; const w0 = Math.sqrt(k), z = c / (2 * w0), wd = w0 * Math.sqrt(1 - z * z);
+    return 1 - Math.exp(-z * w0 * x) * (Math.cos(wd * x) + (z * w0 / wd) * Math.sin(wd * x)); };
+
+  // ---------------------------------------------------------------- scenes (calees sur voice/voice.json)
+  // Debut reel de chaque phrase (s), lu dans voice/voice.json par build-timeline.mjs
+  const LINES = /*LINES*/{"titre":1.6,"probleme":8.31,"wiki":16.48,"claude":26.58,"question":33.66,"chemin":40.98,"gate":52.3,"relecteur":58.11,"quarantaine":66.76,"silo":73.94,"graphe":84.39,"conclusion":94.4}/*END*/;
+  const at = (id) => LINES[id];
+  const SCENES = [
+    ['s-titre', 0.0], ['s-probleme', at('probleme')], ['s-wiki', at('wiki')], ['s-claude', at('claude')], ['s-question', at('question')],
+    ['s-chemin', at('chemin')], ['s-gate', at('gate')], ['s-quarantaine', at('quarantaine')], ['s-silo', at('silo')], ['s-graphe', at('graphe')],
+    ['s-conclusion', at('conclusion')],
+  ];
+  const TRAVEL = 1.2;       // duree d'un voyage entre deux slides
+  const LEAD = 0.25;        // la camera arrive LEAD s avant la phrase
+  const END = /*END_T*/104.35/*END*/;
+  const W = 1920, H = 1080;
+
+  // ---------------------------------------------------------------- rendus
+  const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('gl'), antialias: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setSize(W, H, false);
+  setupRenderer(renderer);
+  const css = new CSS3DRenderer();
+  css.setSize(W, H);
+  document.getElementById('css').appendChild(css.domElement);
+
+  const cssScene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(40, W / H, 10, 140000);
+  const garden = await createGarden().catch((e) => { rejectReady(e); throw e; });
+  const scene = garden.scene;
+
+  // ---------------------------------------------------------------- slides en spirale autour de l'ilot
+  // Pour chaque arret : la camera est sur une orbite ; elle regarde un peu a cote du centre, l'ilot
+  // apparait a droite de l'image et la slide, a 1600 unites devant elle, est decalee vers la gauche.
+  const D = 1600, SHIFT = 360, ALPHA = 0.30;
+  const UP = new THREE.Vector3(0, 1, 0);
+  const stopOf = (i) => ({ theta: 0.35 + i * 0.6, y: -120 + i * 70, R: 6400 });
+  function frameAt(theta, y, R) {
+    const pos = new THREE.Vector3(Math.sin(theta) * R, y, Math.cos(theta) * R);
+    const toC = new THREE.Vector3(-pos.x, 0, -pos.z).normalize();
+    let f = toC.clone().applyAxisAngle(UP, ALPHA);
+    if (toC.dot(new THREE.Vector3().crossVectors(f, UP)) < 0) f = toC.clone().applyAxisAngle(UP, -ALPHA);
+    const r = new THREE.Vector3().crossVectors(f, UP).normalize();
+    return { pos, f, r };
+  }
+  const slideObjs = SCENES.map(([id], i) => {
+    const el = document.getElementById(id);
+    const obj = new CSS3DObject(el);
+    const s = stopOf(i), fr = frameAt(s.theta, s.y, s.R);
+    obj.position.copy(fr.pos).addScaledVector(fr.f, D).addScaledVector(fr.r, -SHIFT);
+    obj.lookAt(obj.position.clone().sub(fr.f));
+    cssScene.add(obj);
+    return { el, obj };
+  });
+
+  function cameraAt(t) {
+    let i = 0;
+    for (let k = 1; k < SCENES.length; k++) if (t >= SCENES[k][1] - LEAD - TRAVEL) i = k;
+    const start = SCENES[i][1] - LEAD - TRAVEL;
+    const u = i === 0 ? 1 : seg(t, start, start + TRAVEL);
+    const k = ease(u), arc = Math.sin(Math.PI * k);
+    const a = stopOf(Math.max(0, i - 1)), b = stopOf(i);
+    const theta = lerp(a.theta, b.theta, k) + Math.sin(t * 0.3) * 0.004;
+    const y = lerp(a.y, b.y, k) + arc * 520 + Math.sin(t * 0.45) * 10;
+    const R = b.R + arc * 1700;
+    const fr = frameAt(theta, y, R);
+    return { fr, i, u, arc };
+  }
+
+  // ---------------------------------------------------------------- beats : animation + son au meme instant
+  const BEATS = [];
+  SCENES.forEach(([id, sceneAt]) => {
+    const at = sceneAt;
+    document.getElementById(id).querySelectorAll('[data-anim]').forEach((el) => {
+      // "+0.6" : relatif a la phrase de la slide ; "@relecteur+1.7" : relatif a une autre phrase ; "3.3" : absolu
+      const raw = el.dataset.at || '+0';
+      const named = /^@([a-z]+)([+-][\d.]+)?$/.exec(raw);
+      const t0 = named ? LINES[named[1]] + parseFloat(named[2] || '0')
+        : raw.startsWith('+') ? at + parseFloat(raw.slice(1)) : parseFloat(raw);
+      BEATS.push({ el, t0, anim: el.dataset.anim });
+      if (el.dataset.snd) window.__sfx?.(el.dataset.snd, { at: t0, gain: parseFloat(el.dataset.gain || '0.3') });
+    });
+  });
+  function applyBeat({ el, t0, anim }, t) {
+    const x = t - t0, s = spring(x), e = outExpo(clamp(x / 0.7));
+    const vis = clamp(x / 0.25);
+    switch (anim) {
+      case 'rise': el.style.opacity = vis; el.style.transform = `translateY(${(1 - e) * 38}px)`; break;
+      case 'pop': el.style.opacity = vis; el.style.transform = `scale(${x < 0 ? 0.6 : 0.6 + 0.4 * s})`; break;
+      case 'drop': el.style.opacity = vis; el.style.transform = `translateY(${(x < 0 ? 1 : 1 - s) * -130}px) rotate(${el.dataset.rot || 0}deg)`; break;
+      case 'brush': el.style.opacity = x < 0 ? 0 : 1; el.style.clipPath = `inset(0 ${(1 - outExpo(clamp(x / 0.95))) * 100}% 0 0)`; break;
+      case 'stamp': el.style.opacity = clamp(x / 0.1); el.style.transform = `scale(${x < 0 ? 1.7 : 1.7 - 0.7 * spring(x, 280, 17)}) rotate(${(1 - e) * -9}deg)`; break;
+      case 'check': el.style.opacity = vis; el.style.transform = `translateX(${(1 - e) * -28}px)`; break;
+      case 'grow': el.style.transformOrigin = 'left center'; el.style.transform = `scaleX(${x < 0 ? 0 : outExpo(clamp(x / 1.1))})`; break;
+      case 'wall': el.style.transformOrigin = 'top center'; el.style.transform = `translateX(-50%) scaleY(${x < 0 ? 0 : outExpo(clamp(x / 0.8))})`; break;
+      default: el.style.opacity = vis;
+    }
+  }
+
+  // ---------------------------------------------------------------- ambiance sonore
+  const sfx = window.__sfx;
+  sfx?.('riser?dur=0.85&from=200&to=1400', { at: 0.9, align: 'end', gain: 0.25 });   // monte vers le tampon du sceau
+  SCENES.forEach(([, at], i) => { if (i > 0) sfx?.(`whoosh?dur=${TRAVEL}&from=180&to=1600`, { at: at - LEAD - TRAVEL, gain: 0.22 }); });
+  const CHORDS = [50, 45, 48, 43];                                                     // nappe zen, sans batterie
+  for (let i = 0, tt = 0.3; tt < END - 4; i++, tt += 9) sfx?.(`pad?note=${CHORDS[i % 4]}&dur=11&minor=${i % 2}`, { at: tt, gain: 0.13 });
+  sfx?.('chime?note=76', { at: at('chemin') + 4.5, gain: 0.22 });   // « bronze, silver and gold »
+  sfx?.('chime?note=81&dur=2.6', { at: END - 3.2, gain: 0.32 });
+
+  // ---------------------------------------------------------------- grain de papier (statique, multiply)
+  (() => {
+    const g = document.getElementById('grain').getContext('2d');
+    g.lineCap = 'round';
+    for (let n = 0; n < 1400; n++) {
+      const x = Math.random() * W, y = Math.random() * H, l = 6 + Math.random() * 28, a = Math.random() * Math.PI;
+      g.strokeStyle = `rgba(133,115,107,${0.05 + Math.random() * 0.09})`; g.lineWidth = 0.5 + Math.random();
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+    const v = g.createRadialGradient(960, 500, 360, 960, 540, 1180);
+    v.addColorStop(0, 'rgba(255,255,255,0)'); v.addColorStop(1, 'rgba(196,184,164,0.5)');
+    g.fillStyle = v; g.fillRect(0, 0, W, H);
+  })();
+
+  // ---------------------------------------------------------------- frame
+  const veil = document.getElementById('veil');
+  const look = new THREE.Vector3();
+  resolveReady();
+  window.__seek = (t) => {
+    const { fr, i, u } = cameraAt(t);
+    camera.position.copy(fr.pos);
+    look.copy(fr.pos).add(fr.f);
+    camera.lookAt(look);
+    camera.updateMatrixWorld();
+
+    slideObjs.forEach(({ el }, n) => {
+      let o = 0;
+      if (n === i) o = i === 0 ? 1 : outExpo(seg(u, 0.35, 0.85));
+      else if (n === i - 1) o = 1 - ease(seg(u, 0.0, 0.4));
+      el.style.opacity = o;
+      el.style.visibility = o < 0.01 ? 'hidden' : 'visible';
+    });
+    BEATS.forEach((b) => applyBeat(b, t));
+
+    garden.update(t);
+
+    renderer.render(scene, camera);
+    css.render(cssScene, camera);
+    veil.style.opacity = Math.max(1 - outExpo(seg(t, 0.05, 1.5)), seg(t, END - 1.3, END));
+  };
+  // previsualisation dans un navigateur ordinaire
+  if (!window.__sfx) { const t0 = performance.now(); const loop = () => { window.__seek(((performance.now() - t0) / 1000) % END); requestAnimationFrame(loop); }; requestAnimationFrame(loop); }
+</script>
+</body>
+</html>

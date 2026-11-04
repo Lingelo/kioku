@@ -1,0 +1,117 @@
+WEBVTT
+
+00:00:01.600 --> 00:00:02.681
+This is Kioku.
+
+00:00:02.681 --> 00:00:04.959
+In Japanese, the
+word means memory.
+
+00:00:08.309 --> 00:00:11.042
+At work, meetings,
+documents and decisions
+
+00:00:11.042 --> 00:00:13.827
+pile up, and what
+matters ends up lost.
+
+00:00:16.477 --> 00:00:18.929
+Kioku gathers everything
+into a personal
+
+00:00:18.929 --> 00:00:20.963
+wiki: one page per project,
+
+00:00:20.963 --> 00:00:23.926
+per person, per meeting
+and per decision.
+
+00:00:26.576 --> 00:00:28.545
+Claude writes these
+pages and keeps them
+
+00:00:28.545 --> 00:00:31.011
+up to date, from the
+sources you hand it.
+
+00:00:33.661 --> 00:00:35.497
+Then you simply ask a question.
+
+00:00:35.497 --> 00:00:36.790
+The answer comes from the
+
+00:00:36.790 --> 00:00:38.334
+wiki, with its sources.
+
+00:00:40.984 --> 00:00:43.239
+Every piece of
+information follows the
+
+00:00:43.239 --> 00:00:45.443
+same path, through three layers:
+
+00:00:45.443 --> 00:00:47.347
+bronze, silver and gold.
+
+00:00:47.347 --> 00:00:49.651
+This is the medallion
+architecture.
+
+00:00:52.301 --> 00:00:53.799
+To reach the gold layer,
+
+00:00:53.799 --> 00:00:55.457
+a page must pass a gate.
+
+00:00:58.107 --> 00:01:00.191
+An independent reviewer
+checks where it
+
+00:01:00.191 --> 00:01:01.732
+comes from, its format,
+
+00:01:01.732 --> 00:01:04.111
+and respect for the
+people it mentions.
+
+00:01:06.761 --> 00:01:08.849
+Whatever it holds
+back is set aside,
+
+00:01:08.849 --> 00:01:10.787
+and waits for a human decision.
+
+00:01:13.937 --> 00:01:16.370
+Each domain, work or
+personal life for
+
+00:01:16.370 --> 00:01:18.555
+example, lives in its own silo,
+
+00:01:18.555 --> 00:01:21.238
+with its own reviewer
+and its own rules.
+
+00:01:24.388 --> 00:01:27.023
+A local dashboard shows
+the whole wiki as
+
+00:01:27.023 --> 00:01:29.605
+a 3D graph: every
+page is a point,
+
+00:01:29.605 --> 00:01:31.752
+linked to the pages it cites.
+
+00:01:34.403 --> 00:01:35.108
+Kioku.
+
+00:01:35.108 --> 00:01:37.324
+A working memory
+that no longer gets
+
+00:01:37.324 --> 00:01:39.187
+lost: reviewed, sourced,
+
+00:01:39.187 --> 00:01:41.199
+and always one question away.
