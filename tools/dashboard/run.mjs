@@ -20,6 +20,32 @@ import { readBronzeAndSilverStatus, readGoldTopologyAndIssues, readText } from '
 import { assertDomain, loadConfig } from '../vault-config.mjs';
 
 /**
+ * Noeuds masques dans la vue entites du graphe : `modules.dashboard.hide.<domaine>` de la configuration du coffre,
+ * une liste de `dossier/slug` (ex. la fiche de l'utilisateur, reliee a presque tout). Reglage d'affichage : une
+ * valeur mal formee est ignoree avec un avertissement, jamais une erreur (la configuration reste chargeable par la
+ * garde, qui ne lit pas ce champ).
+ *
+ * @returns {string[]}
+ */
+export const graphHiddenNodes = (vaultRoot, domain, warn = (m) => process.stderr.write(`[dashboard] ${m}\n`)) => {
+  const hide = loadConfig(vaultRoot).modules.dashboard?.hide;
+  if (hide === undefined) return [];
+  if (hide === null || typeof hide !== 'object' || Array.isArray(hide)) {
+    warn('modules.dashboard.hide ignore : un objet { "<domaine>": ["dossier/slug", ...] } est attendu');
+    return [];
+  }
+  const list = hide[domain];
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) {
+    warn(`modules.dashboard.hide.${domain} ignore : une liste de "dossier/slug" est attendue`);
+    return [];
+  }
+  const ok = list.filter((s) => typeof s === 'string' && /^[^/\s]+\/[^/\s]+$/.test(s));
+  if (ok.length !== list.length) warn(`modules.dashboard.hide.${domain} : ${list.length - ok.length} entree(s) ignoree(s), "dossier/slug" attendu`);
+  return ok;
+};
+
+/**
  * Genere le code HTML complet du tableau de bord pour un domaine donne.
  *
  * @param {string} vaultRoot - Racine absolue du coffre
@@ -175,6 +201,7 @@ export const generateDashboardHtml = (vaultRoot, domain, options = {}) => {
   };
 
   const vaultData = {
+    graph: { hide: graphHiddenNodes(vaultRoot, domain) },
     domain,
     generatedAt,
     mode,

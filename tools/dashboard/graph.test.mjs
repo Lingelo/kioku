@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeEach, afterEach, describe, test } from 'node:test';
 
-import { generateDashboardHtml } from './run.mjs';
+import { generateDashboardHtml, graphHiddenNodes } from './run.mjs';
 import { writeTestConfig } from '../test-vault.mjs';
 
 let vault;
@@ -142,6 +142,35 @@ describe('U8 : Onglet Graphe 3D et panneau de lecture', () => {
     assert.ok(html.includes('wiki/pro/'));
     assert.ok(html.includes('Portrait vs Retour de travail'));
     assert.ok(html.includes('npm run pro'));
+  });
+
+  test('vue entites par defaut : bouton de bascule, dossiers masques et noeuds masques par la config', () => {
+    writeTestConfig(vault, {
+      version: 1,
+      domains: [{ id: 'pro' }, { id: 'perso' }],
+      modules: { dashboard: { hide: { pro: ['people/me', 'pas-un-slug', 42], perso: ['people/other'] } } },
+    });
+    put('wiki/pro/people/me.md', '---\ntitle: Moi\ntype: person\ngate: passe 2026-09-24\n---\nMoi.\n');
+
+    const warnings = [];
+    assert.deepEqual(graphHiddenNodes(vault, 'pro', (m) => warnings.push(m)), ['people/me']);
+    assert.equal(warnings.length, 1);
+    assert.deepEqual(graphHiddenNodes(vault, 'perso', () => {}), ['people/other']);
+
+    const html = generateDashboardHtml(vault, 'pro');
+    const data = JSON.parse(html.match(/<script id="vault-data" type="application\/json">([\s\S]*?)<\/script>/)[1]);
+    // Silo : seule la liste du domaine du dashboard entre dans la page
+    assert.deepEqual(data.graph, { hide: ['people/me'] });
+    assert.ok(html.includes('id="btn-toggle-view"'));
+    assert.ok(html.includes('toggleGraphView()'));
+    assert.ok(html.includes("let entityView = GRAPH_PARAMS.get('graph') !== 'full'"));
+    assert.ok(html.includes("const ENTITY_HIDDEN_FOLDERS = ['sources', 'meetings', 'phantom']"));
+  });
+
+  test('config sans modules.dashboard.hide : aucun noeud masque, aucun avertissement', () => {
+    const warnings = [];
+    assert.deepEqual(graphHiddenNodes(vault, 'pro', (m) => warnings.push(m)), []);
+    assert.equal(warnings.length, 0);
   });
 
   test('U4, R9, R10, R11, R12 : palette de recherche modale, bascule 2D/3D et zoom', () => {

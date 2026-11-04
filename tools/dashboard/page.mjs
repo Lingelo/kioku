@@ -19,7 +19,7 @@ import { escapeHtml } from './markdown.mjs';
 import { quarantineLabel } from './held-read.mjs';
 
 export const renderPage = (data) => {
-  const { domain, generatedAt, mode = 'static', version = null, askToken = null, topology, issues, medallion, localState, heldAndCandidates, assets = null } = data;
+  const { domain, generatedAt, mode = 'static', version = null, askToken = null, topology, graph = { hide: [] }, issues, medallion, localState, heldAndCandidates, assets = null } = data;
   // Ressources vendor. Sans `assets` : URLs relatives `vendor/…`, servies par serve.mjs depuis le plugin. Avec : le
   // fichier statique, ecrit dans le coffre loin du vendor du plugin, embarque polices et script (inlineAssets, run.mjs).
   const fontSrc = (name) => assets?.fonts?.[name] ?? `vendor/fonts/${name}`;
@@ -2387,6 +2387,7 @@ export const renderPage = (data) => {
       <div class="graph-toolbar-row">
         <span id="node-count-label" class="node-count-label">${(topology?.nodes?.filter(n => !n.phantom) ?? topology?.nodes)?.length ?? 0} nœuds</span>
         <div class="graph-btn-group">
+          <button id="btn-toggle-view" class="graph-btn" onclick="toggleGraphView()" title="Afficher toutes les pages, sources et réunions comprises">Vue complète</button>
           <button id="btn-toggle-2d" class="graph-btn" onclick="toggle2D()" title="Basculer entre vue 2D et 3D">2D / 3D</button>
           <button class="graph-btn" onclick="zoomIn()" title="Zoom avant" aria-label="Zoom avant">＋</button>
           <button class="graph-btn" onclick="zoomOut()" title="Zoom arrière" aria-label="Zoom arrière">－</button>
@@ -2465,6 +2466,7 @@ export const renderPage = (data) => {
         <span class="layer-badge layer-badge-gold">3. Or • Wiki vivant</span>
         <h3>wiki/${domain}/</h3>
         <p>Le graphe de connaissances vivant : personnes, projets, réunions, décisions, concepts, synthèses. <em>C'est ici qu'on requête.</em></p>
+        <p>L'onglet Graphe s'ouvre sur les entités, sans sources ni réunions ; « Vue complète » montre toutes les pages. Des pages reliées à presque tout se masquent dans <code>kioku.config.json</code> : <code>"modules": { "dashboard": { "hide": { "${domain}": ["people/&lt;slug&gt;"] } } }</code>.</p>
         <div class="layer-details">
           <strong>Règle d'or :</strong> On n'écrit jamais directement dans l'or. Toute modification passe par <code>.candidats/</code> et la gate.
         </div>
@@ -2640,6 +2642,7 @@ ${JSON.stringify({
   version,
   askToken,
   topology,
+  graph,
 }).replace(/</g, '\\u003c')}
   </script>
 
@@ -2660,6 +2663,60 @@ ${JSON.stringify({
 
     // Ordre des puces de dossier ; les couleurs viennent des tokens CSS (KTD4)
     const FOLDERS = ['people', 'projects', 'meetings', 'sources', 'concepts', 'decisions', 'organizations', 'syntheses', 'phantom'];
+
+    // Vue entites (par defaut) : sans sources ni reunions, qui portent l'essentiel des aretes et
+    // noient la structure ; une arete par paire ; forces reglees pour ~200 noeuds ; noeuds masques
+    // par la config du coffre (modules.dashboard.hide.<domaine>) et par ?hide=dossier/slug,...
+    // La vue complete (bouton, ou ?graph=full) montre tout, avec les forces de la bibliotheque.
+    const GRAPH_PARAMS = new URLSearchParams(location.search);
+    let entityView = GRAPH_PARAMS.get('graph') !== 'full';
+    const URL_HIDDEN = (GRAPH_PARAMS.get('hide') || '').split(',').map(s => s.trim()).filter(Boolean);
+    const ENTITY_HIDDEN_FOLDERS = ['sources', 'meetings', 'phantom'];
+    function hiddenNodes() {
+      if (!entityView) return new Set();
+      return new Set([...(rawData?.graph?.hide || []), ...URL_HIDDEN]);
+    }
+    function defaultVisibleFolders() {
+      const hidden = entityView ? ENTITY_HIDDEN_FOLDERS : ['phantom'];
+      return new Set(FOLDERS.filter(f => !hidden.includes(f)));
+    }
+    let linkDegree = new Map();
+    function applyViewForces() {
+      if (!graphInstance) return;
+      const id = e => (typeof e === 'object' ? e.id : e);
+      const center = graphInstance.d3Force('center');
+      const setCenter = s => { if (center && typeof center.strength === 'function') center.strength(s); };
+      if (entityView) {
+        graphInstance.d3Force('charge').strength(-250).distanceMax(800);
+        graphInstance.d3Force('link').distance(l =>
+          40 + 10 * Math.sqrt(Math.min(linkDegree.get(id(l.source)) || 1, linkDegree.get(id(l.target)) || 1)));
+        setCenter(0.05);
+      } else {
+        // Valeurs par defaut de d3-force
+        graphInstance.d3Force('charge').strength(-30).distanceMax(Infinity);
+        graphInstance.d3Force('link').distance(30);
+        setCenter(1);
+      }
+    }
+    function syncViewButton() {
+      const btn = document.getElementById('btn-toggle-view');
+      if (!btn) return;
+      btn.textContent = entityView ? 'Vue complète' : 'Vue entités';
+      btn.title = entityView
+        ? 'Afficher toutes les pages, sources et réunions comprises'
+        : 'Afficher les entités seules (sans sources ni réunions)';
+    }
+    function toggleGraphView() {
+      entityView = !entityView;
+      visibleFolders = defaultVisibleFolders();
+      syncFolderTags();
+      syncViewButton();
+      applyGraphFilters();
+      if (graphInstance) {
+        graphInstance.d3ReheatSimulation();
+        setTimeout(() => graphInstance && graphInstance.zoomToFit(400, 20), 1500);
+      }
+    }
     let graphPalette = { bg: '', paper: '', link: '', linkRest: '', focus: '' };
     let folderColors = {};
 
@@ -3494,7 +3551,7 @@ ${JSON.stringify({
       }
 
       readGraphPalette();
-      visibleFolders = new Set(FOLDERS.filter(f => f !== 'phantom'));
+      visibleFolders = defaultVisibleFolders();
 
       // Puces de dossier : couleurs portees par le CSS (data-folder)
       const filterContainer = document.getElementById('folder-filters');
@@ -3511,6 +3568,7 @@ ${JSON.stringify({
         });
       }
       syncFolderTags();
+      syncViewButton();
 
       const nodes = rawData.topology.nodes.map(n => ({
         ...n,
@@ -3687,7 +3745,7 @@ ${JSON.stringify({
       if (hopCheck) hopCheck.checked = false;
       const sInput = document.getElementById('graph-search');
       if (sInput) sInput.value = '';
-      visibleFolders = new Set(FOLDERS.filter(f => f !== 'phantom'));
+      visibleFolders = defaultVisibleFolders();
       syncFolderTags();
       applyGraphFilters();
       resetGraphView();
@@ -3777,10 +3835,12 @@ ${JSON.stringify({
         }
       }
 
+      const hidden = hiddenNodes();
       const livePositions = new Map(graphInstance.graphData().nodes.map(n => [n.id, n]));
       const filteredNodes = rawData.topology.nodes.filter(n => {
         const folder = n.phantom ? 'phantom' : n.folder;
         if (!visibleFolders.has(folder)) return false;
+        if (hidden.has(n.id)) return false;
 
         if (activeNeighborIds && !activeNeighborIds.has(n.id)) {
           return false;
@@ -3805,15 +3865,28 @@ ${JSON.stringify({
       });
 
       const activeIds = new Set(filteredNodes.map(n => n.id));
+      const seenPairs = new Set();
       const filteredLinks = rawData.topology.links.filter(l => {
         const s = typeof l.source === 'object' ? l.source.id : l.source;
         const t = typeof l.target === 'object' ? l.target.id : l.target;
-        return activeIds.has(s) && activeIds.has(t);
+        if (!activeIds.has(s) || !activeIds.has(t)) return false;
+        if (!entityView) return true;
+        // A -> B et B -> A : un seul trait, sinon la paire tire deux fois plus fort
+        const pair = s < t ? s + '|' + t : t + '|' + s;
+        if (seenPairs.has(pair)) return false;
+        seenPairs.add(pair);
+        return true;
       }).map(l => ({
         source: typeof l.source === 'object' ? l.source.id : l.source,
         target: typeof l.target === 'object' ? l.target.id : l.target,
       }));
 
+      linkDegree = new Map();
+      for (const l of filteredLinks) {
+        linkDegree.set(l.source, (linkDegree.get(l.source) || 0) + 1);
+        linkDegree.set(l.target, (linkDegree.get(l.target) || 0) + 1);
+      }
+      applyViewForces();
       graphInstance.graphData({ nodes: filteredNodes, links: filteredLinks });
 
       const countLabel = document.getElementById('node-count-label');
