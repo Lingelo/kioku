@@ -123,6 +123,60 @@ describe('plusieurs sources et deux domaines', () => {
   });
 });
 
+// La gate admet page par page : la page source pouvait entrer et une page d'entite rester sous .candidats/,
+// invisible du rapport. Une source n'est traitee que si aucune candidate ne la cite encore.
+describe('candidates restantes : etat `candidats`', () => {
+  const cand = (rel, text, domain = 'pro') => put(`.candidats/wiki/${domain}/${rel}`, text);
+  beforeEach(() => {
+    put(`raw/pro/${REL}`, '# note inventee\n');
+    enqueue([{ domain: 'pro', rel: REL }]);
+    silver(REL);
+  });
+
+  test('page source admise, page d\'entite restee : la source reste en file, la candidate est nommee', () => {
+    gold(REL);
+    cand('people/une-personne.md', '---\ntype: person\nsources: ["[[sources/note-inventee]]"]\n---\n');
+    assert.deepEqual(list(), [`pro\t${REL}\tcandidats\tpeople/une-personne.md`]);
+    assert.equal(queueFile().length, 1);
+  });
+
+  test('`sources:` en liste YAML sur plusieurs lignes', () => {
+    gold(REL);
+    cand('concepts/une-notion.md', '---\ntype: concept\nsources:\n  - "[[sources/autre]]"\n  - "[[sources/note-inventee]]"\ntags: []\n---\n');
+    assert.deepEqual(list(), [`pro\t${REL}\tcandidats\tconcepts/une-notion.md`]);
+  });
+
+  test('rien n\'est encore admis : la candidate source et ses pages liees, en ordre', () => {
+    cand('sources/note-inventee.md', `---\ntype: source\nraw: ${REL}\n---\n`);
+    cand('meetings/note-inventee.md', '---\ntype: meeting\nsources: [[[sources/note-inventee]]]\n---\n');
+    assert.deepEqual(list(), [`pro\t${REL}\tcandidats\tmeetings/note-inventee.md,sources/note-inventee.md`]);
+  });
+
+  test('une candidate qui cite une AUTRE source ne retient pas celle-ci', () => {
+    gold(REL);
+    cand('people/une-personne.md', '---\ntype: person\nsources: ["[[sources/autre]]"]\n---\n');
+    assert.deepEqual(list(), []);
+  });
+
+  test('un slug qui en prolonge un autre ne compte pas (note-inventee-bis)', () => {
+    gold(REL);
+    cand('people/une-personne.md', '---\ntype: person\nsources: ["[[sources/note-inventee-bis]]"]\n---\n');
+    assert.deepEqual(list(), []);
+  });
+
+  test('la citation dans le CORPS ne compte pas : seul le frontmatter est lu', () => {
+    gold(REL);
+    cand('people/une-personne.md', '---\ntype: person\nsources: []\n---\nVu dans [[sources/note-inventee]].\n');
+    assert.deepEqual(list(), []);
+  });
+
+  test('une candidate de l\'AUTRE domaine ne compte pas', () => {
+    gold(REL);
+    cand('people/une-personne.md', '---\ntype: person\nsources: ["[[sources/note-inventee]]"]\n---\n', 'perso');
+    assert.deepEqual(list(), []);
+  });
+});
+
 describe('add et queue', () => {
   test('add refuse une source dont le brut n\'existe pas', () => {
     const r = run('add', 'pro', 'meetings/fantome.md');
