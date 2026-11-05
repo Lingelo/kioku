@@ -138,3 +138,50 @@ describe('configuration refusee, probleme nomme', () => {
     fails(/en double : a.*invalide : "B"/);
   });
 });
+
+describe('module mail', () => {
+  const base = (mail, extraDomains = []) => ({
+    version: 1,
+    domains: [{ id: 'pro', extensions: { org: { registry: 'orgs.json' } } }, { id: 'perso' }, ...extraDomains],
+    modules: { mail },
+  });
+  const registry = () => writeFileSync(path.join(vault, 'orgs.json'), JSON.stringify({ employer: 'acme', orgs: [{ id: 'acme', name: 'Acme', role: 'employer' }, { id: 'globex', name: 'Globex', role: 'client', status: 'active' }], org_required: false }));
+  const account = (extra = {}) => ({ id: 'travail', provider: 'gmail', label: 'kb', ...extra });
+
+  test('comptes vides, puis un compte complet avec hint domaine et organisation du registre : admis', () => {
+    put(base({ state: 'tools/mail-sync', accounts: [] }));
+    assert.deepEqual(loadConfig(vault).modules.mail.accounts, []);
+    registry();
+    put(base({ state: 'tools/mail-sync', accounts: [account({ hint: { domain: 'pro', org: 'globex' } }), { id: 'maison', provider: 'gmail' }], max_pdf_mb: 10 }));
+    assert.equal(loadConfig(vault).modules.mail.accounts.length, 2);
+  });
+
+  test('hint.domain hors des domaines declares : refuse', () => {
+    put(base({ state: 'tools/mail-sync', accounts: [account({ hint: { domain: 'club' } })] }));
+    fails(/compte travail, hint\.domain "club" n'est pas un domaine declare/);
+  });
+
+  test('hint.org absent du registre, ou sans domaine a extension org : refuse', () => {
+    registry();
+    put(base({ state: 'tools/mail-sync', accounts: [account({ hint: { domain: 'pro', org: 'initech' } })] }));
+    fails(/hint\.org "initech" absent du registre orgs\.json/);
+    put(base({ state: 'tools/mail-sync', accounts: [account({ hint: { domain: 'perso', org: 'acme' } })] }));
+    fails(/hint\.org exige un hint\.domain a extension org/);
+  });
+
+  test('registre illisible : la configuration reste chargeable (la garde en depend), le registre a son propre message', () => {
+    writeFileSync(path.join(vault, 'orgs.json'), '{ tronque');
+    put(base({ state: 'tools/mail-sync', accounts: [account({ hint: { domain: 'pro', org: 'acme' } })] }));
+    assert.doesNotThrow(() => loadConfig(vault));
+  });
+
+  test('identifiant invalide ou en double, fournisseur inconnu, label vide, cle de hint inconnue, etat hors coffre', () => {
+    put(base({ state: '../x', accounts: [account({ id: 'Travail' }), account(), account(), account({ id: 'b', provider: 'imap', label: ' ' }), account({ id: 'c', hint: { domaine: 'pro' } })], max_pdf_mb: 0 }));
+    fails(/"state" doit etre un chemin relatif.*max_pdf_mb.*identifiant de compte invalide "Travail".*compte en double travail.*compte b, fournisseur inconnu "imap".*compte b, "label".*cle de hint inconnue "domaine"/);
+  });
+
+  test('accounts absent : refuse (liste vide pour commencer)', () => {
+    put(base({ state: 'tools/mail-sync' }));
+    fails(/"accounts" doit etre une liste/);
+  });
+});
