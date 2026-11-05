@@ -154,6 +154,7 @@ describe('deduplication', () => {
     const suite = out.deposited[0];
     assert.equal(suite, '2026-11-04-point-projet-atlas-000000t1-suite-00000a03.md');
     const md = read(suite);
+    if (process.env.KIOKU_PRINT_BRONZE) console.log(`\n----- ${first.deposited[0]}\n${before}----- ${first.pdfs[0]}.md\n${read(`${first.pdfs[0]}.md`)}----- ${suite}\n${md}-----`);
     assert.match(md, /^message_ids: \["18c0000000000a03"\]$/m);
     assert.match(md, new RegExp(`^suite_of: "${first.deposited[0].replace(/\./g, '\\.')}"$`, 'm'));
     assert.match(md, /^previous_message_id: 18c0000000000a02$/m);
