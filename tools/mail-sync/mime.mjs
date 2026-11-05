@@ -5,8 +5,8 @@
  *   - parseRaw(bytes)  : un message RFC 822 brut (IMAP, Gmail `format=raw`, piece jointe message/rfc822) ;
  *   - l'arbre `payload` de l'API Gmail, converti par le fournisseur (providers/gmail.mjs).
  * Arbre : { mimeType, headers: [{ name, value }], filename, body: { data: Buffer|null, size, attachmentId? }, parts: [] }.
- * `body.data` est TOUJOURS le contenu apres decodage du transfert (base64, quoted-printable) : parseRaw le decode,
- * l'API Gmail le rend deja decode (a verifier contre l'API reelle, voir le README du module).
+ * `body.data` est TOUJOURS le contenu apres decodage du transfert (base64, quoted-printable) : parseRaw le decode ;
+ * pour l'API Gmail, le fournisseur decode le base64url puis, au besoin, l'encodage de transfert (undoTransferIfStill).
  *
  * Puis messageFromTree(tree) : en-tetes utiles, texte (text/plain, sinon HTML converti), pieces jointes.
  * Charsets par TextDecoder (utf-8, iso-8859-1, windows-1252, et ce que Node connait). Sujets RFC 2047.
@@ -128,6 +128,31 @@ const parseHeaders = (text) =>
     .map((l) => l.match(/^([^:\s]+):\s*(.*)$/))
     .filter(Boolean)
     .map((m) => ({ name: m[1], value: m[2] }));
+
+/**
+ * Tolerance pour l'API Gmail (format=full) : `body.data` est du base64url (doc : « The body data of a MIME message
+ * part as a base64url encoded string »), mais la documentation ne dit pas si l'encodage de TRANSFERT de la partie
+ * (Content-Transfer-Encoding) a deja ete retire. On ne decode donc une seconde fois que si les octets portent encore,
+ * sans ambiguite, la marque de cet encodage :
+ *   - quoted-printable : octets tous ASCII, et au moins une sequence `=XX` ou une coupure douce `=` en fin de ligne
+ *     (un texte deja decode qui contient un accent a des octets >= 0x80 : il n'est pas touche) ;
+ *   - base64 : uniquement l'alphabet base64 et des retours de ligne (aucune espace : un texte decode en a presque
+ *     toujours), longueur utile multiple de 4 et >= 8.
+ * Un `7bit`, `8bit`, `binary` ou absent : rien a faire. Rend les octets, decodes ou tels quels.
+ */
+export const undoTransferIfStill = (bytes, cte) => {
+  const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes ?? []);
+  const enc = String(cte ?? '').trim().toLowerCase();
+  if (!buf.length) return buf;
+  const ascii = !buf.some((b) => b >= 0x80);
+  const text = ascii ? buf.toString('latin1') : '';
+  if (enc === 'quoted-printable' && ascii && /=[0-9A-Fa-f]{2}|=\r?\n/.test(text)) return fromQuotedPrintable(text);
+  if (enc === 'base64' && ascii && /^[A-Za-z0-9+/=\r\n]+$/.test(text)) {
+    const compact = text.replace(/\r?\n/g, '');
+    if (compact.length >= 8 && compact.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact)) return fromBase64(compact);
+  }
+  return buf;
+};
 
 const decodeTransfer = (raw, cte) => {
   const enc = String(cte ?? '').trim().toLowerCase();
@@ -261,6 +286,7 @@ export const messageFromTree = (tree) => {
         mimeType: node.mimeType,
         size: node.body?.size ?? node.body?.data?.length ?? 0,
         attachmentId: node.body?.attachmentId ?? null,
+        transferEncoding: header(node.headers, 'content-transfer-encoding').toLowerCase(),
         data: node.body?.data ?? null,
       });
       return;

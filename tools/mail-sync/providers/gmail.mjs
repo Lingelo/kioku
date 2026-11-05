@@ -4,7 +4,8 @@
  * Interface commune des fournisseurs (un autre, IMAP par exemple, s'y branche sans toucher au reste) :
  *   listThreads(label, since)     -> [{ id }]   fils portant le libelle, avec un message depuis `since` (AAAA-MM-JJ)
  *   getThread(id)                 -> { id, messages: [message] }, messages dans l'ordre chronologique
- *   getAttachment(msgId, attId)   -> Buffer
+ *   getAttachment(msgId, attId)   -> Buffer (base64url decode ; l'encodage de transfert eventuel est retire par l'appelant,
+ *                                    qui connait les en-tetes de la partie : attachment.transferEncoding)
  * message = { id, threadId, internalDate (ms), headers: { from, to, cc, date, subject }, text, attachments: [
  *             { filename, mimeType, size, attachmentId, data } ] }   (voir mime.mjs, messageFromTree)
  *
@@ -14,19 +15,27 @@
  */
 
 import { HttpError, requestJson } from '../http.mjs';
-import { fromBase64, messageFromTree } from '../mime.mjs';
+import { fromBase64, header, messageFromTree, undoTransferIfStill } from '../mime.mjs';
 
 export const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const MAX_PAGES = 50; // garde-fou : 50 pages de 100 fils
 
-/** L'arbre `payload` de l'API -> l'arbre de mime.mjs (body.data en Buffer, deja decode du transfert par Gmail). */
-export const treeFromPayload = (p) => ({
-  mimeType: String(p?.mimeType ?? 'text/plain').toLowerCase(),
-  headers: p?.headers ?? [],
-  filename: p?.filename ?? '',
-  body: { data: p?.body?.data ? fromBase64(p.body.data) : null, size: Number(p?.body?.size ?? 0), attachmentId: p?.body?.attachmentId ?? null },
-  parts: (p?.parts ?? []).map(treeFromPayload),
-});
+/**
+ * L'arbre `payload` de l'API -> l'arbre de mime.mjs. `body.data` : base64url -> octets (doc MessagePartBody : « The body
+ * data of a MIME message part as a base64url encoded string »), puis l'encodage de transfert de la partie s'il est
+ * encore present (la doc ne dit pas s'il est retire : undoTransferIfStill tolere les deux formes).
+ */
+export const treeFromPayload = (p) => {
+  const headers = p?.headers ?? [];
+  const raw = p?.body?.data ? fromBase64(p.body.data) : null;
+  return {
+    mimeType: String(p?.mimeType ?? 'text/plain').toLowerCase(),
+    headers,
+    filename: p?.filename ?? '',
+    body: { data: raw ? undoTransferIfStill(raw, header(headers, 'content-transfer-encoding')) : null, size: Number(p?.body?.size ?? 0), attachmentId: p?.body?.attachmentId ?? null },
+    parts: (p?.parts ?? []).map(treeFromPayload),
+  };
+};
 
 /** Un message de l'API (format=full) -> message neutre. */
 export const messageFromApi = (m) => ({ id: m.id, threadId: m.threadId, internalDate: Number(m.internalDate ?? 0), ...messageFromTree(treeFromPayload(m.payload ?? {})) });

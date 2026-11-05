@@ -15,6 +15,7 @@ import path from 'node:path';
 
 import { buildPdfStub, buildThread, pdfFileName } from './bronze.mjs';
 import { classifyThread, knownAttachment, loadRegistry, scanMail } from './dedup.mjs';
+import { undoTransferIfStill } from './mime.mjs';
 
 export const DEFAULT_LABEL = 'kb';
 export const DEFAULT_MAX_PDF_MB = 20;
@@ -80,7 +81,7 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
           out.ignored.push({ thread: thread.id, filename: a.filename, reason: `PDF trop gros (${a.size} octets)` });
           continue;
         }
-        const data = a.data?.length ? a.data : await provider.getAttachment(m.id, a.attachmentId);
+        const data = a.data?.length ? a.data : undoTransferIfStill(await provider.getAttachment(m.id, a.attachmentId), a.transferEncoding);
         if (data.length > maxPdfBytes) {
           list.push({ filename: a.filename, note: 'ignoree (PDF au-dela de la taille maximale)' });
           out.ignored.push({ thread: thread.id, filename: a.filename, reason: `PDF trop gros (${data.length} octets)` });
