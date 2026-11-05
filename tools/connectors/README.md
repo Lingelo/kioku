@@ -33,7 +33,7 @@ await runCircuit({
   fetch: ({ argv, dryRun, node, fail, title }) => { /* dépose dans inbox/, sans domaine */ },
   drop: (vault, file) => ({ ok, id, registered } | { ok: false, reason }),
   commands: { run, pending, drop, registry },   // ce que les messages citent à l'utilisateur
-  triageNote: '…',                     // facultatif : consigne propre au connecteur, ajoutée au prompt du tri
+  triageNote: '…',                     // facultatif : consigne ajoutée au prompt du tri (texte, ou (sources, coffre) => texte)
 });
 ```
 

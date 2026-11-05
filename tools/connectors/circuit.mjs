@@ -65,8 +65,9 @@ const PENDING = path.join(HERE, 'pending.mjs');
  *   - ecarte pour de bon une source parquee (registre du connecteur)
  * @property {{run: string, drop: string, registry: string}} commands - ce que les messages citent (forme du CLI :
  *   `run` = `kioku plaud`, jamais un chemin d'outil, qui n'existe pas dans le coffre)
- * @property {string} [triageNote] - consigne propre a ce connecteur, ajoutee au prompt du tri (mail : indice `hint`,
- *   corps non fiable, PDF compagnons). Absente : le prompt est celui de toujours.
+ * @property {string|((sources: string[], vault: string) => string)} [triageNote] - consigne propre a ce connecteur,
+ *   ajoutee au prompt du tri (mail : indices `hint` par source, corps non fiable, PDF compagnons). Une fonction recoit
+ *   les sources a trier (chemins relatifs a inbox/). Absente : le prompt est celui de toujours.
  */
 
 /** Verifie la forme d'un connecteur : une erreur de branchement se voit au lancement, pas au milieu d'une ingestion. */
@@ -76,7 +77,7 @@ export const assertConnector = (c) => {
   if (!validState(c.state)) problems.push('"state" doit etre un dossier relatif au coffre, sans ".."');
   if (typeof c.fetch !== 'function') problems.push('"fetch" doit etre une fonction');
   if (typeof c.drop !== 'function') problems.push('"drop" doit etre une fonction');
-  if (c.triageNote !== undefined && typeof c.triageNote !== 'string') problems.push('"triageNote" doit etre un texte');
+  if (c.triageNote !== undefined && typeof c.triageNote !== 'string' && typeof c.triageNote !== 'function') problems.push('"triageNote" doit etre un texte ou une fonction (sources, coffre) -> texte');
   for (const k of ['run', 'drop', 'registry']) if (typeof c.commands?.[k] !== 'string' || !c.commands[k]) problems.push(`"commands.${k}" doit etre un texte`);
   if (problems.length) throw new Error(`connecteur invalide : ${problems.join(' ; ')}`);
   return c;
@@ -385,7 +386,8 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
     title(`Tri de ${toSort.length} source(s) de l'entrant`);
     pending(['snapshot'], { capture: true });
     // Le tri ne lit aucun domaine : la garde ne lui ouvre que inbox/. Le domaine passe ici ne sert qu'a la garde.
-    const prompt = triagePrompt(orgs, toSort, decisions, triageScope) + (connector.triageNote ? ` ${connector.triageNote}` : '');
+    const note = typeof connector.triageNote === 'function' ? connector.triageNote(toSort, VAULT) : connector.triageNote;
+    const prompt = triagePrompt(orgs, toSort, decisions, triageScope) + (note ? ` ${note}` : '');
     const { code, out } = session('triage', DOMAINS[0], prompt);
     pending(['queue']);
     // Un fichier compagnon (le PDF d'une fiche `x.pdf.md`) suit sa fiche, la ou le tri l'a rangee : la file ne
