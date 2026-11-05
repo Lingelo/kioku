@@ -1,72 +1,20 @@
 /**
- * Ecarter pour de bon une source parquee dans inbox/a-trancher/ : `run.mjs --drop <fichier>`.
+ * Ecarter pour de bon une source Plaud parquee dans inbox/a-trancher/ : `run.mjs --drop <fichier>`.
  *
- * Supprimer le fichier ne suffit pas : la deduplication (dedup.mjs) ne reconnait une note que par seen.json ou par un
- * fichier present. Sans trace, le fetch suivant la redepose. On consigne donc son `plaud_id:` comme « ecarte » dans
- * seen.json (comme `--skip`, mais sans avoir a connaitre l'id), puis on supprime le fichier et sa ligne de _raisons.md.
- *
- * Ordre : registre d'abord, fichier ensuite. Un arret entre les deux laisse un fichier deja consigne, qu'une relance
- * supprime ; l'ordre inverse laisserait une note supprimee mais non consignee, donc redeposee.
- * Sans `plaud_id:` (depot anterieur au registre), on refuse et on ne touche a rien : la note reviendrait.
- * Ce module lit un id, jamais un contenu a afficher.
+ * La mecanique est commune aux connecteurs (tools/connectors/parked.mjs : registre d'abord, fichier ensuite, refus sans
+ * identifiant). Ce qui est propre a Plaud : l'identifiant est le `plaud_id:` du frontmatter, et le registre est
+ * seen.json (dedup.mjs), comme `--skip` mais sans avoir a connaitre l'id.
  */
 
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
+import { dropParkedWith, parkedDir, parseEmptyLines, pruneReasons } from '../connectors/parked.mjs';
 import { addToRegistry, plaudIdOf } from './dedup.mjs';
 
-export const parkedDir = (vault) => path.join(vault, 'inbox', 'a-trancher');
-
-/**
- * Les lignes `VIDE <fichier> : <raison>` de la sortie du tri -> Map(fichier -> raison), dans l'ordre de la sortie.
- * Seuls les fichiers de `parkedFiles` (noms de inbox/a-trancher/, deja filtres par l'appelant) sont retenus : un nom
- * invente par la session, un fichier range dans un domaine ou reste dans l'entrant n'est jamais propose a l'ecart.
- * La session peut ecrire le chemin de son `mv` (a-trancher/x.md, inbox/a-trancher/x.md) : seul le nom compte.
- */
-export const parseEmptyLines = (out, parkedFiles) => {
-  const parked = new Set(parkedFiles);
-  const empties = new Map();
-  for (const m of String(out ?? '').matchAll(/^VIDE\s+(\S+)\s*:\s*(.+)$/gm)) {
-    const file = path.basename(m[1].replace(/\\/g, '/'));
-    if (parked.has(file) && !empties.has(file)) empties.set(file, m[2].trim());
-  }
-  return empties;
-};
-
-/**
- * Retire de _raisons.md les lignes `- <fichier> (date) : …` dont le fichier n'est plus parque (tranche par --decide,
- * ou deplace a la main). Les autres lignes restent. Rend le nombre de lignes retirees.
- */
-export const pruneReasons = (vault) => {
-  const reasons = path.join(parkedDir(vault), '_raisons.md');
-  if (!existsSync(reasons)) return 0;
-  const lines = readFileSync(reasons, 'utf8').split('\n');
-  const kept = lines.filter((l) => {
-    const file = l.match(/^- (\S+\.md) \(/)?.[1];
-    return !file || existsSync(path.join(parkedDir(vault), file));
-  });
-  if (kept.length !== lines.length) writeFileSync(reasons, kept.join('\n'));
-  return lines.length - kept.length;
-};
+export { parkedDir, parseEmptyLines, pruneReasons };
 
 /** Rend { ok: true, id, registered } ou { ok: false, reason }. */
-export const dropParked = (vault, file) => {
-  // Un nom de fichier, pas un chemin : rien ne sort de inbox/a-trancher/.
-  if (!file || file !== path.basename(file) || !file.endsWith('.md') || file.startsWith('_')) {
-    return { ok: false, reason: `nom invalide (attendu : un fichier .md de inbox/a-trancher/, sans chemin)` };
-  }
-  const abs = path.join(parkedDir(vault), file);
-  if (!existsSync(abs)) return { ok: false, reason: 'absent de inbox/a-trancher/' };
-  const id = plaudIdOf(readFileSync(abs, 'utf8'));
-  if (!id) return { ok: false, reason: 'pas de plaud_id: en frontmatter, il reviendrait au prochain fetch ; laisse en place' };
-
-  const registered = addToRegistry(vault, id, 'ecarte');
-  rmSync(abs);
-  const reasons = path.join(parkedDir(vault), '_raisons.md');
-  if (existsSync(reasons)) {
-    const lines = readFileSync(reasons, 'utf8').split('\n');
-    const kept = lines.filter((l) => !l.startsWith(`- ${file} (`));
-    if (kept.length !== lines.length) writeFileSync(reasons, kept.join('\n'));
-  }
-  return { ok: true, id, registered };
-};
+export const dropParked = (vault, file) =>
+  dropParkedWith(vault, file, {
+    idOf: plaudIdOf,
+    register: (id) => addToRegistry(vault, id, 'ecarte'),
+    noId: 'pas de plaud_id: en frontmatter, il reviendrait au prochain fetch ; laisse en place',
+  });
