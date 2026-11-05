@@ -331,6 +331,19 @@ describe('U8 : mode de session setup', () => {
     assert.equal(guard(s, bash('npm test')), OK, 'les tests ne lisent aucun domaine du coffre');
   });
 
+  test('en setup, le socle des connecteurs (tools/connectors/) est refuse comme plaud-sync/', () => {
+    for (const cmd of [
+      'node tools/connectors/pending.mjs --state tools/plaud-sync list',
+      'node tools\\connectors\\circuit.mjs',
+      'cat tools/connectors/.lock.json',
+      'node /opt/core/tools/connectors/pending.mjs --state x snapshot',
+    ]) {
+      assert.equal(guard(s, bash(cmd)), REFUS, cmd);
+    }
+    // Hors setup, rien de neuf : la regle ne vise que setup.
+    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('cat tools/connectors/.lock.json')), OK);
+  });
+
   // init genere un script npm par domaine declare (`npm run a` ouvre une session query/a) : les noms viennent de la
   // configuration, pas d'une liste figee pro|perso.
   test('en setup, npm run <domaine declare> et ses variantes sont refuses ; un script sans rapport passe', () => {

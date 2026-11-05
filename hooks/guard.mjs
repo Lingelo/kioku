@@ -279,7 +279,7 @@ const allowedMention = () =>
 // Le CLI du coffre : `kioku init|add-domain|upgrade --write` ecrit la configuration, donc seulement en setup. `doctor`
 // et `upgrade` sans --write (simulation) lisent : partout.
 const KIOKU_WRITE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(init|add-domain|upgrade\b[^;&|\n]*\s--write)\b/;
-// En setup, ce qui lirait un domaine ou ouvrirait une session d'un autre mode : la gate, le circuit Plaud, le lanceur,
+// En setup, ce qui lirait un domaine ou ouvrirait une session d'un autre mode : la gate, les circuits de capture, le lanceur,
 // le dashboard. Ni lecture de nom de page, ni escalade par processus enfant.
 // La gate s'appelle `kioku <commande>` : ses sous-commandes (pas init, add-domain, doctor) lisent ou ecrivent un domaine.
 const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(commit|check|verdict|promote|stage|rotate-log|propose-org|tag-org|propose-raw|tag-raw|quarantine|undecided|audit|flag|decide|seed)\b/;
@@ -290,7 +290,9 @@ const NPM_SCRIPTS = [...new Set([...cfg.domains, 'pro', 'perso', 'vault', 'inges
 const NPM_DENIED = new RegExp(`(^|[\\s;&|(])npm\\s+(run\\s+)?(${NPM_SCRIPTS.join('|')})(?![\\w-])`);
 // Les relais du CLI vers le lanceur, le dashboard et Plaud : sans chemin d'outil dans la commande, refuses par leur nom.
 const KIOKU_TOOLS = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(session|dashboard|plaud)\b/;
-const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /plaud-sync[/\\]/, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
+// Le socle des connecteurs (tools/connectors/ : circuit, file d'ingestion, verrou) ouvre des sessions ou touche l'etat
+// d'un circuit, comme plaud-sync/ : refuse au meme titre.
+const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /plaud-sync[/\\]/, /tools[/\\]connectors[/\\]/, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
 
 // Une commande shell qui ecrit, et qui vise une zone fermee en ecriture.
 const WRITERS = [/(^|[\s;&|(])(sed|perl)\b[^\n;&|]*\s-\w*i/, /(^|[\s;&|(])tee\b/, /(^|[\s;&|(])(mv|cp|rm|touch|truncate|ln|install|dd)\b/];
