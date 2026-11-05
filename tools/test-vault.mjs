@@ -8,7 +8,7 @@
  * registre l'y ecrivent deja. La configuration ne cree pas le registre : un test sans organisations n'en a pas besoin.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -56,4 +56,16 @@ export const isolateHome = (dir) => {
     if (previous === undefined) delete process.env.HOME;
     else process.env.HOME = previous;
   };
+};
+
+/**
+ * Un PATH ou ne se trouve que `node` (lien vers l'interpreteur de la suite) : la garde exige que l'interpreteur de son
+ * hook soit trouvable (startupRefusal), et un test du circuit ne doit pouvoir lancer aucun `claude` reel.
+ */
+export const nodeOnlyPath = (dir) => {
+  const bin = path.join(dir, '.bin-node-seul');
+  mkdirSync(bin, { recursive: true });
+  const link = path.join(bin, process.platform === 'win32' ? 'node.exe' : 'node');
+  if (!existsSync(link)) symlinkSync(process.execPath, link);
+  return bin;
 };
