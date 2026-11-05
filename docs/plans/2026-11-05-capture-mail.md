@@ -1,6 +1,6 @@
 # Plan : un second module de capture, le mail
 
-Date : 2026-11-05. Statut : PR 1 livrée sur `feat/connectors-socle` (en relecture), PR 2 à faire.
+Date : 2026-11-05. Statut : PR 1 sur `feat/connectors-socle` (en relecture), PR 2 sur `feat/capture-mail` (empilée sur la PR 1, en relecture).
 
 ## Objectif
 
@@ -134,6 +134,18 @@ Patch de `hooks/guard.mjs`, sans relâcher de règle :
 - Volume : un libellé mal choisi déverse des centaines de fils. Plafond par lancement et `--dry-run` en premier.
 - Fils mixtes (pro et perso dans un même fil) : le tri doit parquer, pas trancher.
 - Expiration du jeton en plein lancement : échec franc avant tout dépôt, pas de dépôt partiel.
+
+### Écarts de la PR 2 par rapport à ce plan, et pourquoi
+
+- **Répertoire du module** : `tools/mail-sync/` (comme `plaud-sync/`), fournisseur dans `providers/gmail.mjs`, interface `listThreads(label, since)`, `getThread(id)`, `getAttachment(msgId, attId)`.
+- **Libellé** : `label` facultatif, `kb` par défaut ; `max_pdf_mb` facultatif au niveau du module (défaut 20).
+- **`message_ids:` en plus du frontmatter prévu** : la dédup s'appuie sur les messages couverts par chaque fichier, pas seulement sur le dernier. Un message supprimé dans Gmail ne fait pas re-déposer le fil, et un fil écarté par `--drop` garde ses messages couverts (une réponse ultérieure arrive en suite).
+- **`body_sha256:`** : le nonce aléatoire du bloc non fiable rend chaque fichier unique ; l'empreinte du contenu est donc calculée sans lui et écrite en frontmatter.
+- **PDF = fiche `.pdf.md` + PDF** : la file d'ingestion et la dédup ne connaissent que des `.md`. La fiche est la source que la file connaît ; le PDF est son « compagnon ». Le socle a gagné la notion de compagnon (parcage, écart, et un compagnon oublié dans l'entrant rejoint sa fiche après le tri) et une consigne de tri par connecteur (`triageNote`).
+- **Corps du mail via `threads.get?format=full`** (un appel par fil, tailles et `attachmentId` connus avant téléchargement : un PDF trop gros n'est jamais téléchargé). `mime.mjs` sait aussi lire un message brut (`parseRaw`), pour le futur fournisseur IMAP. Non vérifié contre l'API réelle : voir le README du module.
+- **`hint.org` validé dans `config.mjs`** contre le registre du domaine, seulement si ce registre est lisible : un registre cassé ne doit pas rendre toute la configuration invalide (la garde la charge à chaque appel d'outil).
+- **`--login` refusé dans toute session Claude Code** (pas seulement `setup`) : il ouvre un port local et attend le navigateur de l'utilisateur.
+- **`kioku upgrade --write` n'ajoute pas `modules.mail` de lui-même** : comme Plaud, il complète un module déclaré (scripts), il ne déclare pas de module.
 
 ## Alternatives écartées
 

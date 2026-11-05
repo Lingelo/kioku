@@ -24,7 +24,7 @@ kioku session <D> -- --resume
 /kioku:ingest [file…]        ingest
 /kioku:lint [<D>]            review
 /kioku:triage [file]         sort
-/kioku:setup [create|check|upgrade|install|plaud]
+/kioku:setup [create|check|upgrade|install|plaud|mail]
 /kioku:add-domain [name]
 ```
 
@@ -51,6 +51,11 @@ npm run plaud:sync           Plaud → gold (confirmation per domain)
 npm run plaud:dry-run        what would be dropped
 npm run plaud:pending        resume the inbox / the queue
 npm run plaud:drop -- <f>    drop a parked source
+npm run mail:sync            Mail (label kb) → gold (confirmation per domain)
+npm run mail:dry-run         what would be dropped
+npm run mail:pending         resume the inbox / the queue
+npm run mail:drop -- <f>     drop a parked source (and its PDF)
+npm run mail:login -- <acc>  OAuth for one account, from a terminal
 ```
 
 ## Maintenance

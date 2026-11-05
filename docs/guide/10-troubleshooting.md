@@ -74,3 +74,14 @@ A vault created before this fix with `--guard-hook` keeps a `node "…/guard.mjs
 | "verrou pris" (lock taken) | a circuit is already running on this machine: wait. A lock whose process is gone (killed, machine restarted) is taken over automatically, nothing to delete. The lock is local: two machines don't see each other |
 | exit code `2` at the end | normal: sources are left to resume (`plaud:pending`) or to route (`inbox/a-trancher/`) |
 | refused in a worktree | run from the main checkout, or `--allow-worktree` |
+
+## Mail
+
+| Symptom | Fix |
+|---|---|
+| "client OAuth absent" | create a Desktop OAuth client and save its JSON as `~/.config/kioku/mail/client.json` ([Capture modules](08-capture.md#mail)) |
+| "pas de jeton" / "rafraichissement du jeton refuse" | `npm run mail:login -- <account>` from a terminal (in Testing mode, Google expires the token after 7 days) |
+| the login page says the app is blocked | a Workspace administrator blocks unverified apps: nothing to fix locally; ask them, or wait for the IMAP provider |
+| "libelle Gmail introuvable" | create the label in Gmail (default `kb`) or fix `label` in `modules.mail.accounts` |
+| a PDF is "ignoree" in the report | over the size limit (`--max-pdf-mb`, `max_pdf_mb`) or not a PDF: only PDFs become sources |
+| `kioku.config.json` invalid after adding an account | `hint.domain` must be declared, `hint.org` in that domain's registry, `id` kebab-case and unique |

@@ -33,10 +33,13 @@ await runCircuit({
   fetch: ({ argv, dryRun, node, fail, title }) => { /* dépose dans inbox/, sans domaine */ },
   drop: (vault, file) => ({ ok, id, registered } | { ok: false, reason }),
   commands: { run, pending, drop, registry },   // ce que les messages citent à l'utilisateur
+  triageNote: '…',                     // facultatif : consigne propre au connecteur, ajoutée au prompt du tri
 });
 ```
 
 **À qui appartient une source** (`owners.mjs`) : chaque connecteur marque ses dépôts d'un champ de frontmatter (Plaud : `plaud_id:`). Un circuit ne trie, ne parque et ne met en file que ses propres sources (`id` du connecteur) ; celles d'un autre circuit restent dans l'entrant et sont nommées au rapport. Une source sans marque (déposée à la main) reste à Plaud, comme avant le socle.
+
+**Fichier compagnon** : une source dont le contenu n'est pas un `.md` (un PDF joint) est déposée avec une fiche `x.pdf.md` ; le PDF `x.pdf` est son compagnon. Parquer et écarter déplacent ou suppriment les deux ; après le tri, un compagnon resté dans l'entrant rejoint sa fiche. Un fichier sans fiche (déposé à la main) n'est pas touché.
 
 Ce que le connecteur décide seul : quel identifiant fait foi pour la déduplication, son registre, ses options propres (Plaud : `--since`, `--skip`). Ce qu'il ne décide jamais : le domaine. Le tri juge sur le contenu ; un indice venu de la configuration reste un indice.
 
