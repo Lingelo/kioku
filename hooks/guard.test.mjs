@@ -121,6 +121,13 @@ describe('session triage', () => {
     assert.equal(guard(s, read('inbox/x.md')), OK);
     assert.equal(guard(s, read('wiki/pro/x.md')), REFUS);
   });
+  test('circuit mail : le tri range un fil et une fiche PDF avec son PDF ; il ne lit pas l etat du module', () => {
+    const s = { mode: 'triage', domain: 'pro' };
+    assert.equal(guard(s, bash('mv inbox/2026-11-03-fil-a1b2c3d4.md raw/pro/emails/2026-11-03-fil-a1b2c3d4.md')), OK);
+    assert.equal(guard(s, bash('mv inbox/2026-11-03-devis-0a1b2c3d.pdf inbox/2026-11-03-devis-0a1b2c3d.pdf.md raw/pro/pdfs/')), OK);
+    assert.equal(guard(s, read('inbox/2026-11-03-devis-0a1b2c3d.pdf')), OK);
+    assert.equal(guard(s, read('wiki/pro/sources/x.md')), REFUS);
+  });
 });
 
 describe('zone de la garde', () => {
@@ -329,6 +336,25 @@ describe('U8 : mode de session setup', () => {
       assert.equal(guard(s, bash(cmd)), REFUS, cmd);
     }
     assert.equal(guard(s, bash('npm test')), OK, 'les tests ne lisent aucun domaine du coffre');
+  });
+
+  test('en setup, le circuit mail est refuse : relais kioku mail, scripts mail:*, chemins mail-sync/', () => {
+    for (const cmd of [
+      'kioku mail --dry-run',
+      'kioku mail --login travail',
+      'node tools/kioku.mjs mail --skip-fetch',
+      'npm run mail:sync',
+      'npm run mail:login -- travail',
+      'npm run mail:drop -- x.md',
+      'node tools/mail-sync/run.mjs --dry-run',
+      'cat tools/mail-sync/seen.json',
+      'npm run doctor && kioku mail',
+    ]) {
+      assert.equal(guard(s, bash(cmd)), REFUS, cmd);
+    }
+    // Un mot qui commence par mail sans etre le script reste admis ; doctor aussi.
+    assert.equal(guard(s, bash('npm run mailing')), OK);
+    assert.equal(guard(s, bash('kioku doctor')), OK);
   });
 
   test('en setup, le socle des connecteurs (tools/connectors/) est refuse comme plaud-sync/', () => {
