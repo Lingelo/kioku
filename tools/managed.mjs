@@ -136,10 +136,15 @@ export const gitignoreBlock = ({ plaud = false } = {}) =>
     '.env.*',
     '# HTML du dashboard : le contenu du wiki en clair',
     'tools/dashboard/dashboard-*.html',
-    // Le verrou commun du coffre (tools/connectors/lock.mjs) : pris par tout circuit de capture et par rotate-log,
-    // tag-org, upgrade, add-domain, donc dans tout coffre, module Plaud ou non.
-    '# Verrou local du coffre (circuits de capture, reecritures de la gate)',
-    'tools/connectors/.lock.json',
+    // L'etat local des circuits de capture, dans tout coffre, module Plaud ou non. Le verrou commun
+    // (tools/connectors/lock.mjs) est pris par tout circuit et par rotate-log, tag-org, tag-raw, upgrade, add-domain ;
+    // son miroir de transition (tools/plaud-sync/.lock.json) aussi, y compris dans un coffre sans module Plaud. La
+    // file et la photo vivent dans le dossier d'etat de chaque connecteur (tools/<connecteur>/). Un motif a un seul
+    // niveau sous tools/ couvre les trois, pour tout connecteur, sans nommer de module ici.
+    "# Etat local des circuits de capture : verrou du coffre, file d'ingestion, photo de raw/",
+    'tools/*/.lock.json',
+    'tools/*/.queue.json',
+    'tools/*/.snapshot.json',
     ...(plaud ? ['# Etat local du circuit Plaud', 'tools/plaud-sync/.snapshot.json', 'tools/plaud-sync/.queue.json', 'tools/plaud-sync/.lock.json'] : []),
     BLOCK_END,
   ].join('\n');

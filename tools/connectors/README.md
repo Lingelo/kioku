@@ -40,7 +40,7 @@ Ce que le connecteur décide seul : quel identifiant fait foi pour la déduplica
 
 ## Verrou : transition
 
-Chemin canonique : `tools/connectors/.lock.json` (ignoré par le bloc géré du `.gitignore`, à propager par `kioku upgrade --write`). L'ancien `tools/plaud-sync/.lock.json` est **pris aussi**, en miroir, tant que :
+Chemin canonique : `tools/connectors/.lock.json` (ignoré, comme le miroir et l'état de tout connecteur, par le motif `tools/*/` du bloc géré du `.gitignore` ; `kioku upgrade --write` le pose dans un coffre existant). L'ancien `tools/plaud-sync/.lock.json` est **pris aussi**, en miroir, tant que :
 
 - un processus d'une version antérieure du core peut tourner (un `run.mjs` en pleine ingestion pendant la mise à jour du plugin, un checkout de développement) : il ne connaît que l'ancien fichier ;
 - le tableau de bord lit l'ancien fichier (`tools/dashboard/local-state.mjs`).

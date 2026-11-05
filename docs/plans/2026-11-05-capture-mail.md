@@ -42,7 +42,7 @@ Deux PR, pour que la partie la plus sensible (le tri et la confirmation) ne soit
 | `tools/plaud-sync/run.mjs` | réduit au connecteur Plaud (fetch, `--since`, `--skip`, écart par `seen.json`) ; reste le point d'entrée de `kioku plaud` |
 | `tools/plaud-sync/{pending,lock,org-proposals,drop,dedup}.mjs` | shims ou enveloppes Plaud : mêmes exports, mêmes chemins |
 | `hooks/vault.mjs`, `tools/kioku.mjs`, `tools/dashboard/local-state.mjs` | importent `tools/connectors/lock.mjs` |
-| `tools/managed.mjs` | `tools/connectors/.lock.json` dans le bloc géré du `.gitignore`, pour tout coffre |
+| `tools/managed.mjs` | bloc géré du `.gitignore`, pour tout coffre : `tools/*/.lock.json`, `tools/*/.queue.json`, `tools/*/.snapshot.json` (verrou commun, son miroir, état de tout connecteur) ; `kioku upgrade --write` le pose dans un coffre existant |
 | `hooks/guard.mjs` | `tools/connectors/` refusé en session `setup`, comme `plaud-sync/` |
 
 `modules.plaud.state` reste `tools/plaud-sync` côté coffre : c'est l'état du coffre (`seen.json`, `exclusions.txt`, `.queue.json`), il ne bouge pas.
@@ -67,7 +67,7 @@ Retrait du miroir (PR ultérieure) : quand le dashboard lit le chemin canonique 
 ### Risques
 
 - **Verrou** : une moitié de verrou laissée après un refus ou une erreur disque bloquerait tout le monde jusqu'à reprise. Couvert : refus et erreur rendent le canonique (tests).
-- **Coffres existants non mis à jour** : tant que `upgrade --write` n'est pas passé, `tools/connectors/.lock.json` n'est pas ignoré ; il n'existe que pendant un lancement, mais un `git add -A` à ce moment-là le prendrait.
+- **Coffres existants non mis à jour** : tant que `upgrade --write` n'est pas passé, `tools/connectors/.lock.json` n'est pas ignoré ; il n'existe que pendant un lancement, mais un `git add -A` à ce moment-là le prendrait. Le motif `tools/*/` du bloc géré couvre aussi le miroir dans un coffre sans module Plaud (il ne l'était pas avant) et l'état du futur connecteur mail.
 - **Régression silencieuse du circuit** : la boucle a été déplacée, pas réécrite ; les tests Plaud (`thread`, `drop`, `pending`) passent sans changer une assertion.
 - **Message de refus du verrou** : il cite désormais `tools/connectors/.lock.json` au lieu de `tools/plaud-sync/.lock.json`.
 
@@ -122,7 +122,7 @@ Patch de `hooks/guard.mjs`, sans relâcher de règle :
 ### Outillage
 
 - `kioku init --mail` (pose `modules.mail` sans compte, à compléter) ; `kioku mail …` relaie vers `tools/mail-sync/run.mjs --vault .`.
-- Scripts gérés `mail:sync`, `mail:dry-run`, `mail:pending`, `mail:drop`, `mail:login` dans `managedScripts` ; état local `tools/mail-sync/.queue.json`, `.snapshot.json` dans le bloc `.gitignore` géré.
+- Scripts gérés `mail:sync`, `mail:dry-run`, `mail:pending`, `mail:drop`, `mail:login` dans `managedScripts` ; état local `tools/mail-sync/.queue.json`, `.snapshot.json` déjà couvert par le motif `tools/*/` du bloc `.gitignore` géré.
 - Guide « capture modules » (`docs/guide/`, en anglais) : Plaud et mail sur le même circuit.
 
 ### Risques

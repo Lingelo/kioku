@@ -158,6 +158,21 @@ describe('init', () => {
     assert.equal(kioku(['init', vault, '--domains', 'a,b', '--org', 'c']).status, EXIT.precondition);
   });
 
+  // Verifie avec git lui-meme, pas seulement sur le texte : le motif tools/*/ couvre le verrou canonique, son miroir et
+  // l'etat de tout connecteur, et ne masque rien de versionne (seen.json, exclusions.txt).
+  test('coffre neuf : l etat local des circuits est ignore par git, les registres versionnes ne le sont pas', { skip: spawnSync('git', ['--version']).status !== 0 }, () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a,b']).status, EXIT.ok);
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: vault }).status, 0);
+    const ignored = (rel) => spawnSync('git', ['check-ignore', '-q', rel], { cwd: vault }).status === 0;
+    for (const rel of ['tools/connectors/.lock.json', 'tools/plaud-sync/.lock.json', 'tools/plaud-sync/.queue.json', 'tools/plaud-sync/.snapshot.json', 'tools/mail-sync/.queue.json']) {
+      assert.equal(ignored(rel), true, rel);
+    }
+    for (const rel of ['tools/plaud-sync/seen.json', 'tools/plaud-sync/exclusions.txt', 'kioku.config.json']) assert.equal(ignored(rel), false, rel);
+    // init puis upgrade : rien a ajouter, la ligne n'est pas doublee.
+    assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
+    assert.equal(readFileSync(path.join(vault, '.gitignore'), 'utf8').split('\n').filter((l) => l === 'tools/*/.lock.json').length, 1);
+  });
+
   test('Covers AE7 : sans --plaud, aucun reglage ni fichier Plaud', () => {
     kioku(['init', vault, '--domains', 'a,b']);
     const cfg = JSON.parse(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8'));
@@ -338,6 +353,22 @@ describe('upgrade', () => {
     assert.match(readFileSync(path.join(vault, '.gitignore'), 'utf8'), /^node_modules\/\n\n# >>> kioku/);
     assert.ok(existsSync(path.join(vault, WIKI, 'b', 'index.md')));
     assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
+  });
+
+  // Un coffre cree avant le socle des connecteurs : son bloc gere n'ignore que l'etat Plaud, ou rien. Le verrou commun
+  // (tools/connectors/.lock.json) et son miroir y sont ecrits par rotate-log, upgrade, add-domain, le circuit.
+  test('coffre existant a l ancien bloc : upgrade --write ajoute l etat des circuits, une seule fois, puis plus rien', () => {
+    const gi = path.join(vault, '.gitignore');
+    writeFileSync(gi, 'node_modules/\n# >>> kioku (gere par kioku init/upgrade)\ninbox/\n.env\n.env.*\n# <<< kioku\nmaison/\n');
+    const w = kioku(['upgrade', '--write', '--vault', vault]);
+    assert.equal(w.status, EXIT.ok, w.stdout);
+    const count = (line) => readFileSync(gi, 'utf8').split('\n').filter((l) => l === line).length;
+    for (const line of ['tools/*/.lock.json', 'tools/*/.queue.json', 'tools/*/.snapshot.json']) assert.equal(count(line), 1, line);
+    assert.match(readFileSync(gi, 'utf8'), /^node_modules\/\n/);
+    assert.match(readFileSync(gi, 'utf8'), /\nmaison\/\n$/);
+    const again = kioku(['upgrade', '--write', '--vault', vault]);
+    assert.match(again.stdout, /deja a la forme courante/);
+    for (const line of ['tools/*/.lock.json', 'tools/*/.queue.json', 'tools/*/.snapshot.json']) assert.equal(count(line), 1, `${line} apres relance`);
   });
 
   test('ne touche ni CLAUDE.md, ni regles, ni donnees ; config en ajout seul ; settings : migre l ancien catalogue epingle', () => {
