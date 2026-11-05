@@ -92,6 +92,7 @@ Chacun appelle `kioku session|dashboard|plaud|…` ; la session porte `VAULT_MOD
 
 - **Dashboard** (`tools/dashboard/`) : état du médaillon, graphe 3D de l'or, et questions au wiki depuis un navigateur local. La vidéo de présentation de l'onglet Mode d'emploi n'est pas versionnée (trop lourde) : sa source est `tools/dashboard/video/` ; déposez le rendu dans `tools/dashboard/vendor/media/kioku-explainer.mp4`.
 - **Plaud** (`tools/plaud-sync/`) : dépose les notes d'un enregistreur Plaud dans l'entrant, les trie par domaine, demande confirmation, puis les ingère.
+  Le circuit commun aux modules de capture (tri, confirmation, ingestion, rapport, verrou du coffre) vit dans `tools/connectors/` ; Plaud y est branché comme un connecteur.
 
 ## Ce que la garde ne fait pas
 

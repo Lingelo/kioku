@@ -1,0 +1,140 @@
+# Plan : un second module de capture, le mail
+
+Date : 2026-11-05. Statut : PR 1 livrée sur `feat/connectors-socle` (en relecture), PR 2 à faire.
+
+## Objectif
+
+Le core capte aujourd'hui une seule source : les notes d'un enregistreur Plaud. On ajoute le **mail**, Gmail d'abord :
+
+- libellé **opt-in** (rien n'est lu hors du libellé choisi par l'utilisateur) ;
+- le **fil** est l'unité de source ; les **PDF joints** sont des sources à part entière ;
+- scope OAuth `gmail.readonly` seulement ; client OAuth **maison, sans dépendance** ;
+- jeton **hors coffre**, dans `~/.config/kioku/mail/` (jamais versionné, jamais lu par une session).
+
+Le mail réutilise le circuit de Plaud tel quel : dépôt dans `inbox/` → tri `claude -p` en mode triage (qui peut s'abstenir) → confirmation « oui » par domaine → une session ingest par source → rapport calculé sur les fichiers.
+
+Deux PR, pour que la partie la plus sensible (le tri et la confirmation) ne soit écrite qu'une fois et relue à part.
+
+```
+ PR 1 : socle                                 PR 2 : module mail
+ ┌──────────────────────────────┐             ┌──────────────────────────────────┐
+ │ tools/connectors/            │◄────────────│ tools/mail-sync/                 │
+ │   circuit, file, verrou,     │  branché    │   OAuth, fetch Gmail, dédup fil, │
+ │   parcage, dédup, tri        │  comme      │   PDF, run.mjs                   │
+ │ tools/plaud-sync/ = connect. │  Plaud      │ config, garde, init, scripts     │
+ └──────────────────────────────┘             └──────────────────────────────────┘
+```
+
+## PR 1 — socle `tools/connectors/` et verrou commun
+
+**Aucun changement de comportement pour Plaud.**
+
+### Fichiers
+
+| Fichier | Changement |
+|---|---|
+| `tools/connectors/circuit.mjs` | nouveau : la boucle de `plaud-sync/run.mjs` (tri, confirmation, ingestion avec relances et reprise, rapport, `--drop`, `--decide`, `--init-structure`), paramétrée par un connecteur |
+| `tools/connectors/lock.mjs` | nouveau : verrou du coffre, chemin canonique + miroir de l'ancien fichier |
+| `tools/connectors/pending.mjs` | déplacé depuis `plaud-sync/`, dossier d'état passé par `--state` |
+| `tools/connectors/triage.mjs` | déplacé depuis `plaud-sync/org-proposals.mjs` |
+| `tools/connectors/parked.mjs` | nouveau : `inbox/a-trancher/` et l'écart générique (extrait de `drop.mjs` et `run.mjs`) |
+| `tools/connectors/dedup.mjs` | nouveau : primitives extraites de `plaud-sync/dedup.mjs` |
+| `tools/plaud-sync/run.mjs` | réduit au connecteur Plaud (fetch, `--since`, `--skip`, écart par `seen.json`) ; reste le point d'entrée de `kioku plaud` |
+| `tools/plaud-sync/{pending,lock,org-proposals,drop,dedup}.mjs` | shims ou enveloppes Plaud : mêmes exports, mêmes chemins |
+| `hooks/vault.mjs`, `tools/kioku.mjs`, `tools/dashboard/local-state.mjs` | importent `tools/connectors/lock.mjs` |
+| `tools/managed.mjs` | `tools/connectors/.lock.json` dans le bloc géré du `.gitignore`, pour tout coffre |
+| `hooks/guard.mjs` | `tools/connectors/` refusé en session `setup`, comme `plaud-sync/` |
+
+`modules.plaud.state` reste `tools/plaud-sync` côté coffre : c'est l'état du coffre (`seen.json`, `exclusions.txt`, `.queue.json`), il ne bouge pas.
+
+### Étapes
+
+1. Verrou commun, avec ses tests (le risque principal, voir plus bas).
+2. File, parcage, dédup : extraction derrière des shims, tests Plaud inchangés.
+3. Circuit : transcription fidèle de `run.mjs`, points d'injection = fetch, drop, état, commandes citées.
+4. Garde, `.gitignore` géré, docs courtes (README de `plaud-sync`, README du socle).
+
+### Verrou : choix et transition
+
+Le verrou était déjà partagé par `run.mjs`, `rotate-log`, `tag-org`, `tag-raw`, `upgrade --write` et `add-domain`, mais il vivait dans `tools/plaud-sync/.lock.json`, sous un nom de connecteur. Nouveau chemin canonique : `tools/connectors/.lock.json`. Pendant la transition, **prendre le verrou = prendre les deux fichiers**, canonique d'abord ; un échec sur le second rend le premier :
+
+- un ancien `run.mjs` (plugin mis à jour en pleine ingestion) qui tient l'ancien fichier bloque un nouveau lanceur ;
+- un nouveau lanceur qui tient les deux bloque un ancien processus, qui ne regarde que l'ancien fichier ;
+- le tableau de bord, qui lit l'ancien fichier, reste juste.
+
+Retrait du miroir (PR ultérieure) : quand le dashboard lit le chemin canonique et que les coffres ont reçu le bloc `.gitignore` à jour (`kioku upgrade --write`).
+
+### Risques
+
+- **Verrou** : une moitié de verrou laissée après un refus ou une erreur disque bloquerait tout le monde jusqu'à reprise. Couvert : refus et erreur rendent le canonique (tests).
+- **Coffres existants non mis à jour** : tant que `upgrade --write` n'est pas passé, `tools/connectors/.lock.json` n'est pas ignoré ; il n'existe que pendant un lancement, mais un `git add -A` à ce moment-là le prendrait.
+- **Régression silencieuse du circuit** : la boucle a été déplacée, pas réécrite ; les tests Plaud (`thread`, `drop`, `pending`) passent sans changer une assertion.
+- **Message de refus du verrou** : il cite désormais `tools/connectors/.lock.json` au lieu de `tools/plaud-sync/.lock.json`.
+
+### Ce qui n'est pas extrait
+
+- `fetch-notes.mjs` : entièrement propre à Plaud (MCP, bloc anti-injection, amorçage `--seed`).
+- Les règles de déduplication Plaud (`classify`, `legacyDomain` : id → nom → contenu) : le mail aura d'autres règles (fil + dernier message). Seules les primitives sont communes.
+- Les messages « le circuit Plaud tourne » de `kioku.mjs` et `vault.mjs` : des tests existants les vérifient. À généraliser en PR 2, quand un second circuit peut réellement tenir le verrou (le verrou pourra alors porter le nom de son lanceur).
+
+## PR 2 — le module mail
+
+### Configuration
+
+`modules.mail` dans `kioku.config.json` (nouvelle clé de `MODULES` dans `hooks/config.mjs`, validée comme `modules.plaud`) :
+
+```json
+"modules": {
+  "mail": {
+    "state": "tools/mail-sync",
+    "accounts": [
+      { "id": "travail", "provider": "gmail", "label": "kioku", "hint": { "domain": "pro", "org": "acme" } }
+    ]
+  }
+}
+```
+
+- `id` : identifiant local du compte, sert au nom du jeton dans `~/.config/kioku/mail/<id>.json` ;
+- `provider` : `gmail` seulement au départ ;
+- `label` : le libellé opt-in ; rien d'autre n'est lu ;
+- `hint` : **un indice pour le tri, jamais une décision**. Le tri juge sur le contenu et peut contredire l'indice ou s'abstenir.
+
+### Dépôt et déduplication
+
+- Bronze : `raw/<D>/emails/` (après tri), un fichier `.md` par fil, les PDF joints à côté, chacun source à part entière.
+- Dédup par **id de fil + id du dernier message**. Une réponse tardive sur un fil déjà ingéré = **nouvelle source « suite »**, jamais une réécriture : le bronze est immuable.
+- Registre `tools/mail-sync/seen.json` (ids seulement, sans objet ni contenu), écart par `--drop` via `connectors/parked.mjs`.
+
+### Sécurité
+
+- **Le corps d'un mail est une donnée non fiable** : n'importe qui peut écrire dans une boîte, donc tenter une injection de prompt. Le dépôt l'encapsule comme le fait le MCP Plaud (bloc à nonce), le prompt du tri et de l'ingestion le rappelle, et la garde reste le dernier mot (le tri n'écrit que dans `raw/<D>/` et `inbox/a-trancher/`).
+- Jeton OAuth hors coffre, fichier en `0600`, jamais passé à une session `claude -p`.
+- Scope `gmail.readonly` : aucune écriture possible dans la boîte.
+
+### Garde
+
+Patch de `hooks/guard.mjs`, sans relâcher de règle :
+
+- `KIOKU_TOOLS` : ajouter `mail` (`kioku mail` refusé en setup comme `kioku plaud`) ;
+- `NPM_SCRIPTS` : ajouter `mail` (scripts `mail:*`) ;
+- `SETUP_DENIED` : ajouter `mail-sync[/\\]`.
+
+### Outillage
+
+- `kioku init --mail` (pose `modules.mail` sans compte, à compléter) ; `kioku mail …` relaie vers `tools/mail-sync/run.mjs --vault .`.
+- Scripts gérés `mail:sync`, `mail:dry-run`, `mail:pending`, `mail:drop`, `mail:login` dans `managedScripts` ; état local `tools/mail-sync/.queue.json`, `.snapshot.json` dans le bloc `.gitignore` géré.
+- Guide « capture modules » (`docs/guide/`, en anglais) : Plaud et mail sur le même circuit.
+
+### Risques
+
+- Volume : un libellé mal choisi déverse des centaines de fils. Plafond par lancement et `--dry-run` en premier.
+- Fils mixtes (pro et perso dans un même fil) : le tri doit parquer, pas trancher.
+- Expiration du jeton en plein lancement : échec franc avant tout dépôt, pas de dépôt partiel.
+
+## Alternatives écartées
+
+| Alternative | Pourquoi non |
+|---|---|
+| MCP Gmail communautaire | code tiers non épinglé, qui lit **toute** la boîte avec un scope large ; le core ne peut pas en garantir le comportement d'une version à l'autre |
+| Apple Mail (AppleScript, base locale) | macOS seulement ; le core vise Windows, macOS et Linux |
+| Copier `plaud-sync/` en `mail-sync/` | duplique la logique tri / confirmation / ingestion, la plus sensible : deux copies divergeraient, et un correctif sur l'une oublierait l'autre |
