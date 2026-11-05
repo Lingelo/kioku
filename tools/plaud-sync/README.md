@@ -16,6 +16,7 @@ node tools/plaud-sync/run.mjs --group-by-day         # une session par journée 
 node tools/plaud-sync/run.mjs --skip-fetch --decide <fichier>=<pro|perso>   # tranche une source parquée
 npm run plaud:drop -- <fichier> [<fichier>...]                              # écarte une source parquée (seen.json « ecarte », fichier supprimé)
 node tools/plaud-sync/run.mjs --yes                  # ingère sans demander confirmation (requis sans terminal)
+node tools/plaud-sync/run.mjs --retries 2 --retry-delay 60   # relances d'une ingestion qui échoue (défaut : 1, après 30 s)
 ```
 
 Raccourcis npm : `npm run plaud:sync` (= `run.mjs`), `plaud:dry-run`, `plaud:pending` (= `--skip-fetch`), `plaud:drop`. Une option s'ajoute après `--` : `npm run plaud:sync -- --since 2026-10-01`.
@@ -47,6 +48,7 @@ Code de sortie : `0` tout est rangé et ingéré ; `2` il reste des sources à r
 2. **Tri** : une session `claude -p` en mode `triage` range chaque source dans `raw/pro/` ou `raw/perso/` **sur le contenu**, car le MCP n'expose pas les dossiers Plaud. Au moindre doute (autre organisation, source mixte, donnée sensible), elle s'abstient : la source est parquée dans `inbox/a-trancher/`, raison dans `_raisons.md`, sans bloquer les lancements suivants.
 3. **Confirmation** : avant toute ingestion, le script affiche ce qui va entrer dans l'or, **par domaine**, et demande `Ingerer cette liste ? [o]ui / [N]on` (Entrée = non). C'est le dernier moment où une erreur de domaine du tri se corrige sans effort ; après, la source est dans le mauvais wiki et seul le relecteur peut encore la retenir. Sur un refus, rien n'est écrit et les sources restent dans la file. Pour corriger le domaine d'une source `neuf` : `mv raw/<de>/<chemin> raw/<vers>/<chemin>`, puis `node tools/plaud-sync/pending.mjs add <vers> <chemin>`, puis `--skip-fetch`. Sans terminal, rien n'est ingéré sans `--yes`.
 4. **Ingestion** : une session `ingest` par source, dans le domaine où le tri l'a rangée. La gate et le relecteur s'appliquent comme pour une ingestion manuelle. Avec `--group-by-day`, les sources d'une **même journée et d'un même domaine** partagent un **fil de conversation** (voir ci-dessous). Les deux domaines ne sont **jamais** dans le même fil, une source sans date dans son nom reste seule, et l'ordre chronologique est conservé.
+   Une session qui rend un code non nul est **relancée**, à froid, après une attente (`--retries`, défaut 1 ; `--retry-delay`, défaut 30 s). L'état est relu sur les fichiers avant chaque relance : une source entrée dans l'or malgré le code n'est pas relancée, une source déjà rédigée repart en reprise. Le code de sortie de `claude` ne dit pas si l'erreur est passagère (le 05/11, une erreur API 422 après la rédaction) : on relance sur tout échec, et le plafond borne le coût d'un échec qui se reproduit.
 5. **Rapport** : calculé sur les fichiers, jamais sur ce qu'une session déclare (ingérées / pas entrées dans l'or / à trancher / retenues par la gate).
 
 ### `--group-by-day` : un fil de conversation par journée
@@ -64,16 +66,19 @@ Une source par tour, et non un prompt qui porterait toute la journée : **si un 
 
 ### Ce que « ingérée » veut dire
 
-**La page or fait foi**, pas la fiche argent. Une source est traitée quand `wiki/<domaine>/sources/<slug>.md` porte `raw:` = son chemin. Tant qu'elle n'y est pas, elle reste en file avec son état :
+**La page or fait foi**, pas la fiche argent. Une source est traitée quand `wiki/<domaine>/sources/<slug>.md` porte `raw:` = son chemin **et** qu'aucune candidate ne la cite encore sous `.candidats/wiki/<domaine>/` (une candidate `sources/` de même `raw:`, ou toute candidate dont le `sources:` nomme sa page source). Sinon, elle reste en file avec son état :
 
 | État | Ce qui existe | Ce qu'il reste à faire |
 |---|---|---|
 | `neuf` | rien, ou pas de fiche argent | toute l'ingestion |
 | `argent` | fiche argent, pas de page or | la gate (`check`, relecteur, `promote`), l'index, le journal |
+| `candidats` | des candidates de la source restent sous `.candidats/` (page source admise ou non) | la gate sur ces candidates seulement : la session ne rédige rien de nouveau |
 
 Une reprise **ne réécrit pas** ce qui est déjà conforme : un verdict est lié à l'empreinte exacte d'une page, la réécrire l'invalide.
 
 > Le critère était auparavant la fiche argent, écrite à l'étape 2 sur 3. Le 22/09, une session s'est arrêtée entre les candidates et la gate : le rapport a annoncé **« 1/1 ingérée »** pour une source qui n'était jamais entrée dans le wiki, et trois pages sont restées dans `.candidats/`, invisibles du rapport comme de `vault.mjs undecided`.
+>
+> La gate admet **page par page** : la page source pouvait entrer et une page d'entité rester sous `.candidats/`, et la source passait pour ingérée. D'où l'état `candidats`. Une page retenue quitte `.candidats/` : ce qui y reste n'a vraiment pas fini la gate. Angle mort : `check` n'impose pas `sources:` hors des pages `sources/`, une candidate qui ne le remplit pas n'est rattachée à aucune source.
 
 Chaque session tourne sous la garde Kioku avec `VAULT_MODE` et `VAULT_DOMAIN`, comme avec `tools/vault.mjs`.
 

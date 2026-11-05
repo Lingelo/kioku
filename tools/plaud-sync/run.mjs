@@ -23,6 +23,15 @@
  *                                                         passe « ecarte » dans seen.json, le fichier et sa raison sont
  *                                                         supprimes. Ni fetch, ni session. Refus si pas de plaud_id.
  *   node tools/plaud-sync/run.mjs --yes                  ingere sans demander (voir ci-dessous) ; requis sans terminal
+ *   node tools/plaud-sync/run.mjs --retries <n>          relances d'une ingestion qui echoue (defaut 1, 0 = aucune)
+ *   node tools/plaud-sync/run.mjs --retry-delay <s>      attente avant chaque relance, en secondes (defaut 30)
+ *
+ * Une session d'ingestion qui rend un code non nul est relancee, a froid, apres une attente : le 05/11, une
+ * erreur API 422 a fait tomber une session apres la redaction, et la relance a la main du relecteur est passee
+ * du premier coup. Avant chaque relance, l'etat est relu sur les fichiers : une source entree dans l'or malgre
+ * le code n'est pas relancee, une source deja redigee (etat `argent`) repart avec la consigne de reprise. Le
+ * code de sortie de claude ne dit pas si l'erreur est passagere : on relance sur tout echec, et c'est le
+ * plafond (--retries) qui borne le cout d'un echec qui se reproduit a chaque fois.
  *
  * Entre le tri et l'ingestion, le script montre ce qui va entrer dans l'or, par domaine, et demande confirmation
  * (Entree = non). C'est le dernier moment ou une erreur de domaine du tri se corrige sans effort : apres, la
@@ -66,6 +75,20 @@ const PENDING = path.join(HERE, 'pending.mjs');
 const KIOKU = path.join(CORE_BIN, 'kioku');
 const INBOX = path.join(VAULT, 'inbox');
 const TOOLS = 'Read,Write,Edit,Glob,Grep,Agent,Bash(kioku:*),Bash(mv:*)';
+const count = (name, fallback) => {
+  const raw = opt(name);
+  if (raw === undefined) return fallback;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) {
+    console.error(`Erreur : ${name} attend un entier positif ou nul, recu "${raw}".`);
+    process.exit(1);
+  }
+  return n;
+};
+const RETRIES = count('--retries', 1);
+const RETRY_DELAY_S = count('--retry-delay', 30);
+/** Attente synchrone : la boucle d'ingestion est synchrone (spawnSync), une attente asynchrone n'y bloquerait rien. */
+const sleep = (ms) => ms > 0 && Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
 const title = (text) => console.log(`\n== ${text}`);
 const fail = (msg) => {
@@ -183,16 +206,19 @@ const decisions = argv.flatMap((a, i) => (a === '--decide' ? [argv[i + 1] ?? '']
   return { file, domain };
 });
 
-// `pending.mjs list` rend <domaine>\t<chemin>\t<etat>, etat = neuf | argent (redigee mais pas entree dans l'or).
+// `pending.mjs list` rend <domaine>\t<chemin>\t<etat>[\t<candidates>], etat = neuf | argent (redigee mais pas
+// entree dans l'or) | candidats (des candidates de la source restent sous .candidats/ : gate seulement).
 const queue = () =>
   (node(PENDING, ['list'], { capture: true }).stdout ?? '')
     .split('\n')
     .map((l) => l.trim())
     .filter(Boolean)
     .map((l) => {
-      const [domain, rel, state = 'neuf'] = l.split('\t');
-      return { domain, rel, state };
+      const [domain, rel, state = 'neuf', left = ''] = l.split('\t');
+      return { domain, rel, state, left: left ? left.split(',') : [] };
     });
+const stateLabel = ({ state, left }) =>
+  state === 'argent' ? 'reprise : fiche argent deja ecrite' : state === 'candidats' ? `reprise : gate seulement, ${left.length} candidate(s) en attente` : '';
 
 // 0. Verrou : un seul lanceur a la fois sur ce coffre. Sans lui, un second lancement pendant une ingestion
 // relit la file (l'entree n'en sort qu'une fois la fiche argent ecrite) et lance une DEUXIEME session sur la
@@ -313,6 +339,29 @@ const resumeNote = (domain) =>
   `NE REECRIS PAS ce qui est deja conforme (un verdict est lie a l'empreinte exacte d'une page, la reecrire l'invalide). ` +
   `Reprends la ou l'ingestion s'est arretee : redige ce qui manque, puis deroule la gate (check, relecteur, promote), puis index et log.`;
 
+// Des candidates de la source attendent encore la gate : la redaction est finie, on ne rouvre que la gate.
+const gateOnlyNote = (domain, left) =>
+  ` ; la redaction de cette source est FINIE : ces candidates attendent encore la gate sous .candidats/wiki/${domain}/ : ${left.join(', ')}. ` +
+  `NE REDIGE AUCUNE PAGE NOUVELLE et ne relis pas la source. Deroule la gate sur ces candidates (check, relecteur, promote), ` +
+  `puis index et log si ce n'est pas deja fait. Si check en refuse une, corrige seulement ce qu'il signale.`;
+
+/** Le prompt d'ingestion d'une source ; `suite` = un tour qui suit une source de la meme journee dans le meme fil. */
+const ingestPrompt = (domain, rel, state, suite, left = []) => {
+  if (state === 'candidats') return `${skill('ingest')} ${rel}${gateOnlyNote(domain, left)}`;
+  const proposed = domain === ORG_DOMAIN ? orgProposals.get(rel) : undefined;
+  return (
+    `${skill('ingest')} ${rel}` +
+    (proposed ? ` ; organisation proposee par le tri : ${proposed.join(',')} (a confirmer ou corriger sur le contenu)` : '') +
+    (suite
+      ? ` ; tu viens d'ingerer une ou plusieurs sources de la MEME JOURNEE, elles sont encore dans ton contexte : ` +
+        `RECOUPE cette source avec elles (une seance de l'apres-midi confirme, precise ou contredit celle du matin) ` +
+        `et ne relis pas l'index ni les pages que tu as deja lues. Ajoute ton entree de journal a la suite ; ` +
+        `pour l'index, complete la ligne de la journee plutot que d'en ouvrir une nouvelle.`
+      : '') +
+    (state === 'argent' ? resumeNote(domain) : '')
+  );
+};
+
 const todo = queue();
 
 // 2 bis. Confirmation : ce qui va entrer dans l'or, par domaine, avant toute session d'ingestion.
@@ -325,9 +374,10 @@ if (go) {
     const mine = todo.filter((e) => e.domain === domain);
     if (!mine.length) continue;
     console.log(`  ${domain} (${mine.length})`);
-    for (const { rel, state } of mine) {
+    for (const e of mine) {
+      const { rel } = e;
       const org = domain === ORG_DOMAIN ? `  ${orgLabel(orgProposals.get(rel))}` : '';
-      console.log(`    ${rel}${org}${state === 'argent' ? '  [reprise : fiche argent deja ecrite]' : ''}`);
+      console.log(`    ${rel}${org}${stateLabel(e) ? `  [${stateLabel(e)}]` : ''}`);
     }
   }
   if (flag('--yes')) {
@@ -360,23 +410,27 @@ for (const group of groups) {
   // contrairement a un prompt unique qui aurait porte toute la journee.
   const thread = group.length > 1 ? `${domain}\u0000${day}` : null;
   if (thread) title(`Ingestion ${domain} : ${group.length} sources du ${day} (un fil de conversation)`);
-  group.forEach(({ rel, state }, i) => {
+  group.forEach((entry, i) => {
+    const { rel, state, left } = entry;
     const suite = thread && i > 0;
     if (thread) console.log(`\n-- ${i + 1}/${group.length} : ${rel}`);
-    else title(`Ingestion ${domain} : ${rel}${state === 'argent' ? ' (reprise : fiche argent deja ecrite)' : ''}`);
-    const proposed = domain === ORG_DOMAIN ? orgProposals.get(rel) : undefined;
-    const prompt =
-      `${skill('ingest')} ${rel}` +
-      (proposed ? ` ; organisation proposee par le tri : ${proposed.join(',')} (a confirmer ou corriger sur le contenu)` : '') +
-      (suite
-        ? ` ; tu viens d'ingerer une ou plusieurs sources de la MEME JOURNEE, elles sont encore dans ton contexte : ` +
-          `RECOUPE cette source avec elles (une seance de l'apres-midi confirme, precise ou contredit celle du matin) ` +
-          `et ne relis pas l'index ni les pages que tu as deja lues. Ajoute ton entree de journal a la suite ; ` +
-          `pour l'index, complete la ligne de la journee plutot que d'en ouvrir une nouvelle.`
-        : '') +
-      (state === 'argent' ? resumeNote(domain) : '');
-    const { code } = session('ingest', domain, prompt, thread);
-    if (code !== 0) console.warn(`Attention : la session d'ingestion a rendu le code ${code}.`);
+    else title(`Ingestion ${domain} : ${rel}${stateLabel(entry) ? ` (${stateLabel(entry)})` : ''}`);
+    let { code } = session('ingest', domain, ingestPrompt(domain, rel, state, suite, left), thread);
+    for (let attempt = 1; code !== 0 && attempt <= RETRIES; attempt++) {
+      console.warn(`Attention : la session d'ingestion a rendu le code ${code}.`);
+      // L'etat se relit sur les fichiers, pas sur ce que la session a dit avant de tomber.
+      const now = queue().find((e) => e.domain === domain && e.rel === rel);
+      if (!now) {
+        console.log('  page or presente malgre le code : pas de relance.');
+        code = 0;
+        break;
+      }
+      console.warn(`  relance ${attempt}/${RETRIES} dans ${RETRY_DELAY_S} s, a froid${stateLabel(now) ? `, ${stateLabel(now)}` : ''}.`);
+      sleep(RETRY_DELAY_S * 1000);
+      // A froid : le fil de la journee a ete abandonne par l'echec, la relance ne peut pas compter sur son contexte.
+      ({ code } = session('ingest', domain, ingestPrompt(domain, rel, now.state, false, now.left), null));
+    }
+    if (code !== 0) console.warn(`Attention : la session d'ingestion a rendu le code ${code}${RETRIES ? ` apres ${RETRIES} relance(s)` : ''}.`);
   });
 }
 
@@ -389,8 +443,9 @@ const undecided = parked();
 console.log(`Ingerees (page or presente) : ${todo.length - left.length} / ${todo.length}`);
 if (left.length) {
   console.log('PAS entrees dans l\'or (a reprendre : relance avec --skip-fetch) :');
-  for (const { domain, rel, state } of left) {
-    console.log(`  ${domain}  ${rel}  ${state === 'argent' ? '[redigee, gate a reprendre]' : '[rien d\'ecrit]'}`);
+  for (const { domain, rel, state, left: waiting } of left) {
+    const what = state === 'candidats' ? `[candidates en attente de la gate : ${waiting.join(', ')}]` : state === 'argent' ? '[redigee, gate a reprendre]' : '[rien d\'ecrit]';
+    console.log(`  ${domain}  ${rel}  ${what}`);
   }
 }
 if (undecided.length) {

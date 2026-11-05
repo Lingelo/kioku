@@ -33,7 +33,14 @@ let vault;
 before(() => {
   fakeBin = mkdtempSync(path.join(tmpdir(), 'faux-claude-'));
   const exe = path.join(fakeBin, 'claude');
-  writeFileSync(exe, '#!/bin/bash\n{ for a in "$@"; do printf "%s\\n" "$a"; done; echo "---FIN-TOUR---"; } >> "$FAUX_LOG"\nexit ${FAUX_EXIT:-0}\n');
+  // $FAUX_ECRIT (facultatif) : un fichier a frontmatter `raw: $FAUX_RAW` que la session « laisse » avant de sortir,
+  // pour simuler une session qui tombe apres avoir ecrit la fiche argent, ou apres la promotion.
+  writeFileSync(
+    exe,
+    '#!/bin/bash\n{ for a in "$@"; do printf "%s\\n" "$a"; done; echo "---FIN-TOUR---"; } >> "$FAUX_LOG"\n' +
+      'if [ -n "$FAUX_ECRIT" ]; then mkdir -p "$(dirname "$FAUX_ECRIT")"; printf -- "---\\nraw: %s\\n---\\n" "$FAUX_RAW" > "$FAUX_ECRIT"; fi\n' +
+      'exit ${FAUX_EXIT:-0}\n',
+  );
   chmodSync(exe, 0o755);
 });
 after(() => rmSync(fakeBin, { recursive: true, force: true }));
@@ -61,13 +68,22 @@ const build = () => {
 
 /** Lance run.mjs contre le faux binaire ; rend un tableau de tours, chaque tour = ses arguments. */
 // Sans terminal, run.mjs n'ingere rien sans --yes (confirmation avant l'ingestion) : les tests du fil le passent.
-const run = ({ exit = '0', args = [], yes = true } = {}) => {
+// --retry-delay 0 : les relances sont testees sans attendre.
+const run = ({ exit = '0', args = [], yes = true, leaves = null } = {}) => {
   const log = path.join(vault, 'appels.txt');
   rmSync(log, { force: true });
-  const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--skip-fetch', ...(yes ? ['--yes'] : []), ...args], {
+  const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--skip-fetch', '--retry-delay', '0', ...(yes ? ['--yes'] : []), ...args], {
     encoding: 'utf8',
     // HOME vierge : la garde declaree est le hook factice, pas un plugin kioku active sur la machine qui lance le test.
-    env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log, FAUX_EXIT: exit },
+    env: {
+      ...process.env,
+      HOME: testHome(vault),
+      PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
+      FAUX_LOG: log,
+      FAUX_EXIT: exit,
+      FAUX_ECRIT: leaves ? path.join(vault, leaves.file) : '',
+      FAUX_RAW: leaves?.raw ?? '',
+    },
   });
   const tours = existsSync(log)
     ? readFileSync(log, 'utf8').split('---FIN-TOUR---\n').filter((t) => t.trim()).map((t) => t.split('\n').filter(Boolean))
@@ -126,7 +142,7 @@ describe('degradation : un tour qui echoue ne condamne pas les suivants', () => 
   let res;
   before(() => {
     build();
-    res = run({ exit: '1', args: ['--group-by-day'] });
+    res = run({ exit: '1', args: ['--group-by-day', '--retries', '0'] });
   });
 
   test('les trois sources sont tentees malgre les echecs', () => assert.equal(res.tours.length, 3));
@@ -138,6 +154,88 @@ describe('degradation : un tour qui echoue ne condamne pas les suivants', () => 
   });
 
   test('l\'abandon est dit a l\'utilisateur', () => assert.match(res.stderr, /fil de conversation abandonne/));
+});
+
+// Relance : une session qui tombe (erreur API 422 du 05/11, apres la redaction) est relancee a froid, apres
+// relecture de l'etat sur les fichiers. Le plafond borne le cout d'un echec qui se reproduit.
+describe('relance d\'une ingestion qui echoue', () => {
+  const SIL = 'sil' + 'ver';
+
+  test('par defaut : une relance par source, puis on passe a la suivante', () => {
+    build();
+    const { tours, stderr } = run({ exit: '1' });
+    assert.equal(tours.length, 6);
+    SOURCES.forEach((s, i) => {
+      assert.ok(promptOf(tours[2 * i]).includes(s), `tour ${2 * i + 1} : ${s}`);
+      assert.ok(promptOf(tours[2 * i + 1]).includes(s), `relance de ${s}`);
+    });
+    assert.match(stderr, /relance 1\/1/);
+    assert.match(stderr, /apres 1 relance\(s\)/);
+  });
+
+  test('--retries 2 : deux relances au plus', () => {
+    build();
+    assert.equal(run({ exit: '1', args: ['--retries', '2'] }).tours.length, 9);
+  });
+
+  test('--retries 0 : aucune relance', () => {
+    build();
+    assert.equal(run({ exit: '1', args: ['--retries', '0'] }).tours.length, 3);
+  });
+
+  test('aucune relance quand la session reussit', () => {
+    build();
+    assert.equal(run().tours.length, 3);
+  });
+
+  test('la relance d\'un fil part a froid', () => {
+    build();
+    const { tours } = run({ exit: '1', args: ['--group-by-day'] });
+    const retry = tours[1];
+    assert.ok(promptOf(retry).includes(SOURCES[0]));
+    assert.ok(!retry.includes('--resume') && !retry.includes('--session-id'), 'la relance ne reprend ni n\'ouvre de fil');
+    assert.doesNotMatch(promptOf(retry), /RECOUPE/);
+  });
+
+  test('fiche argent ecrite avant la chute : la relance part en reprise', () => {
+    build();
+    const { tours } = run({ exit: '1', leaves: { file: `${SIL}/pro/matin.md`, raw: SOURCES[0] } });
+    assert.doesNotMatch(promptOf(tours[0]), /NE REECRIS PAS/, 'premier tour : rien n\'etait ecrit');
+    assert.ok(promptOf(tours[1]).includes(SOURCES[0]));
+    assert.match(promptOf(tours[1]), /NE REECRIS PAS/, 'la relance reprend sans reecrire');
+  });
+
+  test('page or presente malgre le code : pas de relance pour cette source', () => {
+    build();
+    const { tours, stdout } = run({ exit: '1', leaves: { file: `${WIKI}/pro/sources/matin.md`, raw: SOURCES[0] } });
+    assert.equal(tours.length, 5, 'matin une fois, les deux autres relancees');
+    assert.match(stdout, /page or presente malgre le code/);
+  });
+
+  test('candidates restantes : prompt « gate seulement », annonce et rapport les nomment', () => {
+    build();
+    const CAND = '.cand' + 'idats';
+    const put = (rel, text) => {
+      mkdirSync(path.dirname(path.join(vault, rel)), { recursive: true });
+      writeFileSync(path.join(vault, rel), text);
+    };
+    for (const rel of SOURCES.slice(1)) put(`${WIKI}/pro/sources/${path.basename(rel)}`, `---\ntype: source\nraw: ${rel}\n---\n`);
+    put(`${WIKI}/pro/sources/matin.md`, `---\ntype: source\nraw: ${SOURCES[0]}\n---\n`);
+    put(`${CAND}/${WIKI}/pro/people/une-personne.md`, '---\ntype: person\nsources: ["[[sources/matin]]"]\n---\n');
+    const res = run({ exit: '1', args: ['--retries', '0'] });
+    assert.equal(res.tours.length, 1, 'seule la source qui a une candidate restante est reprise');
+    assert.match(promptOf(res.tours[0]), /NE REDIGE AUCUNE PAGE NOUVELLE/);
+    assert.match(promptOf(res.tours[0]), /people\/une-personne\.md/);
+    assert.match(res.stdout, /gate seulement, 1 candidate\(s\)/);
+    assert.match(res.stdout, /candidates en attente de la gate : people\/une-personne\.md/);
+  });
+
+  test('valeur invalide : arret avant toute session', () => {
+    build();
+    const res = run({ args: ['--retries', '-1'] });
+    assert.equal(res.tours.length, 0);
+    assert.match(res.stderr, /--retries attend un entier positif ou nul/);
+  });
 });
 
 // Confirmation entre le tri et l'ingestion : c'est la derniere occasion de corriger un domaine mal choisi

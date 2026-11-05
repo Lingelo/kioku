@@ -17,10 +17,19 @@
  * apres avoir redige les candidates et avant la gate, et le rapport a annonce « 1/1 ingeree » pour une source
  * qui n'etait jamais entree dans l'or. Trois pages sont restees dans .candidats/, invisibles du rapport comme
  * de `vault.mjs undecided`. L'etat rendu par `list` distingue donc les deux marches :
- *   neuf    rien d'ecrit, ou fiche argent absente             -> l'ingestion reste entierement a faire
- *   argent  fiche argent presente, page or absente            -> redigee mais PAS entree : gate a reprendre
+ *   neuf       rien d'ecrit, ou fiche argent absente          -> l'ingestion reste entierement a faire
+ *   argent     fiche argent presente, page or absente         -> redigee mais PAS entree : gate a reprendre
+ *   candidats  des candidates de cette source restent sous .candidats/wiki/<domaine>/ -> gate seulement
  * Une page retenue par la gate (quarantaine) laisse aussi sa source en `argent` : c'est voulu, elle attend une
  * decision et `vault.mjs undecided` la nomme.
+ *
+ * Page or presente ne suffit pas : la gate admet page par page (« si un relecteur ne repond pas, sa page n'entre
+ * pas — les autres, oui »). La page source pouvait entrer et une page d'entite rester sous .candidats/, invisible
+ * du rapport. Une source n'est donc traitee que si aucune candidate ne la cite encore : une candidate `sources/`
+ * de meme `raw:`, ou toute candidate dont le `sources:` nomme sa page source. Une page retenue quitte .candidats/
+ * (quarantaine) : ce qui y reste n'a vraiment pas fini la gate. Angle mort, dit : `check` n'impose pas `sources:`
+ * hors des pages sources/, une candidate qui ne le remplit pas n'est rattachee a aucune source.
+ * `list` rend alors une 4e colonne : ces candidates, en chemins relatifs a .candidats/wiki/<domaine>/, separees par des virgules.
  *
  * Etat local, non versionne : tools/plaud-sync/.snapshot.json et .queue.json (voir .gitignore).
  * Ce script lit des noms de fichiers et une ligne de frontmatter (`raw:`) ; il ne lit aucun contenu de source.
@@ -69,24 +78,59 @@ const rawFiles = (domain) => {
   return out.sort();
 };
 
-/** Les `raw:` cites par les fichiers .md d'un dossier (frontmatter seulement, pas de recursion). */
-const rawsCitedIn = (dir) => {
-  if (!existsSync(dir)) return new Set();
-  const raws = new Set();
+/** Le frontmatter d'un fichier .md, ou null. */
+const headOf = (file) => readFileSync(file, 'utf8').replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/)?.[1] ?? null;
+const rawOf = (head) => head?.match(/^raw:\s*["']?(.+?)["']?\s*$/m)?.[1] ?? null;
+/**
+ * Les slugs de pages source nommes par `sources:` : en ligne (`[a, b]`) ou en liste YAML sur les lignes suivantes,
+ * en wikilinks (`[[sources/x]]`) ou en chemins (`sources/x`). Seul le frontmatter est lu.
+ */
+const sourcesOf = (head) => {
+  const block = head?.match(/^sources:(.*(?:\n(?:[ \t]+|-).*)*)/m)?.[1] ?? '';
+  return new Set([...block.matchAll(/sources\/([a-z0-9]+(?:-[a-z0-9]+)*)/g)].map((m) => m[1]));
+};
+
+/** Les `raw:` cites par les fichiers .md d'un dossier, avec le slug du fichier (frontmatter seulement, pas de recursion). */
+const rawsIn = (dir) => {
+  if (!existsSync(dir)) return new Map();
+  const raws = new Map();
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     if (!e.isFile() || !e.name.endsWith('.md')) continue;
-    const head = readFileSync(path.join(dir, e.name), 'utf8').replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/);
-    const m = head?.[1].match(/^raw:\s*["']?(.+?)["']?\s*$/m);
-    if (m) raws.add(m[1]);
+    const raw = rawOf(headOf(path.join(dir, e.name)));
+    if (raw) raws.set(e.name.slice(0, -3), raw);
   }
   return raws;
 };
+const rawsCitedIn = (dir) => new Set(rawsIn(dir).values());
 
 /** Fiches argent du domaine (racine seulement : heritage/ est ferme et sans objet ici). */
 const silverRaws = (domain) => rawsCitedIn(path.join(VAULT, 'silver', domain));
 
-/** Pages or `sources/` du domaine : le seul temoin qu'une source est REELLEMENT entree dans le wiki. */
-const goldRaws = (domain) => rawsCitedIn(path.join(VAULT, 'wiki', domain, 'sources'));
+/** Pages or `sources/` du domaine : le temoin qu'une source est entree dans le wiki (necessaire, pas suffisant). */
+const goldSources = (domain) => rawsIn(path.join(VAULT, 'wiki', domain, 'sources'));
+
+/** Candidates du domaine : { rel (relatif a .candidats/wiki/<domaine>/), folder, slug, raw, sources }. */
+const candidates = (domain) => {
+  const root = path.join(VAULT, '.candidats', 'wiki', domain);
+  if (!existsSync(root)) return [];
+  const out = [];
+  for (const d of readdirSync(root, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    for (const f of readdirSync(path.join(root, d.name), { withFileTypes: true })) {
+      if (!f.isFile() || !f.name.endsWith('.md')) continue;
+      const head = headOf(path.join(root, d.name, f.name));
+      out.push({ rel: `${d.name}/${f.name}`, folder: d.name, slug: f.name.slice(0, -3), raw: rawOf(head), sources: sourcesOf(head) });
+    }
+  }
+  return out;
+};
+
+/** Les candidates qui citent encore la source `rel` (voir l'en-tete). */
+const leftoverFor = (rel, gold, cands) => {
+  const slugs = new Set([...gold].filter(([, raw]) => raw === rel).map(([slug]) => slug));
+  for (const c of cands) if (c.folder === 'sources' && c.raw === rel) slugs.add(c.slug);
+  return cands.filter((c) => (c.folder === 'sources' && c.raw === rel) || [...c.sources].some((s) => slugs.has(s))).map((c) => c.rel).sort();
+};
 
 const snapshot = () => {
   writeJson(SNAPSHOT, Object.fromEntries(DOMAINS.map((d) => [d, rawFiles(d)])));
@@ -116,14 +160,25 @@ const queue = () => {
   return 0;
 };
 
-/** Retire de la file ce qui est entre dans l'or ; imprime le reste avec son etat (neuf | argent). */
+/** Retire de la file ce qui est entre dans l'or sans candidate restante ; imprime le reste avec son etat. */
 const list = () => {
   const silver = Object.fromEntries(DOMAINS.map((d) => [d, silverRaws(d)]));
-  const gold = Object.fromEntries(DOMAINS.map((d) => [d, goldRaws(d)]));
+  const gold = Object.fromEntries(DOMAINS.map((d) => [d, goldSources(d)]));
+  const cands = Object.fromEntries(DOMAINS.map((d) => [d, candidates(d)]));
   const q = readJson(QUEUE, []);
-  const rest = q.filter((x) => existsSync(path.join(VAULT, 'raw', x.domain, x.rel)) && !gold[x.domain]?.has(x.rel));
-  if (rest.length !== q.length) writeJson(QUEUE, rest);
-  for (const x of rest) console.log(`${x.domain}\t${x.rel}\t${silver[x.domain]?.has(x.rel) ? 'argent' : 'neuf'}`);
+  const rest = [];
+  for (const x of q) {
+    if (!existsSync(path.join(VAULT, 'raw', x.domain, x.rel))) continue;
+    const left = leftoverFor(x.rel, gold[x.domain] ?? new Map(), cands[x.domain] ?? []);
+    const inGold = [...(gold[x.domain]?.values() ?? [])].includes(x.rel);
+    if (inGold && !left.length) continue;
+    rest.push({ ...x, left });
+  }
+  if (rest.length !== q.length) writeJson(QUEUE, rest.map(({ domain, rel }) => ({ domain, rel })));
+  for (const x of rest) {
+    const state = x.left.length ? 'candidats' : silver[x.domain]?.has(x.rel) ? 'argent' : 'neuf';
+    console.log(`${x.domain}\t${x.rel}\t${state}${x.left.length ? `\t${x.left.join(',')}` : ''}`);
+  }
   return 0;
 };
 
