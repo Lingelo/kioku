@@ -9,3 +9,4 @@ Déroule **CLAUDE.md §5.4** sur la dernière réponse substantielle. Slug : $AR
 1. Écris `.candidats/wiki/<domaine>/syntheses/<slug>.md` : `type: synthesis`, `created`, `updated`, `question`, `derived_from`, section `## Références`. Ne cite que des pages **or** déjà lues ; n'ajoute aucun fait qui n'y figure pas.
 2. `kioku check <fichier>` → agent **`reviewer`** (socle commun, puis `domains/<domaine>/rules.md`) → `kioku promote <fichier>`. Une synthèse est le cas où un jugement naît de l'assemblage de faits anodins : elle passe la gate comme le reste.
 3. MAJ `wiki/<domaine>/index.md` et `wiki/<domaine>/log.md` (type `file-back`, 10 lignes au plus : CLAUDE.md §6).
+4. `kioku commit <domaine>` (sans push ; jamais `git add` à la main).

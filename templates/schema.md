@@ -74,7 +74,7 @@ Skills : `/kioku:query`, `/kioku:ingest`, `/kioku:triage`, `/kioku:save`, `/kiok
 2. **Argent** : écrire `silver/<D>/<slug>.md` (frontmatter `raw`, `domain`, `flags`, `status` ; résumé structuré, points clés, entités, lacunes). Locuteurs résolus **en hypothèse signalée** (un « Speaker 1 » n'est pas un fait). Aucune injure ni portrait recopié ; les retours de travail attribués et datés (§7) se gardent. Propos insultants, portrait ou donnée sensible : **pointeur en quarantaine** (`kioku quarantine`), drapeau dans `flags:`.
 3. **Or** : depuis la fiche argent, rédiger sous `.candidats/wiki/<D>/…` la page `sources/` (avec `raw:`), la page `meetings/` si réunion (la page source la lie : `*Réunion structurée : [[meetings/<slug>]]*`), les ADR dans `decisions/`, les entités touchées (règles ci-dessous ; callout `> [!warning]` sur contradiction).
 4. **Gate** (§7) : `kioku check` → agent `kioku:reviewer` → `kioku promote`.
-5. Mettre à jour `index.md`, `overview.md` si la compréhension globale change, et `log.md`.
+5. Mettre à jour `index.md`, `overview.md` si la compréhension globale change, et `log.md` ; puis `kioku commit <D>` (chemins calculés par le code, jamais de push).
 6. Rapporter : pages admises / retenues, contradictions, questions ouvertes.
 
 Pour modifier une page déjà dans l'or : `kioku stage <D> <dossier/slug>` la copie sous `.candidats/`, sans sa ligne `gate:` (session `ingest` de son domaine).

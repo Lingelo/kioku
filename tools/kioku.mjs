@@ -55,7 +55,7 @@ export const schemaText = (env = process.env) => {
   return env.KIOKU_PLUGIN ? text : text.replace(/\/kioku:/g, '/').replace(/`kioku:reviewer`/g, '`reviewer`');
 };
 // Les sous-commandes de la gate, relayees a hooks/vault.mjs avec leurs arguments, leur sortie et leur code.
-export const GATE_COMMANDS = ['check', 'verdict', 'promote', 'stage', 'rotate-log', 'propose-org', 'tag-org', 'propose-raw', 'tag-raw', 'quarantine', 'undecided', 'audit', 'flag', 'decide', 'seed'];
+export const GATE_COMMANDS = ['commit', 'check', 'verdict', 'promote', 'stage', 'rotate-log', 'propose-org', 'tag-org', 'propose-raw', 'tag-raw', 'quarantine', 'undecided', 'audit', 'flag', 'decide', 'seed'];
 const FOLDERS = ['sources', 'meetings', 'people', 'organizations', 'projects', 'concepts', 'decisions', 'syntheses'];
 const RESERVED = new Set(['heritage']);
 export const EXIT = { ok: 0, precondition: 1, isolation: 3 };

@@ -218,7 +218,7 @@ const KIOKU_WRITE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(init|add-domain|upgrad
 // En setup, ce qui lirait un domaine ou ouvrirait une session d'un autre mode : la gate, le circuit Plaud, le lanceur,
 // le dashboard. Ni lecture de nom de page, ni escalade par processus enfant.
 // La gate s'appelle `kioku <commande>` : ses sous-commandes (pas init, add-domain, doctor) lisent ou ecrivent un domaine.
-const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(check|verdict|promote|stage|rotate-log|propose-org|tag-org|propose-raw|tag-raw|quarantine|undecided|audit|flag|decide|seed)\b/;
+const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(commit|check|verdict|promote|stage|rotate-log|propose-org|tag-org|propose-raw|tag-raw|quarantine|undecided|audit|flag|decide|seed)\b/;
 // Les scripts npm du coffre (generes par init) : un par domaine declare (session query/<D>) et les prefixes communs.
 // Les domaines viennent de la configuration : une liste figee laisserait `npm run travail` ouvrir une session de domaine
 // depuis setup. `pro` et `perso` restent, pour les coffres anterieurs a la configuration.

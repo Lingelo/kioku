@@ -31,4 +31,4 @@ N'appelle `decide` **qu'après une décision explicite de l'utilisateur dans cet
 
 ## 4. Rapport
 
-En console : synthèse de l'audit, décisions prises, reste à traiter. Ajoute l'entrée `lint` dans `wiki/<domaine>/log.md` (et `correction` pour chaque page corrigée), **10 lignes au plus chacune** (CLAUDE.md §6) : le détail des cas est dans les pages corrigées et dans `quarantine/<domaine>/decisions.jsonl`, le récit dans le message de commit.
+En console : synthèse de l'audit, décisions prises, reste à traiter. Ajoute l'entrée `lint` dans `wiki/<domaine>/log.md` (et `correction` pour chaque page corrigée), **10 lignes au plus chacune** (CLAUDE.md §6) : le détail des cas est dans les pages corrigées et dans `quarantine/<domaine>/decisions.jsonl`, le récit dans le message de commit : `kioku commit <domaine> -m "lint(<domaine>) : …"` une fois les décisions appliquées (sans push ; jamais `git add` à la main).
