@@ -62,7 +62,11 @@ Le verrou était déjà partagé par `run.mjs`, `rotate-log`, `tag-org`, `tag-ra
 - un nouveau lanceur qui tient les deux bloque un ancien processus, qui ne regarde que l'ancien fichier ;
 - le tableau de bord, qui lit l'ancien fichier, reste juste.
 
-Retrait du miroir (PR ultérieure) : quand le dashboard lit le chemin canonique et que les coffres ont reçu le bloc `.gitignore` à jour (`kioku upgrade --write`).
+Arrêt brutal entre les deux écritures : le canonique porte un PID mort, le miroir manque ; le lancement suivant reprend l'un et crée l'autre, rien ne bloque (testé avec un vrai processus tué par `SIGKILL`, entre les deux écritures et après).
+
+**Condition de retrait du miroir** : il part dans la même version que les shims de `tools/plaud-sync/` (`lock.mjs`, `pending.mjs`, `org-proposals.mjs`), et pas avant que `tools/dashboard/local-state.mjs` et `watch.mjs` lisent le chemin canonique. Après cette version, plus aucun code du core ne connaît l'ancien chemin ; la note de version demande de ne pas mettre à jour en plein circuit.
+
+Alternative à un seul fichier, proposée, non appliquée : ne prendre que le canonique, et seulement **lire** l'ancien (s'il est tenu par un processus vivant, refuser). Le dashboard lirait le canonique, puis l'ancien en repli. Gain : plus de second fichier, plus de `tools/plaud-sync/` créé dans un coffre sans Plaud. Perte : un ancien processus lancé *après* un nouveau lanceur ne le verrait pas. Ce cas suppose deux versions du core actives en même temps sur un coffre (checkout de développement et plugin installé), mais c'est justement la configuration de développement du core : le miroir reste le choix sûr pour la durée de la transition.
 
 ### Risques
 

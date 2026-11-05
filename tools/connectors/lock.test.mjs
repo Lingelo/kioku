@@ -6,11 +6,15 @@
  */
 
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { acquire, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
+
+const LOCK = pathToFileURL(new URL('./lock.mjs', import.meta.url).pathname).href;
 
 let vault;
 const deadPid = () => {
@@ -141,5 +145,66 @@ describe('erreurs disque', () => {
     } finally {
       chmodSync(legacy, 0o700);
     }
+  });
+});
+
+// Les trois proprietes du verrou a deux fichiers, avec de VRAIS processus : un enfant prend tout ou partie du verrou,
+// puis se tue par SIGKILL (aucun gestionnaire 'exit' ne tourne, comme un kill -9 ou une coupure). spawnSync attend sa
+// fin : quand il rend la main, le PID de l'enfant est mort.
+describe('verrou a deux fichiers : echec, arret brutal, liberation', { skip: process.platform === 'win32' }, () => {
+  /** Lance un enfant qui execute `body` (lock.mjs importe sous `L`), puis se tue ; rend son PID. */
+  const killedChild = (body) => {
+    const code = `const L = await import(${JSON.stringify(LOCK)}); const vault = ${JSON.stringify(vault)};\n${body}\nprocess.kill(process.pid, 'SIGKILL');`;
+    const r = spawnSync(process.execPath, ['--input-type=module', '-e', code], { encoding: 'utf8' });
+    assert.equal(r.signal, 'SIGKILL', r.stderr);
+    assert.equal(isAlive(r.pid), false);
+    return r.pid;
+  };
+
+  test('(a) echec a prendre le second fichier : le premier est rendu, rien ne reste a nous', () => {
+    put(legacyLockPath(vault), { pid: process.pid, started: 'ancien run.mjs' });
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(r.ok, false);
+    assert.equal(existsSync(lockPath(vault)), false);
+    // Et le lanceur suivant, une fois l'ancien parti, passe sans rien nettoyer.
+    rmSync(legacyLockPath(vault));
+    assert.equal(acquire(vault, { pid: 4243 }).ok, true);
+  });
+
+  test('(b) tue ENTRE les deux ecritures (canonique ecrit, miroir absent) : le lancement suivant reprend, rien ne bloque', () => {
+    const pid = killedChild(`L.acquireFile(L.lockPath(vault), JSON.stringify({ pid: process.pid, started: 'x' }), process.pid);`);
+    assert.equal(readLock(lockPath(vault)).pid, pid, 'le canonique orphelin est bien la');
+    assert.equal(existsSync(legacyLockPath(vault)), false, 'le miroir n a pas ete ecrit');
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(r.ok, true);
+    assert.equal(r.stale.pid, pid, 'la reprise est signalee avec le PID mort');
+    assert.equal(readLock(lockPath(vault)).pid, 4242);
+    assert.equal(readLock(legacyLockPath(vault)).pid, 4242);
+  });
+
+  test('(b) tue APRES les deux ecritures : les deux orphelins sont repris', () => {
+    const pid = killedChild(`if (!L.acquire(vault).ok) process.exit(3);`);
+    assert.equal(readLock(lockPath(vault)).pid, pid);
+    assert.equal(readLock(legacyLockPath(vault)).pid, pid);
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(r.ok, true);
+    assert.equal(r.stale.pid, pid);
+    assert.equal(readLock(legacyLockPath(vault)).pid, 4242);
+  });
+
+  test('(b) miroir orphelin seul (canonique deja rendu, tue pendant release) : repris aussi', () => {
+    const pid = killedChild(`L.acquire(vault); L.releaseFile(L.lockPath(vault), process.pid);`);
+    assert.equal(existsSync(lockPath(vault)), false);
+    assert.equal(readLock(legacyLockPath(vault)).pid, pid);
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(r.ok, true);
+    assert.equal(r.stale.pid, pid);
+  });
+
+  test('(c) liberation : les deux fichiers retires', () => {
+    assert.equal(acquire(vault, { pid: 4242 }).ok, true);
+    release(vault, 4242);
+    assert.equal(existsSync(lockPath(vault)), false);
+    assert.equal(existsSync(legacyLockPath(vault)), false);
   });
 });

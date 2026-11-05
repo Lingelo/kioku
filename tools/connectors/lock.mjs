@@ -20,9 +20,19 @@
  * de developpement du core) ne connait que celui-la. Prendre le verrou, c'est donc prendre les DEUX, canonique d'abord :
  *   - un ancien processus qui tient l'ancien fichier bloque un nouveau lanceur (le second tour echoue, le premier est rendu) ;
  *   - un nouveau lanceur qui tient les deux bloque un ancien processus, qui ne regarde que l'ancien fichier.
- * Le tableau de bord lit encore l'ancien fichier (tools/dashboard/local-state.mjs) : le miroir le garde juste. Le miroir
- * se retire quand le dashboard lit le chemin canonique et que les coffres ont tous recu le bloc .gitignore a jour.
+ * Le tableau de bord lit encore l'ancien fichier (tools/dashboard/local-state.mjs) : le miroir le garde juste.
  * Les deux prises sont des essais sans attente : aucun interblocage possible, au pire un refus.
+ *
+ * Arret brutal entre les deux ecritures (kill -9, coupure) : le canonique porte un PID mort, le miroir n'existe pas.
+ * Le lancement suivant reprend le canonique comme perime et cree le miroir : rien ne bloque. Arret apres les deux : les
+ * deux portent le meme PID mort, repris chacun. Seule limite, deja vraie avec un fichier : un PID mort reattribue a un
+ * autre processus vivant fait passer le verrou pour tenu, jusqu'a ce que ce processus finisse (le message donne le PID).
+ *
+ * Retrait du miroir : dans la MEME version que le retrait des shims de tools/plaud-sync/ (lock.mjs, pending.mjs,
+ * org-proposals.mjs), et pas avant que tools/dashboard/local-state.mjs et watch.mjs lisent le chemin canonique. A ce
+ * moment, aucun code du core ne connait plus l'ancien chemin ; un processus d'une version anterieure encore vivant
+ * pendant la mise a jour est le seul cas perdu, et la note de version demande de ne pas mettre a jour en plein circuit.
+ * Retirer = supprimer la seconde prise dans acquire() et release() ; le motif `tools/<x>/.lock.json` du .gitignore reste.
  *
  * Limite, dite : le PID ne vaut que sur une machine. Deux coffres synchronises qui tourneraient en meme temps sur deux
  * postes ne se voient pas : le verrou est local, comme `.queue.json`.
