@@ -54,6 +54,13 @@ describe('.gitignore', () => {
     assert.equal(mergeGitignore(plaud, gitignoreBlock({ plaud: true })), plaud);
   });
 
+  test('le verrou commun du coffre est ignore dans tout coffre, module Plaud ou non', () => {
+    assert.match(gitignoreBlock(), /^tools\/connectors\/\.lock\.json$/m);
+    assert.doesNotMatch(gitignoreBlock(), /plaud/);
+    assert.match(gitignoreBlock({ plaud: true }), /^tools\/connectors\/\.lock\.json$/m);
+    assert.match(gitignoreBlock({ plaud: true }), /^tools\/plaud-sync\/\.lock\.json$/m);
+  });
+
   test('bloc ouvert sans fin, ou en double : erreur, rien n est devine', () => {
     assert.throws(() => mergeGitignore(`${BLOCK_START}\ninbox/\n`, gitignoreBlock()), /ouvert sans fin/);
     assert.throws(() => mergeGitignore(`${BLOCK_START}\n${BLOCK_END}\n${BLOCK_START}\n${BLOCK_END}\n`, gitignoreBlock()), /double/);

@@ -136,6 +136,10 @@ export const gitignoreBlock = ({ plaud = false } = {}) =>
     '.env.*',
     '# HTML du dashboard : le contenu du wiki en clair',
     'tools/dashboard/dashboard-*.html',
+    // Le verrou commun du coffre (tools/connectors/lock.mjs) : pris par tout circuit de capture et par rotate-log,
+    // tag-org, upgrade, add-domain, donc dans tout coffre, module Plaud ou non.
+    '# Verrou local du coffre (circuits de capture, reecritures de la gate)',
+    'tools/connectors/.lock.json',
     ...(plaud ? ['# Etat local du circuit Plaud', 'tools/plaud-sync/.snapshot.json', 'tools/plaud-sync/.queue.json', 'tools/plaud-sync/.lock.json'] : []),
     BLOCK_END,
   ].join('\n');

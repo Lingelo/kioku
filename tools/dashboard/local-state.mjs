@@ -8,7 +8,7 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { isAlive } from '../plaud-sync/lock.mjs';
+import { isAlive } from '../connectors/lock.mjs';
 
 /**
  * Lit un fichier JSON de maniere sure, sans lever d'exception.

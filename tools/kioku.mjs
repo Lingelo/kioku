@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { CONFIG_NAME, DOMAIN_ID, loadConfig, locateVault, vaultMarkers } from '../hooks/config.mjs';
 import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, managedScripts, mergeConfig, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
 import { formatRefusal } from './plugin-install.mjs';
-import { acquire, release } from './plaud-sync/lock.mjs';
+import { acquire, release } from './connectors/lock.mjs';
 
 export { PLUGIN_ID };
 
