@@ -32,10 +32,21 @@ export const logReason = (vault, file, reason, today = new Date().toISOString().
   appendFileSync(reasonsPath(vault), `- ${file} (${today}) : ${reason}\n`);
 };
 
-/** Parque une source de l'entrant (parquer ne classe rien) et consigne pourquoi. */
+/**
+ * Le fichier compagnon d'une fiche : `x.pdf.md` -> `x.pdf` (la source reelle, a cote de sa fiche). Une fiche dont le
+ * nom n'a pas d'extension interne (`x.md`, toute note Plaud) n'en a pas : null.
+ */
+export const companionOf = (file) => {
+  const base = file.endsWith('.md') ? file.slice(0, -3) : null;
+  return base && /\.[A-Za-z0-9]{1,8}$/.test(base) ? base : null;
+};
+
+/** Parque une source de l'entrant (parquer ne classe rien) et consigne pourquoi. Son compagnon la suit. */
 export const park = (vault, file, reason) => {
   mkdirSync(parkedDir(vault), { recursive: true });
   renameSync(path.join(inboxDir(vault), file), path.join(parkedDir(vault), file));
+  const companion = companionOf(file);
+  if (companion && existsSync(path.join(inboxDir(vault), companion))) renameSync(path.join(inboxDir(vault), companion), path.join(parkedDir(vault), companion));
   logReason(vault, file, reason);
 };
 
@@ -54,6 +65,30 @@ export const parseEmptyLines = (out, parkedFiles) => {
     if (parked.has(file) && !empties.has(file)) empties.set(file, m[2].trim());
   }
   return empties;
+};
+
+/**
+ * Apres le tri : un compagnon reste dans l'entrant alors que sa fiche en est sortie -> il la rejoint. `placed` : les
+ * chemins (relatifs au coffre) des fiches rangees par ce tri ; une fiche parquee est cherchee dans inbox/a-trancher/.
+ * Un fichier dont la fiche est introuvable reste ou il est, sans bruit (un depot manuel). Rend les lignes a afficher.
+ */
+export const followStubs = (vault, placed = []) => {
+  const inbox = inboxDir(vault);
+  if (!existsSync(inbox)) return [];
+  const lines = [];
+  for (const f of readdirSync(inbox, { withFileTypes: true })) {
+    if (!f.isFile() || f.name.endsWith('.md') || f.name.startsWith('.')) continue;
+    const stub = `${f.name}.md`;
+    if (existsSync(path.join(inbox, stub))) continue; // fiche encore dans l'entrant : elle sera parquee avec lui
+    const target = placed.find((p) => path.basename(p) === stub);
+    const dir = target ? path.dirname(path.join(vault, target)) : existsSync(path.join(parkedDir(vault), stub)) ? parkedDir(vault) : null;
+    // Sans fiche connue : un fichier depose a la main (un PDF a trier par /triage), pas un compagnon. On n'y touche pas.
+    if (!dir) continue;
+    if (existsSync(path.join(dir, f.name))) continue;
+    renameSync(path.join(inbox, f.name), path.join(dir, f.name));
+    lines.push(`  compagnon ${f.name} -> ${path.relative(vault, dir).split(path.sep).join('/')}/`);
+  }
+  return lines;
 };
 
 /**
@@ -91,6 +126,8 @@ export const dropParkedWith = (vault, file, { idOf, register, noId }) => {
 
   const registered = register(id);
   rmSync(abs);
+  const companion = companionOf(file);
+  if (companion) rmSync(path.join(parkedDir(vault), companion), { force: true });
   const reasons = reasonsPath(vault);
   if (existsSync(reasons)) {
     const lines = readFileSync(reasons, 'utf8').split('\n');

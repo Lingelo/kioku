@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, test } from 'node:test';
-import { dropParkedWith, logReason, mdIn, park, parkedDir, pruneReasons, reasonsPath } from './parked.mjs';
+import { companionOf, dropParkedWith, logReason, mdIn, park, parkedDir, pruneReasons, reasonsPath } from './parked.mjs';
 
 let vault;
 let registry;
@@ -77,4 +77,20 @@ test('chemins, absents et fichiers _ refuses', () => {
 test('pruneReasons sans _raisons.md : 0, rien n est cree', () => {
   assert.equal(pruneReasons(vault), 0);
   assert.equal(existsSync(reasonsPath(vault)), false);
+});
+
+test('compagnon : x.pdf.md -> x.pdf ; une note sans extension interne (Plaud) n en a pas', () => {
+  assert.equal(companionOf('2026-11-03-devis-0a1b.pdf.md'), '2026-11-03-devis-0a1b.pdf');
+  assert.equal(companionOf('2026-11-03-reunion.md'), null);
+  assert.equal(companionOf('x.pdf'), null);
+});
+
+test('park emmene le compagnon ; l ecart le supprime avec sa fiche', () => {
+  writeFileSync(inbox('d.pdf'), '%PDF');
+  writeFileSync(inbox('d.pdf.md'), 'faux_id: f9\n');
+  park(vault, 'd.pdf.md', 'doute');
+  assert.ok(existsSync(path.join(parkedDir(vault), 'd.pdf')));
+  assert.ok(!existsSync(inbox('d.pdf')));
+  assert.equal(dropParkedWith(vault, 'd.pdf.md', faux()).ok, true);
+  assert.ok(!existsSync(path.join(parkedDir(vault), 'd.pdf')));
 });
