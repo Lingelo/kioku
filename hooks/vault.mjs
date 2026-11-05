@@ -37,6 +37,9 @@
  *   kioku decide <domaine> <nom> keep|correct|drop [note]
  *                                                         applique la decision EXPLICITE de l'utilisateur
  *   kioku seed <domaine>           amorce : copie l'or existant dans silver/<domaine>/heritage/
+ *   kioku commit <domaine> [-m "<message>"] [--dry-run]
+ *                                                         commite le travail du domaine (chemins calcules par le code,
+ *                                                         refus si une candidate attend ; jamais de push)
  *                                                         (instantane de depart, une seule fois, ferme ensuite)
  *
  * Une candidate vit sous .candidats/wiki/<domaine>/<dossier>/<slug>.md (chemin final).
@@ -44,6 +47,7 @@
  */
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync, readdirSync, copyFileSync, renameSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1036,10 +1040,145 @@ const cmdTagRaw = async (args) => {
   return writeTagPlan('tag-raw', plan, dry, refused, refuse);
 };
 
+/**
+ * Commiter le travail d'un domaine : ce que l'ingestion, le file-back, le lint et les requetes ont ecrit.
+ * Le modele n'ecrit jamais les chemins : la garde refuse un `git add` qui nomme une zone fermee (.verdicts,
+ * quarantine), et la liste tapee a la main oubliait raw/ ou .verdicts. Ici, le code les calcule depuis le domaine.
+ *   - session : query ou ingest de ce domaine ; dans Claude Code sans variables, le default_session (comme la garde) ;
+ *     hors Claude Code (terminal), libre.
+ *   - refus si une candidate attend sous .candidats/wiki/<D>/ (une ingestion inachevee ne se commite pas) ou si une
+ *     nouvelle page de wiki/<D>/<dossier>/ n'a pas de gate: (ecrite hors gate).
+ *   - chemins : raw/<D>, silver/<D>, wiki/<D>, quarantine/<D>, et les verdicts rendus par le relecteur de <D>.
+ *   - `git commit -- <chemins>` : ce que l'utilisateur a indexe ailleurs reste indexe, hors du commit.
+ *   - jamais de push (publier se decide a part, apres verification du remote prive).
+ * La sortie ne cite aucun nom de page, sauf celles d'un refus : des comptes par zone et le sujet du commit.
+ */
+const git = (args) => spawnSync('git', ['-C', VAULT, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const LOG_HEADING = /^## \[[^\]]+\][^\n]*$/gm;
+const porcelain = (paths) => {
+  const r = git(['status', '--porcelain', '-z', '--untracked-files=all', '--', ...paths]);
+  if (r.status !== 0) throw new Error(`git status : ${r.stderr.trim()}`);
+  // -z : « XY chemin\0 » ; un renommage ou une copie ajoute « ancien\0 » apres.
+  const out = [];
+  const parts = r.stdout.split('\0');
+  for (let i = 0; i < parts.length; i++) {
+    const entry = parts[i];
+    if (!entry) continue;
+    const status = entry.slice(0, 2);
+    out.push({ status, file: entry.slice(3) });
+    if (status[0] === 'R' || status[0] === 'C') i++;
+  }
+  return out;
+};
+const commitSession = (domain) => {
+  const envMode = process.env.VAULT_MODE;
+  const envDomain = process.env.VAULT_DOMAIN;
+  const session = envMode || envDomain ? { mode: envMode, domain: envDomain } : process.env.CLAUDECODE ? CFG.defaultSession : null;
+  if (!session) {
+    // Claude Code sans variables ni default_session : la garde refuse deja tout ; terminal : l'utilisateur est libre.
+    return process.env.CLAUDECODE ? 'commit : session sans VAULT_MODE ni default_session' : null;
+  }
+  if (!['query', 'ingest'].includes(session.mode)) return `commit : session query ou ingest seulement (mode "${session.mode ?? ''}")`;
+  if (session.domain !== domain) return `commit : la session est ${session.domain ?? '(sans domaine)'}, pas ${domain}`;
+  return null;
+};
+const cmdCommit = (args) => {
+  const at = args.indexOf('-m');
+  const message = at >= 0 ? args[at + 1] : undefined;
+  const rest = at >= 0 ? [...args.slice(0, at), ...args.slice(at + 2)] : args;
+  const dry = rest.includes('--dry-run');
+  const [domain, ...extra] = rest.filter((a) => a !== '--dry-run');
+  if (!DOMAINS.includes(domain) || extra.length || (at >= 0 && !message)) {
+    return console.log(`usage : commit <${DOMAIN_LIST}> [-m "<message>"] [--dry-run]`), 1;
+  }
+  const refused = commitSession(domain);
+  if (refused) return console.log(refused), 1;
+  if (git(['rev-parse', '--is-inside-work-tree']).stdout.trim() !== 'true') return console.log("commit : le coffre n'est pas un depot git"), 1;
+
+  const pending = walk(path.join(VAULT, '.candidats', 'wiki', domain));
+  if (pending.length) {
+    console.log(`commit refuse : ${pending.length} candidate(s) sous .candidats/wiki/${domain}/ : finir la gate (check, relecteur, promote) avant de commiter`);
+    return 1;
+  }
+
+  const zones = ['raw', 'silver', 'wiki', 'quarantine'].map((z) => `${z}/${domain}`).filter((z) => existsSync(path.join(VAULT, z)));
+  const changed = zones.length ? porcelain(zones) : [];
+  // Une page nouvelle de l'or sans gate: a ete ecrite hors gate (l'or herite, deja suivi, n'est pas concerne).
+  const ungated = changed.filter(({ status, file }) => {
+    if (!(status === '??' || status[0] === 'A')) return false;
+    const rel = file.split('/');
+    if (rel[0] !== 'wiki' || rel.length !== 4 || !TYPES[rel[2]] || !file.endsWith('.md')) return false;
+    const abs = path.join(VAULT, file);
+    return existsSync(abs) && !/^gate:/m.test(split(readText(abs)).head);
+  });
+  if (ungated.length) {
+    console.log(`commit refuse : ${ungated.length} nouvelle(s) page(s) de wiki/${domain}/ sans gate: (ecrites hors gate) :`);
+    for (const { file } of ungated) console.log(`  - ${file}`);
+    return 1;
+  }
+
+  // Les verdicts du relecteur de ce domaine (avant le decoupage par domaine : ceux d'une candidate de ce domaine).
+  const verdicts = existsSync(path.join(VAULT, '.verdicts'))
+    ? porcelain(['.verdicts']).filter(({ status, file }) => {
+        if (status.includes('D')) return false;
+        try {
+          const v = JSON.parse(readFileSync(path.join(VAULT, file), 'utf8'));
+          return v.relecteur ? v.relecteur === domain : String(v.file ?? '').startsWith(`.candidats/wiki/${domain}/`);
+        } catch {
+          return false;
+        }
+      })
+    : [];
+
+  const files = [...changed, ...verdicts];
+  if (!files.length) return console.log(`rien a commiter pour ${domain}`), 0;
+
+  const zoneOf = (file) => file.split('/')[0];
+  const counts = files.reduce((m, { file }) => m.set(zoneOf(file), (m.get(zoneOf(file)) ?? 0) + 1), new Map());
+  const summary = [...counts].map(([z, n]) => `${z} ${n}`).join(', ');
+
+  // Le message vient des entrees du journal ecrites depuis le dernier commit (absentes de log.md a HEAD).
+  const logRel = `wiki/${domain}/log.md`;
+  const now = existsSync(path.join(VAULT, logRel)) ? (readText(path.join(VAULT, logRel)).match(LOG_HEADING) ?? []) : [];
+  const before = git(['show', `HEAD:${logRel}`]);
+  const known = new Set(before.status === 0 ? (before.stdout.replace(/\r\n/g, '\n').match(LOG_HEADING) ?? []) : []);
+  const entries = now.filter((h) => !known.has(h)).map((h) => h.replace(/^## /, ''));
+  const typeOf = (e) => (e.match(/^\[[^\]]+\]\s*([\w-]+)/) ?? [])[1] ?? '?';
+  let subject = message;
+  if (!subject) {
+    if (entries.length === 1) subject = `${typeOf(entries[0])}(${domain}) : ${entries[0].replace(/^\[[^\]]+\]\s*[\w-]+\s*\|\s*/, '')}`;
+    else if (entries.length > 1) {
+      const byType = entries.reduce((m, e) => m.set(typeOf(e), (m.get(typeOf(e)) ?? 0) + 1), new Map());
+      subject = `${domain} : ${entries.length} entrees du journal (${[...byType].map(([t, n]) => `${t} ${n}`).join(', ')})`;
+    } else subject = `${domain} : mise a jour du coffre`;
+  }
+  if (subject.length > 100) subject = `${subject.slice(0, 99)}…`;
+  const body =
+    entries.length > 1
+      ? entries.slice(0, 30).map((e) => `- ${e}`).join('\n') + (entries.length > 30 ? `\n- … et ${entries.length - 30} de plus` : '')
+      : '';
+
+  if (dry) {
+    console.log(`simulation : ${files.length} fichier(s) (${summary})\nsujet : ${subject}`);
+    return 0;
+  }
+  const paths = files.map(({ file }) => file);
+  const add = git(['add', '-A', '--', ...paths]);
+  if (add.status !== 0) return console.log(`commit : git add a echoue : ${add.stderr.trim()}`), 1;
+  const commit = git(['commit', '-q', '-m', subject, ...(body ? ['-m', body] : []), '--', ...paths]);
+  if (commit.status !== 0) {
+    console.log(`commit : git commit a echoue (les fichiers restent indexes) : ${(commit.stderr || commit.stdout).trim()}`);
+    return 1;
+  }
+  const head = git(['rev-parse', '--short', 'HEAD']).stdout.trim();
+  console.log(`commite ${head} : ${files.length} fichier(s) (${summary})\nsujet : ${subject}\npush non fait : a lancer quand tu le decides`);
+  return 0;
+};
+
 const [cmd, ...args] = process.argv.slice(2);
-const table = { check: cmdCheck, verdict: cmdVerdict, promote: cmdPromote, quarantine: cmdQuarantine, undecided: cmdUndecided, audit: cmdAudit, flag: cmdFlag, decide: cmdDecide, seed: cmdSeed, stage: cmdStage, 'rotate-log': cmdRotateLog, 'propose-org': cmdProposeOrg, 'tag-org': cmdTagOrg, 'propose-raw': cmdProposeRaw, 'tag-raw': cmdTagRaw };
+const table = { commit: cmdCommit, check: cmdCheck, verdict: cmdVerdict, promote: cmdPromote, quarantine: cmdQuarantine, undecided: cmdUndecided, audit: cmdAudit, flag: cmdFlag, decide: cmdDecide, seed: cmdSeed, stage: cmdStage, 'rotate-log': cmdRotateLog, 'propose-org': cmdProposeOrg, 'tag-org': cmdTagOrg, 'propose-raw': cmdProposeRaw, 'tag-raw': cmdTagRaw };
 if (!table[cmd]) {
-  console.log('usage : vault.mjs check|verdict|promote|stage|rotate-log|propose-org|tag-org|quarantine|undecided ... (voir l\'en-tete du fichier)');
+  console.log('usage : vault.mjs commit|check|verdict|promote|stage|rotate-log|propose-org|tag-org|quarantine|undecided ... (voir l\'en-tete du fichier)');
   process.exit(1);
 }
 try {
