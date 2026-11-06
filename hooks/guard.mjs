@@ -486,30 +486,52 @@ const shellWords = (command) => {
   return commands;
 };
 
-// Commandes qui ecrivent ou deplacent des fichiers : chacun de leurs arguments doit rester dans le coffre.
-const MOVERS = new Set(['mv', 'cp', 'ln', 'rsync', 'install', 'tee', 'dd', 'scp', 'tar', 'unzip', 'cd', 'pushd']);
+// Commandes qui ecrivent, deplacent ou telechargent des fichiers : chacun de leurs arguments doit rester dans le coffre
+// (verification finale, constat 2 : ditto, zip, cpio, curl, wget, sort, split, patch en plus).
+const MOVERS = new Set(['mv', 'cp', 'ln', 'rsync', 'install', 'tee', 'dd', 'scp', 'tar', 'unzip', 'cd', 'pushd', 'ditto', 'zip', 'cpio', 'curl', 'wget', 'sort', 'split', 'patch']);
+const REMOTE = new Set(['scp', 'rsync']);
 const GLOB = /[*?[{]/;
 
-/** Un argument est-il un chemin relatif, sans expansion, qui reste dans le coffre ? Rend la raison du refus, ou null. */
-const unsafePath = (word, cwd) => {
-  const { raw, value } = word;
-  if (/[$`]/.test(raw)) return 'expansion shell ($, `)';
-  if (value.startsWith('/') || value.startsWith('~')) return 'chemin absolu ou dossier personnel';
-  if (/^[A-Za-z]:/.test(value) || value.includes('\\')) return 'chemin Windows ou echappement';
-  const segments = value.split('/');
-  if (segments.includes('..')) return 'remontee (..)';
-  const globAt = segments.findIndex((seg) => GLOB.test(seg));
-  if (globAt >= 0 && globAt < segments.length - 1) return 'motif de glob dans un dossier';
-  const literal = globAt >= 0 ? segments.slice(0, -1).join('/') || '.' : value;
-  const z = classify(canonical(path.resolve(cwd, literal)));
-  if (z.zone === 'outside' || z.zone === 'secret') return 'hors du coffre';
-  return null;
+/**
+ * Les valeurs qu'un mot porte en plus de lui-meme : apres `=` (`if=/x` de dd, `--target-directory=/x`) et, pour une
+ * option courte collee, apres la lettre (`-C/abs` de tar, `-t/tmp` de cp GNU). Constat 2.
+ */
+const carried = (word) => {
+  const out = [];
+  const eq = word.value.indexOf('=');
+  if (eq >= 0) out.push({ raw: word.raw.slice(word.raw.indexOf('=') + 1), value: word.value.slice(eq + 1) });
+  if (/^-[A-Za-z][^=\s]/.test(word.value)) out.push({ raw: word.raw.replace(/^(['"]?)-[A-Za-z]/, '$1'), value: word.value.slice(2) });
+  return out;
 };
 
 /**
+ * Un argument reste-t-il dans le coffre ? Rend la raison du refus, ou null. Relatif : il ne doit ni remonter (..), ni
+ * porter d'expansion, ni de glob dans un dossier. Absolu (ou ~) : admis seulement si son chemin canonique est dans le
+ * coffre (constat 7 : `cd <coffre> && mv inbox/x.md raw/…` ne doit pas etre refuse), puis juge comme un relatif.
+ */
+const unsafePath = (word, cwd) => {
+  const { raw, value } = word;
+  if (/[$`]/.test(raw)) return 'expansion shell ($, `)';
+  if (/^[A-Za-z]:/.test(value) || value.includes('\\')) return 'chemin Windows ou echappement';
+  const expanded = expandHome(value);
+  const segments = expanded.split('/');
+  if (segments.includes('..')) return 'remontee (..)';
+  const globAt = segments.findIndex((seg) => GLOB.test(seg));
+  if (globAt >= 0 && globAt < segments.length - 1) return 'motif de glob dans un dossier';
+  const literal = globAt >= 0 ? segments.slice(0, -1).join('/') || (path.isAbsolute(expanded) ? '/' : '.') : expanded;
+  const z = classify(canonical(path.isAbsolute(literal) ? literal : path.resolve(cwd, literal)));
+  if (z.zone === 'secret') return 'zone secrete';
+  if (z.zone === 'outside') return path.isAbsolute(expanded) ? 'chemin absolu hors du coffre' : 'hors du coffre';
+  return null;
+};
+
+const moverName = (w) => fold(path.basename(w.value));
+
+/**
  * Invariant « rien ne sort du coffre » (modes triage et ingest, ceux des sessions du circuit) : tout argument d'une
- * commande qui ecrit ou deplace (MOVERS), et toute cible de redirection, est un chemin relatif a l'interieur du coffre.
- * Un mot de MOVERS n'importe ou dans la commande simple (apres `xargs`, `env`, `-exec`…) compte. Rend la raison, ou null.
+ * commande qui ecrit ou deplace (MOVERS), toute valeur qu'il porte (`=`, option collee), et toute cible de
+ * redirection, reste dans le coffre. Un mot de MOVERS n'importe ou dans la commande simple (apres `xargs`, `env`,
+ * `-exec`…) compte. scp et rsync : aucune destination distante (`hote:chemin`). Rend la raison, ou null.
  */
 const escapesVault = (command, cwd) => {
   for (const { words, redirects } of shellWords(command)) {
@@ -518,41 +540,66 @@ const escapesVault = (command, cwd) => {
       const why = unsafePath(r, cwd);
       if (why) return `redirection vers « ${r.raw} » : ${why}`;
     }
-    const at = words.findIndex((w) => MOVERS.has(path.basename(w.value)));
+    const at = words.findIndex((w) => MOVERS.has(moverName(w)));
     if (at < 0) continue;
+    const mover = moverName(words[at]);
     for (const w of words.slice(at + 1)) {
-      let target = w;
-      if (w.value.startsWith('-')) {
-        const eq = w.value.indexOf('=');
-        if (eq < 0) continue;
-        target = { raw: w.raw.slice(w.raw.indexOf('=') + 1), value: w.value.slice(eq + 1) };
+      if (MOVERS.has(moverName(w))) continue;
+      if (REMOTE.has(mover) && /^[^/\s=]+:/.test(w.value) && !w.value.startsWith('-')) return `${mover} « ${w.raw} » : destination distante`;
+      const targets = [...(w.value.startsWith('-') ? [] : [w]), ...carried(w)];
+      for (const t of targets) {
+        const why = unsafePath(t, cwd);
+        if (why) return `${words[at].value} « ${w.raw} » : ${why}`;
       }
-      if (MOVERS.has(w.value)) continue;
-      const why = unsafePath(target, cwd);
-      if (why) return `${words[at].value} « ${w.raw} » : ${why}`;
     }
   }
   return null;
 };
 
+// Les dossiers secrets sous leurs deux formes : canonique (liens resolus, casse reelle) ET telle que tapee (un chemin
+// `/tmp/…` qui passe par un lien). Constat 3.
+const SECRET_FORMS = [
+  ...new Set(
+    [
+      path.join(HOME_DIR, '.config', 'kioku', 'mail'),
+      process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, 'kioku', 'mail') : null,
+      process.env.APPDATA ? path.join(process.env.APPDATA, 'kioku', 'mail') : null,
+      path.join(HOME_DIR, 'AppData', 'Roaming', 'kioku', 'mail'),
+    ]
+      .filter(Boolean)
+      .flatMap((p) => [path.resolve(p), ...SECRET_DIRS]),
+  ),
+];
+
 /**
- * Un mot qui, apres expansion de ~ et $HOME et sans guillemets, designe la zone secrete ou peut l'atteindre par un glob :
- * chaque segment du motif doit pouvoir correspondre au segment du dossier secret, jusqu'au bout de celui-ci.
+ * Un mot (motif de glob compris), apres ~ et $HOME, designe-t-il la zone secrete, ou peut-il l'atteindre ? Le motif
+ * est normalise (`.`, `//`), sa partie litterale (avant le premier glob) passe par la canonisation (liens, casse), et il
+ * est compare, plie sur un volume insensible a la casse, aux formes canonique et brute de chaque dossier secret.
  */
+const wordReachesSecret = (value) => {
+  const expanded = expandHome(value.replace(/^\$\{HOME\}/, '$HOME'));
+  if (!path.isAbsolute(expanded)) return false;
+  const norm = path.normalize(expanded);
+  const parts = norm.split(path.sep).filter(Boolean);
+  const globAt = parts.findIndex((seg) => GLOB.test(seg));
+  const literal = path.join(path.parse(norm).root, ...(globAt < 0 ? parts : parts.slice(0, globAt)));
+  const candidates = [norm, globAt < 0 ? canonical(norm) : path.join(canonical(literal), ...parts.slice(globAt))];
+  for (const cand of candidates) {
+    const pat = fold(cand).split(path.sep).filter(Boolean);
+    for (const dir of SECRET_FORMS) {
+      const seg = fold(dir).split(path.sep).filter(Boolean);
+      if (pat.length < seg.length) continue;
+      if (seg.every((s, i) => (GLOB.test(pat[i]) ? globCovers(pat[i], s) : pat[i] === s))) return true;
+    }
+  }
+  return globAt < 0 && classify(canonical(norm)).zone === 'secret';
+};
+
+/** Un mot de la commande, ou une valeur qu'il porte (`if=…`, `-C…`), atteint-il la zone secrete ? */
 const reachesSecret = (command) => {
   for (const { words, redirects } of shellWords(command)) {
     for (const w of [...words, ...redirects]) {
-      const v = w.value.replace(/^\$\{?HOME\}?(?=\/|$)/, '~');
-      const abs = v === '~' ? HOME_DIR : v.startsWith('~/') ? path.join(HOME_DIR, v.slice(2)) : v;
-      if (!abs.startsWith('/')) continue;
-      const pat = abs.split('/').filter(Boolean);
-      for (const dir of SECRET_DIRS) {
-        const seg = dir.split('/').filter(Boolean);
-        if (pat.length < seg.length) continue;
-        if (seg.every((s, i) => (GLOB.test(pat[i]) ? globCovers(pat[i], s) : pat[i] === s))) return true;
-      }
-      // Sans glob : le chemin reel (liens resolus) est-il dans la zone ?
-      if (!GLOB.test(abs) && classify(canonical(abs)).zone === 'secret') return true;
+      if ([w, ...carried(w)].some((t) => wordReachesSecret(t.value))) return true;
     }
   }
   return false;
@@ -605,7 +652,8 @@ const decide = () => {
     if (zone.zone === 'silver' && !zone.sub) refuse(`Grep/Glob sur silver/${D} refuse : l'instantane heritage/ (ferme) s'y trouve. Lis les fiches une a une avec Read.\n${CONSIGNE_LIRE}`);
     const scanned = [args.glob, tool === 'Glob' ? args.pattern : undefined].filter((v) => typeof v === 'string');
     for (const text of scanned) {
-      if (SECRET_MENTION.some((r) => r.test(text))) refuse(SECRET_REFUS);
+      // Constat 4 : un motif absolu (ou ~) ne se cantonne pas au `path` donne ; il ne doit pas atteindre la zone secrete.
+      if (SECRET_MENTION.some((r) => r.test(text)) || wordReachesSecret(text)) refuse(SECRET_REFUS);
       const normalized = text.replace(/\\/g, '/');
       if (forbiddenMentions().some((r) => r.test(normalized) || r.test(fold(normalized)))) refuse(CONSIGNE_LIRE);
     }
@@ -645,7 +693,8 @@ const decide = () => {
     const squashedForms = FOLD ? [squashed, fold(squashed)] : [squashed];
     const hitAll = (r) => hit(r) || squashedForms.some((f) => r.test(f));
     // Se faire passer pour un terminal (vider VAULT_MODE ou CLAUDECODE) pour lancer un circuit : refuse partout.
-    if (hitAll(/(^|[\s;&|(])(unset\s|env\s+(-\S+\s+)*-(i|u)\b|env\s+--(ignore-environment|unset))|\b(VAULT_MODE|VAULT_DOMAIN|CLAUDECODE)\s*=/)) {
+    // Constat 5 : option collee (`env -uVAULT_MODE`), `env -` seul, chemin de l'outil (`/usr/bin/env`), `exec -c`.
+    if (hitAll(/(^|[\s;&|(/])(unset\s|env\s+((-\S+\s+)*-\w*[iu]|-(\s|$)|--(ignore-environment|unset))|exec\s+(-\S+\s+)*-\w*c)|\b(VAULT_MODE|VAULT_DOMAIN|CLAUDECODE)\s*=/)) {
       refuse(`Session ${MODE}/${D ?? '-'} : modifier l'environnement de la session (VAULT_MODE, CLAUDECODE, env -i/-u, unset) est refuse : c'est ce qui la fait reconnaitre.`);
     }
     if (CIRCUIT_DENIED.some(hitAll)) {
