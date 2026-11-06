@@ -3,28 +3,36 @@
  * Plaud -> coffre, en une commande (Windows, macOS, Linux : Node seulement) :
  * depot dans l'entrant, tri, ingestion bronze -> argent -> or, rapport.
  *
- *   node tools/plaud-sync/run.mjs                         depuis 7 jours
- *   node tools/plaud-sync/run.mjs --since 2026-09-14
- *   node tools/plaud-sync/run.mjs --dry-run               montre ce qui serait depose, ne lance aucune session
- *   node tools/plaud-sync/run.mjs --skip <id Plaud>       ecarte un enregistrement (repetable) : consigne dans seen.json, jamais redepose
- *   node tools/plaud-sync/run.mjs --skip-fetch            tri + ingestion de ce qui est deja dans l'entrant / la file
- *   node tools/plaud-sync/run.mjs --group-by-day          une session par JOURNEE et par domaine, au lieu d'une par source :
- *                                                         les seances d'un meme jour se recoupent et l'index n'est relu qu'une fois
- *   node tools/plaud-sync/run.mjs --vault <dossier>       vise un autre coffre que celui du script (ex. depuis un worktree)
- *   node tools/plaud-sync/run.mjs --allow-worktree        accepte de tourner dans un worktree git
- *   node tools/plaud-sync/run.mjs --init-structure        donne a chaque domaine declare le meme squelette : les 8 dossiers
- *                                                         (un .gitkeep si vide) et overview.md s'il manque. Aucun contenu de page.
- *   node tools/plaud-sync/run.mjs --skip-fetch --decide <fichier-de-l-entrant>=<domaine>
- *                                                         tranche une source que le tri avait laissee (repetable) :
- *                                                         la decision de l'utilisateur est transmise a la session de tri,
- *                                                         qui range sans s'abstenir. Le script ne deplace rien lui-meme.
- *   node tools/plaud-sync/run.mjs --drop <fichier-de-a-trancher>
- *                                                         ecarte pour de bon une source parquee (repetable) : son plaud_id
- *                                                         passe « ecarte » dans seen.json, le fichier et sa raison sont
- *                                                         supprimes. Ni fetch, ni session. Refus si pas de plaud_id.
- *   node tools/plaud-sync/run.mjs --yes                  ingere sans demander (voir ci-dessous) ; requis sans terminal
- *   node tools/plaud-sync/run.mjs --retries <n>          relances d'une ingestion qui echoue (defaut 1, 0 = aucune)
- *   node tools/plaud-sync/run.mjs --retry-delay <s>      attente avant chaque relance, en secondes (defaut 30)
+ * Depuis le coffre, par le CLI : `kioku plaud [options]` (relaie `node <core>/tools/plaud-sync/run.mjs --vault . [options]`).
+ * Les messages de ce script citent toujours la forme `kioku plaud` : run.mjs n'existe pas dans le coffre.
+ *
+ *   kioku plaud                         depuis 7 jours
+ *   kioku plaud --since 2026-09-14
+ *   kioku plaud --dry-run               montre ce qui serait depose, ne lance aucune session
+ *   kioku plaud --skip <id Plaud>       ecarte un enregistrement (repetable) : consigne dans seen.json, jamais redepose
+ *   kioku plaud --skip-fetch            tri + ingestion de ce qui est deja dans l'entrant / la file
+ *   kioku plaud --group-by-day          une session par JOURNEE et par domaine, au lieu d'une par source :
+ *                                       les seances d'un meme jour se recoupent et l'index n'est relu qu'une fois
+ *   kioku plaud --allow-worktree        accepte de tourner dans un worktree git
+ *   kioku plaud --init-structure        donne a chaque domaine declare le meme squelette : les 8 dossiers
+ *                                       (un .gitkeep si vide) et overview.md s'il manque. Aucun contenu de page.
+ *   kioku plaud --skip-fetch --decide <fichier-de-l-entrant>=<domaine>
+ *                                       tranche une source que le tri avait laissee (repetable) :
+ *                                       la decision de l'utilisateur est transmise a la session de tri,
+ *                                       qui range sans s'abstenir. Le script ne deplace rien lui-meme.
+ *   kioku plaud --drop <fichier-de-a-trancher>
+ *                                       ecarte pour de bon une source parquee (repetable) : son plaud_id
+ *                                       passe « ecarte » dans seen.json, le fichier et sa raison sont
+ *                                       supprimes. Ni fetch, ni session. Refus si pas de plaud_id.
+ *   kioku plaud --requeue <domaine> <chemin relatif a raw/<domaine>/>
+ *                                       remet en file une source deplacee a la main vers un autre domaine
+ *                                       (apres un refus a la confirmation). Ni fetch, ni session.
+ *   kioku plaud --yes                   ingere sans demander (voir ci-dessous) ; requis sans terminal
+ *   kioku plaud --retries <n>           relances d'une ingestion qui echoue (defaut 1, 0 = aucune)
+ *   kioku plaud --retry-delay <s>       attente avant chaque relance, en secondes (defaut 30)
+ *   node <core>/tools/plaud-sync/run.mjs --vault <dossier>
+ *                                       vise un autre coffre (ex. depuis un worktree). Via `kioku plaud`, --vault
+ *                                       est deja pose a `.` et gagne : changer de dossier courant a la place.
  *
  * Une session d'ingestion qui rend un code non nul est relancee, a froid, apres une attente : le 05/11, une
  * erreur API 422 a fait tomber une session apres la redaction, et la relance a la main du relecteur est passee
@@ -137,8 +145,8 @@ if (statSync(path.join(VAULT, '.git'), { throwIfNoEntry: false })?.isFile() && !
 // Tous les enfants visent CE coffre (fetch-notes et pending lisent CLAUDE_PROJECT_DIR).
 // Les sessions claude -p attendent le plugin avant leur premier tour : sans lui, la garde manquerait.
 const baseEnv = { ...withCorePath(process.env), CLAUDE_PROJECT_DIR: VAULT, CLAUDE_CODE_SYNC_PLUGIN_INSTALL: '1' };
-// Pas de session sans garde. Seuls le dry-run et --drop n'en ouvrent aucune (--decide passe par la session de tri).
-if (!flag('--dry-run') && !flag('--drop')) {
+// Pas de session sans garde. Seuls le dry-run, --drop et --requeue n'en ouvrent aucune (--decide passe par la session de tri).
+if (!flag('--dry-run') && !flag('--drop') && !flag('--requeue')) {
   const refusal = startupRefusal(VAULT);
   if (refusal) fail(`sessions refusees : ${refusal}`);
 }
@@ -259,6 +267,26 @@ if (drops.length) {
   }
   console.log(`\n${drops.length - failed} / ${drops.length} ecartee(s). seen.json est versionne : a commiter.`);
   process.exit(failed ? 2 : 0);
+}
+
+// Remise en file (--requeue <domaine> <chemin>) : apres un refus a la confirmation, l'utilisateur deplace une source
+// `neuf` vers le bon domaine ; la file la connait encore sous l'ancien. Seule porte d'entree utilisateur vers
+// `pending.mjs add`, que le CLI ne relaie pas. Sous le verrou (une ingestion en cours lit la file), sans fetch ni
+// session, puis s'arrete. Le chemin reste sous raw/<domaine>/ : ni absolu, ni `..`.
+if (flag('--requeue')) {
+  if (flag('--dry-run')) fail('--requeue ne se combine pas avec --dry-run.');
+  const at = argv.indexOf('--requeue');
+  const domain = argv[at + 1];
+  const given = argv[at + 2];
+  const usage = `--requeue attend <${DOMAINS.join('|')}> <chemin relatif a raw/<domaine>/>`;
+  if (!DOMAINS.includes(domain) || !given || given.startsWith('--')) fail(`${usage}, recu "${[domain, given].filter(Boolean).join(' ')}".`);
+  // Le chemin tel que l'utilisateur l'a tape apres son `mv` : raw/<domaine>/…, ./…, ou un antislash (Windows).
+  const rel = given.replace(/\\/g, '/').replace(/^\.\//, '').replace(new RegExp(`^raw/${domain}/`), '');
+  if (path.isAbsolute(rel) || rel.split('/').includes('..')) fail(`${usage} : chemin hors de raw/${domain}/ refuse ("${given}").`);
+  const r = node(PENDING, ['add', domain, rel]);
+  if (r.status !== 0) process.exit(1);
+  console.log(`Remise en file. Suite : kioku plaud --skip-fetch`);
+  process.exit(0);
 }
 
 // Le registre des organisations du coffre vise (--vault), pas celui de la session qui lance ce script : celui que
@@ -396,8 +424,8 @@ if (go) {
       'Ingestion annulee : les sources restent dans raw/ et dans la file, rien n\'est ecrit.\n' +
         'Une source dans le mauvais domaine (etat neuf seulement) : deplace-la, remets-la dans la file, relance :\n' +
         '  mv raw/<de>/<chemin> raw/<vers>/<chemin>\n' +
-        '  node tools/plaud-sync/pending.mjs add <vers> <chemin>\n' +
-        '  node tools/plaud-sync/run.mjs --skip-fetch',
+        '  kioku plaud --requeue <vers> <chemin>\n' +
+        '  kioku plaud --skip-fetch',
     );
   }
 }
@@ -450,8 +478,8 @@ if (left.length) {
 }
 if (undecided.length) {
   console.log(`\nA trancher a part (${undecided.length}) : inbox/a-trancher/ (raisons dans _raisons.md). Pour en decider une :`);
-  console.log(`  node tools/plaud-sync/run.mjs --skip-fetch --decide <fichier>=<${DOMAINS.join('|')}>`);
-  console.log('  npm run plaud:drop -- <fichier> [<fichier>...]                   (ecartee pour de bon, ne revient pas)');
+  console.log(`  kioku plaud --skip-fetch --decide <fichier>=<${DOMAINS.join('|')}>   (repetable)`);
+  console.log('  kioku plaud --drop <fichier> [<fichier>...]                      (ecartee pour de bon, ne revient pas)');
   for (const f of undecided) console.log(`  ${f}`);
 }
 console.log('\nA decider (retenues par la gate, codes seulement) :');

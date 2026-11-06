@@ -258,7 +258,9 @@ describe('confirmation avant l\'ingestion', () => {
 
   test('l\'utilisateur sait comment ingerer ou corriger un domaine', () => {
     assert.match(res.stdout, /--skip-fetch --yes/);
-    assert.match(res.stdout, /pending\.mjs add/);
+    // La forme du CLI : pending.mjs n'existe pas dans le coffre et le CLI ne le relaie pas.
+    assert.match(res.stdout, /kioku plaud --requeue <vers> <chemin>/);
+    assert.doesNotMatch(res.stdout, /pending\.mjs/);
   });
 
   test('les sources restent dans la file : le lancement suivant les reprend', () => {
