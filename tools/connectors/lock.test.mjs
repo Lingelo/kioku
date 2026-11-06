@@ -6,13 +6,13 @@
  */
 
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { acquire, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
+import { acquire, acquireFile, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
 
 const LOCK = pathToFileURL(new URL('./lock.mjs', import.meta.url).pathname).href;
 
@@ -208,3 +208,70 @@ describe('verrou a deux fichiers : echec, arret brutal, liberation', { skip: pro
     assert.equal(existsSync(legacyLockPath(vault)), false);
   });
 });
+
+// I3 : reprise d'un verrou perime par plusieurs lanceurs a la fois. Sans reprise atomique, deux lanceurs qui le voient
+// perime le suppriment chacun et se croient seuls. Vrais processus, lances ensemble (barriere sur un fichier « go »).
+describe('reprise concurrente d un verrou perime', { skip: process.platform === 'win32' }, () => {
+  const contender = (go) => {
+    const code = [
+      `import { existsSync } from 'node:fs';`,
+      `const L = await import(${JSON.stringify(LOCK)});`,
+      `while (!existsSync(${JSON.stringify(go)})) {}`,
+      `const r = L.acquire(${JSON.stringify(vault)});`,
+      `process.stdout.write(r.ok ? 'OK' : 'NO');`,
+      `if (r.ok) { const t = Date.now(); while (Date.now() - t < 400) {} L.release(${JSON.stringify(vault)}); }`,
+    ].join('\n');
+    return new Promise((resolve) => {
+      const child = spawn(process.execPath, ['--input-type=module', '-e', code]);
+      let out = '';
+      child.stdout.on('data', (d) => (out += d));
+      child.on('close', () => resolve(out));
+    });
+  };
+
+  test('8 lanceurs sur un verrou perime (les deux fichiers) : un seul le prend, a chaque fois', async () => {
+    for (let round = 0; round < 5; round++) {
+      const mort = deadPid();
+      put(lockPath(vault), { pid: mort, started: 'vieux' });
+      put(legacyLockPath(vault), { pid: mort, started: 'vieux' });
+      const go = path.join(vault, `go-${round}`);
+      const runs = Array.from({ length: 8 }, () => contender(go));
+      await new Promise((r) => setTimeout(r, 300)); // que tous attendent a la barriere
+      writeFileSync(go, '');
+      const outs = await Promise.all(runs);
+      assert.equal(outs.filter((o) => o === 'OK').length, 1, `tour ${round} : ${outs.join(',')}`);
+      assert.equal(existsSync(`${lockPath(vault)}.break`), false, 'aucun verrou de reprise laisse');
+      assert.equal(existsSync(lockPath(vault)), false, 'le gagnant a rendu le verrou');
+    }
+  });
+
+  test('entrelacement deterministe : un autre lanceur reprend entre le constat et la reprise ; on ne supprime pas son verrou', () => {
+    const file = lockPath(vault);
+    put(file, { pid: deadPid(), started: 'vieux' });
+    const mine = JSON.stringify({ pid: 4242, started: 'a' });
+    const theirs = JSON.stringify({ pid: process.pid, started: 'b' });
+    let other;
+    const a = acquireFile(file, mine, 4242, { onStale: () => (other = other ?? acquireFile(file, theirs, process.pid)) });
+    assert.equal(other.ok, true, 'l autre lanceur a repris le verrou perime');
+    assert.equal(a.ok, false, 'le premier ne se croit pas seul');
+    assert.equal(a.held.pid, process.pid);
+    assert.equal(readLock(file).pid, process.pid, 'le verrou de l autre est intact');
+  });
+
+  test('verrou de reprise abandonne par un processus mort : retire, la reprise aboutit', () => {
+    put(lockPath(vault), { pid: deadPid(), started: 'x' });
+    put(`${lockPath(vault)}.break`, { pid: deadPid() });
+    assert.equal(acquire(vault, { pid: 4242 }).ok, true);
+    assert.equal(existsSync(`${lockPath(vault)}.break`), false);
+  });
+
+  test('verrou de reprise tenu par un vivant : refus, sans toucher au verrou', () => {
+    put(lockPath(vault), { pid: deadPid(), started: 'x' });
+    put(`${lockPath(vault)}.break`, { pid: process.pid });
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(r.ok, false);
+    assert.equal(r.held.pid, process.pid);
+    assert.ok(existsSync(lockPath(vault)));
+  });
+});
+

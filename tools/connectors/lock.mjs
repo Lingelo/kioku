@@ -69,24 +69,62 @@ export const readLock = (file) => {
   }
 };
 
+const readRaw = (file) => {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return null;
+  }
+};
+
 /**
  * Prend UN fichier de verrou. Rend `{ ok: true, stale }` ou `{ ok: false, held }`.
- * Deux tours au plus : creation, puis reprise d'un verrou perime. Un troisieme echec veut dire qu'un autre lanceur a
- * pris le verrou entre-temps : il est vivant, on lui laisse.
+ *
+ * Creation exclusive (`wx`). Si le fichier existe et que son processus vit : refus. S'il est perime (processus mort,
+ * fichier illisible, ou notre propre PID d'un lancement precedent), la REPRISE doit etre atomique : sans precaution,
+ * deux lanceurs qui le voient perime en meme temps le suppriment chacun, et le second supprime le verrou tout neuf du
+ * premier (revue I3). La reprise passe donc par un verrou de reprise `<fichier>.break`, lui-meme pris en `wx` : un seul
+ * lanceur reprend a la fois. Sous lui, on relit le verrou : s'il n'a pas change depuis qu'on l'a juge perime, on le
+ * remplace (suppression puis creation exclusive, sous le verrou de reprise) ; sinon un autre l'a repris entre-temps,
+ * et on recommence l'examen. Un verrou de reprise dont le processus est mort (arret pendant les quelques
+ * microsecondes de la reprise) est retire au tour suivant.
  */
-export const acquireFile = (file, mine, pid) => {
+export const acquireFile = (file, mine, pid, { onStale } = {}) => {
   mkdirSync(path.dirname(file), { recursive: true });
+  const breaker = `${file}.break`;
   let stale = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       writeFileSync(file, mine, { flag: 'wx' });
       return { ok: true, stale };
     } catch (error) {
       if (error.code !== 'EEXIST') throw error;
-      const held = readLock(file);
-      if (held && held.pid !== pid && isAlive(held.pid)) return { ok: false, held };
+    }
+    const seen = readRaw(file);
+    const held = readLock(file);
+    if (held && held.pid !== pid && isAlive(held.pid)) return { ok: false, held };
+    onStale?.(); // point d'injection des tests : un autre lanceur agit entre le constat « perime » et la reprise
+    try {
+      writeFileSync(breaker, JSON.stringify({ pid }), { flag: 'wx' });
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      const b = readLock(breaker);
+      if (b && b.pid !== pid && isAlive(b.pid)) return { ok: false, held: b }; // un autre lanceur reprend en ce moment
+      rmSync(breaker, { force: true }); // reprise abandonnee par un processus mort
+      continue;
+    }
+    try {
+      if (readRaw(file) !== seen) continue; // repris ou rendu entre-temps : on reexamine
       stale = held;
       rmSync(file, { force: true });
+      try {
+        writeFileSync(file, mine, { flag: 'wx' });
+        return { ok: true, stale };
+      } catch (error) {
+        if (error.code !== 'EEXIST') throw error;
+      }
+    } finally {
+      rmSync(breaker, { force: true });
     }
   }
   return { ok: false, held: readLock(file) ?? { pid: null } };
