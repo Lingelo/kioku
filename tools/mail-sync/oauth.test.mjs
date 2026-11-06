@@ -149,6 +149,13 @@ describe('jeton : rafraichissement', () => {
     saveToken('travail', { access_token: 'a1', refresh_token: 'r', expires_at: 10_000_000 }, dir);
     assert.equal(await accessToken('travail', { dir, now: () => 0, fetch: async () => assert.fail('aucun appel attendu') }), 'a1');
   });
+  test('dossier existant trop ouvert (0755) : resserre en 0700 a l ecriture du jeton (m8)', { skip: process.platform === 'win32' }, async () => {
+    const { chmodSync } = await import('node:fs');
+    chmodSync(dir, 0o755);
+    saveToken('travail', { access_token: 'a', refresh_token: 'r', expires_at: 1 }, dir);
+    assert.equal(statSync(dir).mode & 0o777, 0o700);
+  });
+
   test('expire : rafraichi, reecrit (refresh_token garde), toujours 0600', async () => {
     saveToken('travail', { access_token: 'a1', refresh_token: 'r1', expires_at: 1000 }, dir);
     const got = await accessToken('travail', {

@@ -128,6 +128,9 @@ export const waitForCode = ({ state, onListening, timeoutMs = LOGIN_TIMEOUT_MS, 
 export const saveToken = (account, token, dir = configDir()) => {
   const file = tokenPath(account, dir);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
+  // mkdir ne resserre pas un dossier qui existait deja (en 0755, par exemple) : on le fait (revue m8). Sans effet sous
+  // Windows, ou les modes POSIX ne s'appliquent pas.
+  if (process.platform !== 'win32') chmodSync(dir, 0o700);
   const tmp = `${file}.${process.pid}.tmp`;
   try {
     writeFileSync(tmp, `${JSON.stringify(token, null, 1)}\n`, { mode: 0o600 });
