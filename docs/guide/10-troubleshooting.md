@@ -27,8 +27,22 @@ Kioku's messages are in French; the quoted fragments below are what you'll see.
 | "elle nomme une zone fermee" | a command names `quarantine/`, `raw/`… (even inside text) | if it's a false positive: write the command into a script outside the vault and run it |
 | `git commit` refused in a session | intended | commit yourself, in your terminal |
 | a write under `wiki/` refused | intended: gold goes through the gate | a candidate under `.candidats/`, or `kioku stage` for an existing page |
+| a path through a symbolic link, `~`, or in another letter case refused | intended: the guard judges the file the system will really open (link target, home directory expanded, case folded on a case-insensitive volume such as macOS APFS or NTFS) | use the real path in your own domain |
 
 **No session can modify the guard.** If it keeps blocking wrongly, that's a core defect to report, not to work around.
+
+### `node` not found by Claude Code
+
+The guard is a hook command run by Claude Code's shell. If that shell can't find the interpreter, it exits with `127`, and Claude Code treats a hook that fails that way as **non-blocking**: the session would run without the guard. Both hook forms are now written to fail closed instead:
+
+| Hook | Interpreter | If it can't be found |
+|---|---|---|
+| plugin (`hooks/hooks.json`) | `node`, looked up in Claude Code's `PATH` | `\|\| exit 2`: every tool call is refused, the stderr says `node: command not found` |
+| project (`kioku init --guard-hook`) | absolute path of the Node that ran `init` (`process.execPath`) | same `\|\| exit 2` fallback; `kioku doctor` and the launcher report `interpreteur du hook de garde introuvable` |
+
+Limit, stated: the plugin's `hooks.json` ships to other machines, so it **cannot** carry an absolute interpreter path. `kioku doctor` and the launcher (`npm run <domain>`, `kioku session`) check that `node` is in **their** `PATH`, which a session they start inherits. A session opened another way (desktop app, IDE, a shell with a different profile) can have a shorter `PATH`: there the fallback refuses everything rather than letting the session run unguarded. Fix: make `node` visible to Claude Code (a system location such as `/usr/local/bin/node`, or launch Claude Code from a terminal where `node -v` works), then `kioku doctor --live`.
+
+A vault created before this fix with `--guard-hook` keeps a `node "…/guard.mjs"` hook without the fallback: `kioku doctor` says so and prints the command to put in `.claude/settings.json`. Upgrading a version manager (nvm, fnm, volta) can remove the absolute path the hook names: the guard then refuses everything, `kioku doctor` names the missing interpreter.
 
 ## The gate
 

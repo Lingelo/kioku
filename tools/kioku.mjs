@@ -27,7 +27,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, constants as fsConstants, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -136,6 +136,33 @@ const readSettings = (vault, home = process.env.HOME) => {
     });
 };
 
+/**
+ * Le hook de garde : `<interpreteur> "<...>/guard.mjs"`, l'interpreteur nu (`node`, coffres anterieurs) ou par chemin
+ * absolu entre guillemets (init --guard-hook : process.execPath). Groupes : 1 ou 2 l'interpreteur, 3 le script.
+ */
+const HOOK_COMMAND = /(?:^|[\s;&|(])(?:"([^"]*node(?:\.exe)?)"|([^\s"';&|()]*node(?:\.exe)?))\s+"?([^"]*guard\.mjs)"?/;
+// Un hook dont l'interpreteur manque sort en 127, que Claude Code traite comme non bloquant : la session tournerait sans
+// garde. `|| exit 2` ferme ce cas (et tout echec du script) en refus.
+const FAIL_CLOSED = /\|\|\s*exit\s+2(?![\w])/;
+export const GUARD_HOOK_COMMAND = (guard, interpreter = process.execPath) => `"${interpreter}" "${guard}" || exit 2`;
+
+const isExecutableFile = (file) => {
+  try {
+    if (!statSync(file).isFile()) return false;
+    accessSync(file, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+/** L'interpreteur du hook se resout-il : chemin -> fichier executable ; nom nu -> trouve dans le PATH donne. */
+export const interpreterResolves = (cmd, searchPath = process.env.PATH ?? '') => {
+  if (typeof cmd !== 'string' || cmd === '') return false;
+  if (/[/\\]/.test(cmd)) return isExecutableFile(cmd);
+  const exts = process.platform === 'win32' ? ['', ...(process.env.PATHEXT ?? '.EXE;.CMD').split(';')] : [''];
+  return searchPath.split(path.delimiter).filter(Boolean).some((dir) => exts.some((e) => isExecutableFile(path.join(dir, cmd + e))));
+};
+
 /** Le plugin kioku est-il active (`enabledPlugins` : `kioku@<marketplace>`: true) dans l'un des settings ? */
 export const kiokuPluginEnabled = (settings) =>
   settings.some(({ data }) => Object.entries(data?.enabledPlugins ?? {}).some(([id, on]) => on === true && /^kioku@/.test(id)));
@@ -161,17 +188,26 @@ export const registeredGuard = (vault, { home } = {}) => {
     for (const entry of data.hooks?.PreToolUse ?? []) {
       const matcher = String(entry.matcher ?? '');
       for (const h of entry.hooks ?? []) {
-        const m = String(h.command ?? '').match(/node\s+"?([^"]*guard\.mjs)"?/);
+        const command = String(h.command ?? '');
+        const m = command.match(HOOK_COMMAND);
         if (!m) continue;
         const missing = needed.filter((t) => !new RegExp(`(^|\\|)${t}(\\||$)`).test(matcher));
         if (missing.length) return { guard: null, why: `le hook de garde ne couvre pas ${missing.join(', ')} (matcher "${matcher}", ${path.relative(vault, file)})` };
-        const script = m[1].replace(/\$\{?CLAUDE_PROJECT_DIR\}?/g, vault);
+        const script = m[3].replace(/\$\{?CLAUDE_PROJECT_DIR\}?/g, vault);
         if (!existsSync(script)) return { guard: null, why: `garde enregistree introuvable : ${script}` };
-        return { guard: script, source: 'projet', why: null, double: plugin };
+        const interpreter = m[1] ?? m[2];
+        if (!interpreterResolves(interpreter)) return { guard: null, why: `interpreteur du hook de garde introuvable : ${interpreter} (${path.relative(vault, file)}) ; Claude Code traiterait l'echec du hook comme non bloquant` };
+        return { guard: script, source: 'projet', why: null, double: plugin, failOpen: !FAIL_CLOSED.test(command) };
       }
     }
   }
-  if (plugin) return { guard: CORE_GUARD, source: 'plugin', why: null, double: false };
+  if (plugin) {
+    // Le hook du plugin (hooks/hooks.json) lance `node` par le PATH : il ne peut pas porter le chemin de l'interpreteur
+    // d'une autre machine. Une session ouverte par le lanceur herite de ce PATH ; une session ouverte ailleurs (app de
+    // bureau, autre terminal) peut en avoir un autre : le hook s'y ferme alors (`|| exit 2`), voir le guide 10.
+    if (!interpreterResolves('node')) return { guard: null, why: "node introuvable dans le PATH : le hook du plugin (node \"…/guard.mjs\") ne pourrait pas lancer la garde" };
+    return { guard: CORE_GUARD, source: 'plugin', why: null, double: false };
+  }
   return { guard: null, why: 'ni hook PreToolUse de garde dans .claude/settings.json, ni plugin kioku active (enabledPlugins)' };
 };
 
@@ -337,7 +373,8 @@ export const doctor = (vault, { live = false, pluginDir, home } = {}) => {
     else if (!/^## Relecture$/m.test(readFileSync(rules, 'utf8'))) problems.push(`domains/${d}/rules.md sans section ## Relecture`);
   }
 
-  const { guard, source, why, double } = registeredGuard(vault, { home });
+  const { guard, source, why, double, failOpen } = registeredGuard(vault, { home });
+  if (failOpen) notes.push(`hook de garde sans repli \`|| exit 2\` : si son interpreteur disparait, Claude Code ouvre la session sans garde ; commande conseillee : ${GUARD_HOOK_COMMAND(guard)}`);
 
   // Le schema attendu suit la garde declaree : noms prefixes avec le plugin, nus avec un hook du projet.
   const schema = path.join(vault, SCHEMA_REL);
@@ -432,9 +469,10 @@ export const init = (target, { domains = ['pro', 'perso'], org = null, plaud = f
   }
   // La garde : le plugin de la marketplace du core, installe au niveau utilisateur et mis a jour par Claude Code. Le
   // coffre declare seulement qu'il l'utilise (sans version). --guard-hook : repli de developpement, un hook vers la
-  // garde de ce clone par chemin absolu (non portable entre machines).
+  // garde de ce clone par chemin absolu (non portable entre machines). L'interpreteur aussi, par chemin absolu : `node`
+  // nu depend du PATH de Claude Code (souvent plus court depuis l'app de bureau), et un hook introuvable n'y bloque rien.
   const settings = guardHook
-    ? { hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|NotebookRead|Bash', hooks: [{ type: 'command', command: `node "${CORE_GUARD}"` }] }] } }
+    ? { hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|NotebookRead|Bash', hooks: [{ type: 'command', command: GUARD_HOOK_COMMAND(CORE_GUARD) }] }] } }
     : mergeSettings({});
   create(path.join(vault, '.claude', 'settings.json'), `${JSON.stringify(settings, null, 2)}\n`);
   create(path.join(vault, SCHEMA_REL), schemaText(guardHook ? {} : { KIOKU_PLUGIN: 'kioku' }));
