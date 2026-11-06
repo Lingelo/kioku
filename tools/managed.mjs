@@ -15,7 +15,7 @@
  * la main, et une suppression silencieuse perdrait ce travail. Il est signale.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -212,10 +212,34 @@ export const KIOKU_DENY = [
  * Regles propres a la machine (dans .claude/settings.local.json, non versionne) : un XDG_CONFIG_HOME qui n'est pas
  * ~/.config, en chemin absolu (`//…`). Sans lui : aucune.
  */
+/**
+ * Forme canonique d'un chemin : realpath du plus long parent existant (liens resolus, casse reelle du volume), le reste
+ * recolle. Sert a reconnaitre un XDG_CONFIG_HOME qui designe en fait ~/.config (lien, `..`, casse) : l'emplacement par
+ * defaut, deja couvert par la regle portable `~/.config/kioku/**`.
+ */
+const canonicalPath = (p) => {
+  let cur = path.resolve(p);
+  const rest = [];
+  while (!existsSync(cur)) {
+    const parent = path.dirname(cur);
+    if (parent === cur) return path.resolve(p);
+    rest.unshift(path.basename(cur));
+    cur = parent;
+  }
+  try {
+    return path.join(realpathSync.native(cur), ...rest);
+  } catch {
+    return path.resolve(p);
+  }
+};
+
 export const localDenyRules = (env = process.env, home = os.homedir()) => {
   const xdg = env.XDG_CONFIG_HOME;
-  if (!xdg || path.resolve(xdg) === path.join(home, '.config')) return [];
-  const posix = path.resolve(xdg).replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`);
+  if (!xdg) return [];
+  const canonical = canonicalPath(xdg);
+  const fold = (s) => (process.platform === 'darwin' || process.platform === 'win32' ? s.toLowerCase() : s);
+  if (fold(canonical) === fold(canonicalPath(path.join(home, '.config')))) return [];
+  const posix = canonical.replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`);
   const anchor = `/${posix}/kioku/**`.replace(/^\/+/, '//');
   return [`Read(${anchor})`, `Edit(${anchor})`];
 };

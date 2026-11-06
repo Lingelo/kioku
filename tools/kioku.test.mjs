@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +38,8 @@ const kioku = (args, extraEnv = {}) => {
   const env = { ...process.env, HOME: path.join(root, 'home'), ...extraEnv };
   if (!('CLAUDECODE' in extraEnv)) delete env.CLAUDECODE;
   if (!('VAULT_MODE' in extraEnv)) delete env.VAULT_MODE;
+  // Hermetique : un XDG_CONFIG_HOME du poste (les runners GitHub en posent un) changerait les regles locales.
+  if (!('XDG_CONFIG_HOME' in extraEnv)) delete env.XDG_CONFIG_HOME;
   delete env.VAULT_DOMAIN;
   delete env.CLAUDE_PROJECT_DIR;
   return spawnSync(process.execPath, [KIOKU, ...args], { encoding: 'utf8', env });
@@ -77,6 +79,17 @@ describe('init', () => {
     assert.ok(existsSync(path.join(vault, 'orgs.json')));
     const settings = JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'));
     assert.deepEqual(settings.enabledPlugins, { 'kioku@dojo': true }, 'la garde est le plugin de la marketplace dojo');
+  });
+
+  test('(c) XDG_CONFIG_HOME egal a ~/.config (directement, ou par un lien) : emplacement par defaut, pas de regle locale', () => {
+    const home = path.join(root, 'home');
+    mkdirSync(path.join(home, '.config'), { recursive: true });
+    assert.equal(kioku(['init', vault, '--domains', 'a'], { XDG_CONFIG_HOME: path.join(home, '.config') }).status, EXIT.ok);
+    assert.ok(!existsSync(path.join(vault, '.claude', 'settings.local.json')), 'XDG = ~/.config');
+    const other = path.join(root, 'autre');
+    symlinkSync(path.join(home, '.config'), path.join(root, 'lien-config'));
+    assert.equal(kioku(['init', other, '--domains', 'a'], { XDG_CONFIG_HOME: path.join(root, 'lien-config', '.', '') }).status, EXIT.ok);
+    assert.ok(!existsSync(path.join(other, '.claude', 'settings.local.json')), 'XDG = lien vers ~/.config');
   });
 
   test('(c) --guard-hook : les regles de refus Kioku aussi, a cote du hook', () => {
