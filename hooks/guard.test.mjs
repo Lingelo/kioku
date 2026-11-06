@@ -608,3 +608,58 @@ describe('chemins canoniques : ~ et liens symboliques', () => {
     assert.equal(guard(q, read('wiki/pro/boucle/x.md')), REFUS);
   });
 });
+
+// B1 : le dossier des jetons OAuth du module mail, hors coffre, ferme a toute session.
+describe('zone secrete : jetons du module mail', () => {
+  let home;
+  let xdg;
+  beforeEach(() => {
+    home = realpathSync(mkdtempSync(path.join(tmpdir(), 'guard-home-')));
+    xdg = realpathSync(mkdtempSync(path.join(tmpdir(), 'guard-xdg-')));
+  });
+  afterEach(() => {
+    rmSync(home, { recursive: true, force: true });
+    rmSync(xdg, { recursive: true, force: true });
+  });
+  const guardEnv = (session, payload, extra) => {
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: vault, HOME: home, USERPROFILE: home, XDG_CONFIG_HOME: xdg, ...extra };
+    delete env.VAULT_MODE;
+    delete env.VAULT_DOMAIN;
+    if (session.mode !== undefined) env.VAULT_MODE = session.mode;
+    if (session.domain !== undefined) env.VAULT_DOMAIN = session.domain;
+    return spawnSync(process.execPath, [TARGET], { input: JSON.stringify({ ...payload, cwd: vault }), env, encoding: 'utf8' });
+  };
+  const grep = (p, glob) => ({ tool_name: 'Grep', tool_input: { pattern: 'refresh_token', path: p, ...(glob ? { glob } : {}) } });
+  const SESSIONS = [{ mode: 'query', domain: 'pro' }, { mode: 'ingest', domain: 'pro' }, { mode: 'triage' }, { mode: 'setup' }];
+
+  for (const sess of SESSIONS) {
+    test(`${sess.mode} : Read, Write, Bash cat et Grep refuses, aux deux emplacements`, () => {
+      for (const dir of [path.join(home, '.config', 'kioku', 'mail'), path.join(xdg, 'kioku', 'mail')]) {
+        const token = path.join(dir, 'travail.json');
+        const r = guardEnv(sess, read(token));
+        assert.equal(r.status, REFUS, `${sess.mode} Read ${token}`);
+        assert.match(r.stderr, /jetons et du client OAuth du module mail/);
+        assert.equal(guardEnv(sess, read(path.join(dir, 'client.json'))).status, REFUS);
+        assert.equal(guardEnv(sess, write(token)).status, REFUS, `${sess.mode} Write`);
+        assert.equal(guardEnv(sess, bash(`cat ${token}`)).status, REFUS, `${sess.mode} cat absolu`);
+        assert.equal(guardEnv(sess, grep(dir)).status, REFUS, `${sess.mode} Grep dans le dossier`);
+      }
+      for (const cmd of ['cat ~/.config/kioku/mail/travail.json', 'cat $XDG_CONFIG_HOME/kioku/mail/*.json', 'ls ~/.config/kioku', 'cat "$HOME/.config/kioku/m"*/t.json', 'type %APPDATA%\\kioku\\mail\\travail.json']) {
+        assert.equal(guardEnv(sess, bash(cmd)).status, REFUS, `${sess.mode} : ${cmd}`);
+      }
+      assert.equal(guardEnv(sess, grep(home)).status, REFUS, `${sess.mode} : Grep depuis un parent du dossier`);
+      assert.equal(guardEnv(sess, grep(path.join(home, 'ailleurs'), '**/kioku/mail/*')).status, REFUS, `${sess.mode} : motif qui vise le dossier`);
+    });
+  }
+
+  test('%APPDATA% (Windows) : ferme aussi', () => {
+    const appdata = path.join(home, 'Roaming');
+    assert.equal(guardEnv({ mode: 'ingest', domain: 'pro' }, read(path.join(appdata, 'kioku', 'mail', 'travail.json')), { APPDATA: appdata }).status, REFUS);
+  });
+
+  test('le reste du dossier personnel n est pas touche ; kioku.mjs et bin/kioku restent nommables', () => {
+    assert.equal(guardEnv({ mode: 'query', domain: 'pro' }, read(path.join(home, 'notes.txt'))).status, OK);
+    assert.equal(guardEnv({ mode: 'query', domain: 'pro' }, bash('node tools/kioku.mjs doctor')).status, OK);
+  });
+});
+

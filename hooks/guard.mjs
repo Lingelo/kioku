@@ -31,6 +31,9 @@
  * setup, la garde refuse ce qui lirait ou ferait lire un domaine par un autre chemin : la gate (vault.mjs affiche
  * des noms de pages), le circuit Plaud et le lanceur (ils ouvrent des sessions avec leurs propres droits), le dashboard.
  *
+ * Zone secrete, jamais lue ni ecrite, dans aucun mode : le dossier des jetons OAuth du module mail (~/.config/kioku/mail,
+ * $XDG_CONFIG_HOME/kioku/mail, %APPDATA%\kioku\mail), hors coffre.
+ *
  * Zone de la garde, jamais ecrite depuis une session : hooks du plugin, settings, agents, le dossier de ce script,
  * la configuration du coffre et les registres qu'elle declare.
  *
@@ -181,6 +184,10 @@ const CONSIGNE_LIRE =
         : `Tri : on lit inbox/ et on deplace vers raw/<${ALL}>/. Ni le wiki, ni l'argent, ni la quarantaine.`) +
   (DOMAIN_MODES.includes(MODE) ? `\nPour Grep/Glob, donne toujours un path precis (ex. wiki/${D}), jamais la racine.` : '');
 
+const SECRET_REFUS =
+  'Le dossier des jetons et du client OAuth du module mail (~/.config/kioku/mail, ou son equivalent) est ferme a toute session, ' +
+  "en lecture comme en ecriture : un mail est une donnee non fiable, et un jeton recopie dans une page donnerait acces a la boite. Rien a y lire pour travailler.";
+
 const CONSIGNE_ECRIRE =
   `Ecriture directe interdite ici (session ${MODE}/${D ?? '-'}).\n` +
   `- wiki/ : ecris la page sous .candidats/wiki/${D ?? '<domaine>'}/<dossier>/<slug>.md, puis\n` +
@@ -196,7 +203,29 @@ const inside = (abs, dir) => {
 const PROTECTED = new Set(cfg.protectedPaths.map((p) => canonical(path.resolve(p))));
 const PROTECTED_KEYS = new Set([...PROTECTED].map(fold));
 
+// Zone secrete : le dossier hors coffre ou le module mail range le client OAuth et les jetons (tools/mail-sync/paths.mjs,
+// recalcule ici : la garde ne depend pas de tools/). Une session lit du mail non fiable ; un jeton lu puis recopie dans
+// une fiche serait versionne avec le coffre. Ferme en lecture et en ecriture dans tous les modes. Les trois
+// emplacements possibles sont fermes ensemble : l'environnement de la garde peut differer de celui du lanceur.
+const HOME = os.homedir();
+const SECRET_DIRS = [
+  ...new Set(
+    [
+      path.join(HOME, '.config', 'kioku', 'mail'),
+      process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, 'kioku', 'mail') : null,
+      process.env.APPDATA ? path.join(process.env.APPDATA, 'kioku', 'mail') : null,
+      path.join(HOME, 'AppData', 'Roaming', 'kioku', 'mail'),
+    ]
+      .filter(Boolean)
+      .map((p) => canonical(path.resolve(p))),
+  ),
+];
+// Une mention de ce dossier dans une commande ou un motif de recherche : `kioku/mail`, `kioku\mail`, un glob juste
+// apres `kioku/`, ou le dossier de configuration `.config/kioku`. Limite, dite : un `cd` en plusieurs temps y echappe.
+const SECRET_MENTION = [/kioku[/\\]+["']?(mail|[*?[{])/i, /\.config[/\\]+kioku\b/i];
+
 const classify = (abs) => {
+  if (SECRET_DIRS.some((d) => inside(abs, d))) return { zone: 'secret' };
   if (inside(abs, HERE) || PROTECTED_KEYS.has(fold(abs))) return { zone: 'garde' };
   const rel = path.relative(fold(VAULT), fold(abs));
   if (rel.startsWith('..') || path.isAbsolute(rel)) return { zone: 'outside' };
@@ -378,6 +407,7 @@ const decide = () => {
     const abs = target('file_path') ?? target('notebook_path');
     if (abs === null) refuse(`Garde du coffre : ${tool} sans chemin lisible. Dans le doute, je refuse.`);
     const z = classify(abs);
+    if (z.zone === 'secret') refuse(SECRET_REFUS);
     if (z.zone === 'garde') refuse("La garde du coffre (hooks du plugin, settings, agents, configuration du coffre et registres) ne se modifie pas depuis une session : c'est ce qui la fait tenir. Demande a l'utilisateur.");
     if (!canWrite(z)) refuse(CONSIGNE_ECRIRE);
     return;
@@ -385,6 +415,7 @@ const decide = () => {
 
   if (READ_TOOLS.has(tool)) {
     const abs = target('file_path') ?? target('notebook_path');
+    if (abs !== null && classify(abs).zone === 'secret') refuse(SECRET_REFUS);
     if (abs !== null && !canRead(classify(abs))) refuse(CONSIGNE_LIRE);
     return;
   }
@@ -393,11 +424,14 @@ const decide = () => {
     const abs = target('path');
     if (abs === null) refuse(`Grep/Glob sans path : cela balayerait tout le coffre. Donne un path precis.\n${CONSIGNE_LIRE}`);
     const zone = classify(abs);
+    // Une recherche dans le dossier secret, ou depuis un de ses parents (~, ~/.config…), le traverserait.
+    if (zone.zone === 'secret' || SECRET_DIRS.some((d) => inside(d, abs))) refuse(SECRET_REFUS);
     if (!canRead(zone)) refuse(CONSIGNE_LIRE);
     // Grep/Glob sur silver/<D> tout entier traverserait heritage/ : les fiches se lisent une a une (Read).
     if (zone.zone === 'silver' && !zone.sub) refuse(`Grep/Glob sur silver/${D} refuse : l'instantane heritage/ (ferme) s'y trouve. Lis les fiches une a une avec Read.\n${CONSIGNE_LIRE}`);
     const scanned = [args.glob, tool === 'Glob' ? args.pattern : undefined].filter((v) => typeof v === 'string');
     for (const text of scanned) {
+      if (SECRET_MENTION.some((r) => r.test(text))) refuse(SECRET_REFUS);
       const normalized = text.replace(/\\/g, '/');
       if (forbiddenMentions().some((r) => r.test(normalized) || r.test(fold(normalized)))) refuse(CONSIGNE_LIRE);
     }
@@ -408,6 +442,7 @@ const decide = () => {
     const raw = args.command;
     if (typeof raw !== 'string') refuse('Garde du coffre : commande Bash illisible. Dans le doute, je refuse.');
     const command = stripMessages(raw);
+    if (SECRET_MENTION.some((r) => r.test(command)) || SECRET_DIRS.some((d) => fold(command).includes(fold(d)))) refuse(SECRET_REFUS);
     // Volume insensible a la casse : `cat WIKI/perso/p.md` ou `MV wiki w` ouvrent les memes fichiers et lancent les
     // memes commandes. Chaque regle se teste sur la commande telle quelle ET pliee (motifs en minuscules) ; la forme
     // telle quelle garde les drapeaux dont la casse compte (`ls -R`).
