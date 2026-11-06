@@ -21,7 +21,7 @@ Examples use two fictitious domains, `work` and `home`. Replace them with the on
 | [5. Querying the wiki](05-query.md) | asking a question, filing a synthesis |
 | [6. Reviewing and deciding](06-lint-quarantine.md) | the lint, the quarantine, decisions |
 | [7. Dashboard](07-dashboard.md) | the state of the vault in a local browser |
-| [8. Plaud](08-plaud.md) | meeting capture, from the recorder to the wiki |
+| [8. Capture modules](08-capture.md) | Plaud (meetings) and Mail (Gmail threads): one circuit from the source to the wiki |
 | [9. Updating Kioku](09-update.md) | a new plugin version, `kioku upgrade`, a new machine |
 | [10. Troubleshooting](10-troubleshooting.md) | a guard refusal, a gate that blocks, a plugin that won't start |
 | [Cheat sheet](cheat-sheet.md) | every command on one page |

@@ -87,6 +87,21 @@ describe('U2 : Lecture des etats locaux de la machine', () => {
     assert.equal(res.lock.pid, process.pid);
   });
 
+  test('files de Plaud et du mail : additionnees, detaillees par circuit ; le verrou dit circuit mail', () => {
+    put('tools/plaud-sync/.queue.json', JSON.stringify([{ domain: 'pro', rel: 'a.md' }]));
+    put('tools/mail-sync/.queue.json', JSON.stringify([{ domain: 'pro', rel: 'emails/b.md' }, { domain: 'pro', rel: 'pdfs/c.pdf.md' }]));
+    put('tools/mail-sync/.snapshot.json', JSON.stringify({ pro: ['x.md'] }));
+    const res = readLocalState(vault);
+    assert.equal(res.queue.count, 3);
+    assert.deepEqual(res.queue.byCircuit, { plaud: 1, mail: 2 });
+    assert.equal(res.snapshot.status, 'present');
+  });
+
+  test('file du mail seule : vue (plus d etat inconnu parce que Plaud n a pas de file)', () => {
+    put('tools/mail-sync/.queue.json', JSON.stringify([]));
+    assert.equal(readLocalState(vault).queue.status, 'empty');
+  });
+
   test('verrou commun du coffre (tools/connectors/) : lu en priorite, avec celui qui le tient', () => {
     put('tools/plaud-sync/.lock.json', JSON.stringify({ pid: 99999999, started: 'miroir' }));
     put('tools/connectors/.lock.json', JSON.stringify({ pid: process.pid, started: '2026-11-06T10:00:00.000Z', owner: 'circuit mail' }));

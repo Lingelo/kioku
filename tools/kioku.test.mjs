@@ -193,6 +193,28 @@ describe('init', () => {
     assert.equal(readFileSync(path.join(vault, '.gitignore'), 'utf8').split('\n').filter((l) => l === 'tools/*/.lock.json').length, 1);
   });
 
+  test('init --mail : module mail a comptes vides, scripts mail:*, etat du module ignore ; upgrade n a rien a ajouter', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a,b', '--mail']).status, EXIT.ok);
+    const cfg = JSON.parse(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8'));
+    assert.deepEqual(cfg.modules.mail, { state: 'tools/mail-sync', accounts: [] });
+    const scripts = JSON.parse(readFileSync(path.join(vault, 'package.json'), 'utf8')).scripts;
+    assert.equal(scripts['mail:login'], 'kioku mail --login');
+    assert.equal(scripts['mail:sync'], 'kioku mail');
+    assert.match(readFileSync(path.join(vault, '.gitignore'), 'utf8'), /^tools\/\*\/\.queue\.json$/m);
+    assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
+  });
+
+  test('coffre existant qui declare modules.mail a la main : upgrade --write ajoute les scripts mail:*', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a,b']).status, EXIT.ok);
+    const file = path.join(vault, 'kioku.config.json');
+    const cfg = JSON.parse(readFileSync(file, 'utf8'));
+    cfg.modules.mail = { state: 'tools/mail-sync', accounts: [{ id: 'travail', provider: 'gmail', hint: { domain: 'a' } }] };
+    writeFileSync(file, `${JSON.stringify(cfg, null, 2)}\n`);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.equal(JSON.parse(readFileSync(path.join(vault, 'package.json'), 'utf8')).scripts['mail:drop'], 'kioku mail --drop');
+    assert.equal(JSON.parse(readFileSync(file, 'utf8')).modules.mail.accounts[0].id, 'travail', 'les comptes ne sont pas touches');
+  });
+
   test('Covers AE7 : sans --plaud, aucun reglage ni fichier Plaud', () => {
     kioku(['init', vault, '--domains', 'a,b']);
     const cfg = JSON.parse(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8'));
@@ -731,6 +753,7 @@ describe('sous-commandes relais (decision 1)', () => {
     assert.deepEqual(rel(['dashboard', 'all']), [path.join('dashboard', 'run.mjs'), 'all']);
     assert.deepEqual(rel(['dashboard', 'a', '--serve']), [path.join('dashboard', 'serve.mjs'), 'a']);
     assert.deepEqual(rel(['plaud', '--dry-run']), [path.join('plaud-sync', 'run.mjs'), '--vault', '.', '--dry-run']);
+    assert.deepEqual(rel(['mail', '--login', 'travail']), [path.join('mail-sync', 'run.mjs'), '--vault', '.', '--login', 'travail']);
     assert.equal(toolCommand(['doctor']), null);
   });
 

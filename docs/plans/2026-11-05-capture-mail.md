@@ -1,6 +1,6 @@
 # Plan : un second module de capture, le mail
 
-Date : 2026-11-05. Statut : PR 1 livrée sur `feat/connectors-socle` (en relecture), PR 2 à faire.
+Date : 2026-11-05. Statut : PR 1 sur `feat/connectors-socle` (en relecture), PR 2 sur `feat/capture-mail` (empilée sur la PR 1, en relecture).
 
 ## Objectif
 
@@ -9,7 +9,7 @@ Le core capte aujourd'hui une seule source : les notes d'un enregistreur Plaud. 
 - libellé **opt-in** (rien n'est lu hors du libellé choisi par l'utilisateur) ;
 - le **fil** est l'unité de source ; les **PDF joints** sont des sources à part entière ;
 - scope OAuth `gmail.readonly` seulement ; client OAuth **maison, sans dépendance** ;
-- jeton **hors coffre**, dans `~/.config/kioku/mail/` (jamais versionné, jamais lu par une session).
+- jeton **au trousseau du système** (repli : fichier `0600` hors coffre, `~/.config/kioku/mail/`), jamais versionné, jamais lisible par une session.
 
 Le mail réutilise le circuit de Plaud tel quel : dépôt dans `inbox/` → tri `claude -p` en mode triage (qui peut s'abstenir) → confirmation « oui » par domaine → une session ingest par source → rapport calculé sur les fichiers.
 
@@ -131,9 +131,25 @@ Patch de `hooks/guard.mjs`, sans relâcher de règle :
 
 ### Risques
 
-- Volume : un libellé mal choisi déverse des centaines de fils. Plafond par lancement et `--dry-run` en premier.
+- Volume : un libellé mal choisi déverse des centaines de fils. Fait : libellés système refusés, `--max-threads` (100 fils déposés par compte et par lancement, les plus anciens d'abord), `--dry-run` en premier.
 - Fils mixtes (pro et perso dans un même fil) : le tri doit parquer, pas trancher.
-- Expiration du jeton en plein lancement : échec franc avant tout dépôt, pas de dépôt partiel.
+- Jeton absent, révoqué ou expiré : tous les jetons sont vérifiés (et rafraîchis) avant le premier dépôt ; un seul refusé arrête tout, sans dépôt. Une panne en cours de route (réseau, quota) peut laisser dans l'entrant les fils des comptes déjà captés : ils n'y sont triés que par le circuit mail (chaque circuit ne trie que ses propres sources, `tools/connectors/owners.mjs`).
+
+### Écarts de la PR 2 par rapport à ce plan, et pourquoi
+
+- **Secrets au trousseau du système** (vérification finale, classe B1) : le jeton et le client OAuth ne sont plus des fichiers mais des entrées du trousseau (`security` sous macOS, `secret-tool` sous Linux, sans dépendance). `client.json` ne sert qu'à l'import par `--login`. Repli fichier `0600` seulement sans trousseau (Windows, Linux sans service de secrets) ou avec `secretStore: "file"`, signalé à chaque lancement et par `doctor`. La friction d'adoption change : plus de fichier de jeton à protéger ; il reste le client OAuth à créer.
+
+- **Le libellé choisit le fil, pas le message** (revue I5) : tout le fil est capté, y compris une réponse qui ne porte pas le libellé ; les brouillons, la corbeille et le spam ne le sont jamais.
+
+- **Répertoire du module** : `tools/mail-sync/` (comme `plaud-sync/`), fournisseur dans `providers/gmail.mjs`, interface `listThreads(label, since)`, `getThread(id)`, `getAttachment(msgId, attId)`.
+- **Libellé** : `label` facultatif, `kb` par défaut ; `max_pdf_mb` facultatif au niveau du module (défaut 20).
+- **`message_ids:` en plus du frontmatter prévu** : la dédup s'appuie sur les messages couverts par chaque fichier, pas seulement sur le dernier. Un message supprimé dans Gmail ne fait pas re-déposer le fil, et un fil écarté par `--drop` garde ses messages couverts (une réponse ultérieure arrive en suite).
+- **`body_sha256:`** : le nonce aléatoire du bloc non fiable rend chaque fichier unique ; l'empreinte du contenu est donc calculée sans lui et écrite en frontmatter.
+- **PDF = fiche `.pdf.md` + PDF** : la file d'ingestion et la dédup ne connaissent que des `.md`. La fiche est la source que la file connaît ; le PDF est son « compagnon ». Le socle a gagné la notion de compagnon (parcage, écart, et un compagnon oublié dans l'entrant rejoint sa fiche après le tri) et une consigne de tri par connecteur (`triageNote`).
+- **Corps du mail via `threads.get?format=full`** (un appel par fil, tailles et `attachmentId` connus avant téléchargement : un PDF trop gros n'est jamais téléchargé). `mime.mjs` sait aussi lire un message brut (`parseRaw`), pour le futur fournisseur IMAP. `body.data` est du base64url (doc `MessagePartBody`) ; la doc ne dit pas si l'encodage de transfert est retiré dessous. Décision (revue I1) : on ne décode que le base64url et on fait confiance à Gmail ; un texte qui ressemble à du quoted-printable résiduel est laissé tel quel, signalé au rapport et marqué `mail_warnings: [qp-suspect]` dans le bronze. Une heuristique de second décodage a été essayée puis retirée : elle corrompait les textes ASCII contenant `=XX` (URL à paramètres).
+- **`hint.org` validé dans `config.mjs`** contre le registre du domaine, seulement si ce registre est lisible : un registre cassé ne doit pas rendre toute la configuration invalide (la garde la charge à chaque appel d'outil).
+- **`--login` refusé dans toute session Claude Code** (pas seulement `setup`) : il ouvre un port local et attend le navigateur de l'utilisateur.
+- **`kioku upgrade --write` n'ajoute pas `modules.mail` de lui-même** : comme Plaud, il complète un module déclaré (scripts), il ne déclare pas de module.
 
 ## Alternatives écartées
 

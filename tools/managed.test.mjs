@@ -9,6 +9,15 @@ import { describe, test } from 'node:test';
 import { BLOCK_END, BLOCK_START, gitignoreBlock, appendTopLevelKeys, KIOKU_DENY, legacyTranslation, localDenyRules, managedScripts, mergeConfig, mergeDenyRules, mergeGitignore, mergeScripts, mergeSettings, VAULT_FORMAT } from './managed.mjs';
 
 describe('scripts', () => {
+  test('module mail : mail:sync, dry-run, pending, drop, login ; absents sans le module', () => {
+    const with_ = managedScripts(['a'], { mail: true });
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(with_).filter(([k]) => k.startsWith('mail:'))),
+      { 'mail:sync': 'kioku mail', 'mail:dry-run': 'kioku mail --dry-run', 'mail:pending': 'kioku mail --skip-fetch', 'mail:drop': 'kioku mail --drop', 'mail:login': 'kioku mail --login' },
+    );
+    assert.ok(!Object.keys(managedScripts(['a'])).some((k) => k.startsWith('mail:')));
+  });
+
   test('tous geres (prefixe kioku), dashboard = premier domaine, plaud conditionnel', () => {
     const s = managedScripts(['travail', 'perso']);
     assert.ok(Object.values(s).every((v) => v.startsWith('kioku ')));
@@ -148,6 +157,16 @@ describe('config', () => {
     assert.deepEqual(r.config.default_session, { mode: 'setup' });
     assert.deepEqual(r.config.modules.plaud, { state: 'ailleurs' });
     assert.deepEqual(r.added, ['modules.dashboard']);
+  });
+
+  test('module mail : ajoute avec des comptes vides si demande ; des comptes poses ne sont jamais remplaces', () => {
+    const r = mergeConfig({ version: 1, domains: [] }, { domains: ['a'], mail: true });
+    assert.deepEqual(r.config.modules.mail, { state: 'tools/mail-sync', accounts: [] });
+    assert.ok(r.added.includes('modules.mail'));
+    const kept = mergeConfig({ version: 1, domains: [], modules: { mail: { state: 'tools/mail-sync', accounts: [{ id: 'x', provider: 'gmail' }] } } }, { domains: ['a'], mail: true });
+    assert.equal(kept.config.modules.mail.accounts.length, 1);
+    assert.ok(!kept.added.includes('modules.mail'));
+    assert.equal(mergeConfig({ version: 1, domains: [] }, { domains: ['a'] }).config.modules.mail, undefined);
   });
 
   test('format absent : ajoute au format courant du core ; present : jamais remplace', () => {

@@ -20,7 +20,7 @@ import { assertDomain } from '../vault-config.mjs';
 const PLAUD_STATE_FILES = new Set(['.queue.json', '.snapshot.json', '.lock.json']);
 const isPlaudStateFile = (filename) => PLAUD_STATE_FILES.has(filename);
 // Dossiers d'etat surveilles (relatifs au coffre) : le verrou commun et l'etat de chaque connecteur.
-export const CIRCUIT_STATE_DIRS = ['tools/plaud-sync', 'tools/connectors'];
+export const CIRCUIT_STATE_DIRS = ['tools/plaud-sync', 'tools/mail-sync', 'tools/connectors'];
 
 /**
  * Cree une instance de surveillance pour un domaine donne.

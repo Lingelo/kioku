@@ -78,8 +78,8 @@ export const domainScripts = (d) => ({
   [`dashboard:serve:${d}`]: `kioku dashboard ${d} --serve`,
 });
 
-/** Tous les scripts geres d'un coffre : communs, par domaine, Plaud si le module est declare. */
-export const managedScripts = (domains, { plaud = false } = {}) => ({
+/** Tous les scripts geres d'un coffre : communs, par domaine, Plaud et mail si le module est declare. */
+export const managedScripts = (domains, { plaud = false, mail = false } = {}) => ({
   vault: 'kioku session',
   triage: 'kioku session --mode triage',
   setup: 'kioku session --mode setup',
@@ -91,6 +91,9 @@ export const managedScripts = (domains, { plaud = false } = {}) => ({
   ...Object.assign({}, ...domains.map(domainScripts)),
   ...(plaud
     ? { 'plaud:sync': 'kioku plaud', 'plaud:dry-run': 'kioku plaud --dry-run', 'plaud:pending': 'kioku plaud --skip-fetch', 'plaud:drop': 'kioku plaud --drop' }
+    : {}),
+  ...(mail
+    ? { 'mail:sync': 'kioku mail', 'mail:dry-run': 'kioku mail --dry-run', 'mail:pending': 'kioku mail --skip-fetch', 'mail:drop': 'kioku mail --drop', 'mail:login': 'kioku mail --login' }
     : {}),
 });
 
@@ -253,7 +256,7 @@ export const mergeDenyRules = (settings = {}, rules = KIOKU_DENY) => {
 };
 
 /** Ajout seul : une cle absente de la config est posee, une valeur presente n'est jamais remplacee. */
-export const mergeConfig = (config, { domains, plaud = false }) => {
+export const mergeConfig = (config, { domains, plaud = false, mail = false }) => {
   const out = { ...config };
   const added = [];
   if (out.format === undefined) {
@@ -272,6 +275,11 @@ export const mergeConfig = (config, { domains, plaud = false }) => {
   if (plaud && modules.plaud === undefined) {
     modules.plaud = { state: 'tools/plaud-sync' };
     added.push('modules.plaud');
+  }
+  // Module mail : l'etat dans le coffre, les comptes a declarer par l'utilisateur (aucun par defaut).
+  if (mail && modules.mail === undefined) {
+    modules.mail = { state: 'tools/mail-sync', accounts: [] };
+    added.push('modules.mail');
   }
   out.modules = modules;
   return { config: out, added };

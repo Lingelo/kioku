@@ -26,7 +26,10 @@ export const SESSION_MODES = ['query', 'ingest', 'triage', 'setup'];
 // Un domaine est un segment de chemin (wiki/<D>, raw/<D>…) : un nom deja porteur d'un sens dans l'arborescence est refuse.
 const RESERVED = new Set(['heritage']);
 const EXTENSIONS = new Set(['org']);
-const MODULES = new Set(['plaud', 'dashboard']);
+const MODULES = new Set(['plaud', 'dashboard', 'mail']);
+// Fournisseurs du module mail (tools/mail-sync/providers/) : un compte d'un fournisseur inconnu est refuse ici.
+export const MAIL_PROVIDERS = new Set(['gmail']);
+export const MAIL_STATE = 'tools/mail-sync';
 
 export const configFile = (vaultDir) => path.join(vaultDir, CONFIG_NAME);
 
@@ -114,6 +117,62 @@ const vaultRelative = (value) =>
 
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
+/**
+ * Le module mail : `{ state, accounts: [{ id, provider, label?, hint?: { domain?, org? } }], max_pdf_mb? }`.
+ * `hint` est un indice pour le tri, jamais une decision ; il doit quand meme designer ce qui existe : un domaine
+ * declare, et une organisation du registre de ce domaine. Le registre n'est lu que s'il est lisible : absent ou
+ * invalide, il a son propre message (orgs.mjs) et ne doit pas rendre toute la configuration invalide (la garde la
+ * charge a chaque appel d'outil).
+ */
+const mailProblems = (mail, byId, vaultDir) => {
+  const problems = [];
+  if (!isObject(mail)) return ['module mail : objet attendu'];
+  // Le dossier d'etat est fixe, comme celui de Plaud (modules.plaud.state n'est pas lu non plus) : une autre valeur
+  // serait acceptee puis ignoree (revue m1). Refusee.
+  if (mail.state !== MAIL_STATE) problems.push(`module mail : "state" doit valoir "${MAIL_STATE}" (dossier d'etat fixe du module)`);
+  if (mail.secretStore !== undefined && !['keychain', 'file'].includes(mail.secretStore)) problems.push('module mail : "secretStore" doit valoir "keychain" (defaut) ou "file"');
+  if (mail.max_pdf_mb !== undefined && !(typeof mail.max_pdf_mb === 'number' && mail.max_pdf_mb > 0)) problems.push('module mail : "max_pdf_mb" doit etre un nombre positif');
+  if (!Array.isArray(mail.accounts)) return [...problems, 'module mail : "accounts" doit etre une liste (vide pour commencer)'];
+  const ids = new Set();
+  for (const a of mail.accounts) {
+    const id = a?.id;
+    if (!DOMAIN_ID.test(id ?? '')) {
+      problems.push(`module mail : identifiant de compte invalide "${id ?? ''}" (kebab-case ASCII attendu)`);
+      continue;
+    }
+    if (ids.has(id)) problems.push(`module mail : compte en double ${id}`);
+    ids.add(id);
+    if (!MAIL_PROVIDERS.has(a.provider)) problems.push(`module mail : compte ${id}, fournisseur inconnu "${a.provider ?? ''}" (connus : ${[...MAIL_PROVIDERS].join(', ')})`);
+    if (a.label !== undefined && (typeof a.label !== 'string' || !a.label.trim())) problems.push(`module mail : compte ${id}, "label" doit etre un texte non vide`);
+    if (a.hint === undefined) continue;
+    if (!isObject(a.hint)) {
+      problems.push(`module mail : compte ${id}, "hint" doit etre un objet { domain, org }`);
+      continue;
+    }
+    for (const k of Object.keys(a.hint)) if (k !== 'domain' && k !== 'org') problems.push(`module mail : compte ${id}, cle de hint inconnue "${k}"`);
+    const { domain, org } = a.hint;
+    if (domain !== undefined && !byId.has(domain)) problems.push(`module mail : compte ${id}, hint.domain "${domain}" n'est pas un domaine declare`);
+    if (org === undefined) continue;
+    if (!DOMAIN_ID.test(org ?? '')) {
+      problems.push(`module mail : compte ${id}, hint.org invalide "${org}"`);
+      continue;
+    }
+    const registry = byId.get(domain)?.extensions?.org?.registry;
+    if (!registry) {
+      problems.push(`module mail : compte ${id}, hint.org exige un hint.domain a extension org`);
+      continue;
+    }
+    let known = null;
+    try {
+      known = new Set((JSON.parse(readFileSync(path.join(vaultDir, registry), 'utf8')).orgs ?? []).map((o) => o?.id));
+    } catch {
+      known = null; // registre absent ou illisible : signale par orgs.mjs, pas ici
+    }
+    if (known && !known.has(org)) problems.push(`module mail : compte ${id}, hint.org "${org}" absent du registre ${registry}`);
+  }
+  return problems;
+};
+
 export const loadConfig = (vaultDir) => {
   const file = configFile(vaultDir);
   if (!existsSync(file)) throw new Error(`configuration du coffre absente : ${CONFIG_NAME}`);
@@ -153,6 +212,7 @@ export const loadConfig = (vaultDir) => {
   else {
     for (const key of Object.keys(modules)) if (!MODULES.has(key)) problems.push(`module inconnu "${key}"`);
     if (modules.plaud !== undefined && !vaultRelative(modules.plaud?.state)) problems.push('module plaud : "state" doit etre un chemin relatif au coffre');
+    if (modules.mail !== undefined) problems.push(...mailProblems(modules.mail, byId, vaultDir));
   }
   if (data?.core !== undefined && (typeof data.core !== 'string' || data.core === '')) problems.push('"core" doit etre un chemin');
   // Le format de coffre exige (entier >= 1, 1 s'il manque) : compare au format du core par doctor, le lanceur et le

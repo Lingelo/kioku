@@ -92,7 +92,8 @@ Chacun appelle `kioku session|dashboard|plaud|…` ; la session porte `VAULT_MOD
 
 - **Dashboard** (`tools/dashboard/`) : état du médaillon, graphe 3D de l'or, et questions au wiki depuis un navigateur local. La vidéo de présentation de l'onglet Mode d'emploi n'est pas versionnée (trop lourde) : sa source est `tools/dashboard/video/` ; déposez le rendu dans `tools/dashboard/vendor/media/kioku-explainer.mp4`.
 - **Plaud** (`tools/plaud-sync/`) : dépose les notes d'un enregistreur Plaud dans l'entrant, les trie par domaine, demande confirmation, puis les ingère.
-  Le circuit commun aux modules de capture (tri, confirmation, ingestion, rapport, verrou du coffre) vit dans `tools/connectors/` ; Plaud y est branché comme un connecteur.
+- **Mail** (`tools/mail-sync/`) : dépose les fils Gmail d'un libellé choisi (lecture seule, PDF joints en sources), puis le même circuit. Chaque utilisateur crée son client OAuth ([guide](docs/guide/08-capture.md#mail)).
+  Le circuit commun aux modules de capture (tri, confirmation, ingestion, rapport, verrou du coffre) vit dans `tools/connectors/` ; Plaud et le mail y sont branchés comme connecteurs.
 
 ## Ce que la garde ne fait pas
 
