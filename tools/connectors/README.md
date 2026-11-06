@@ -36,6 +36,8 @@ await runCircuit({
 });
 ```
 
+**À qui appartient une source** (`owners.mjs`) : chaque connecteur marque ses dépôts d'un champ de frontmatter (Plaud : `plaud_id:`). Un circuit ne trie, ne parque et ne met en file que ses propres sources (`id` du connecteur) ; celles d'un autre circuit restent dans l'entrant et sont nommées au rapport. Une source sans marque (déposée à la main) reste à Plaud, comme avant le socle.
+
 Ce que le connecteur décide seul : quel identifiant fait foi pour la déduplication, son registre, ses options propres (Plaud : `--since`, `--skip`). Ce qu'il ne décide jamais : le domaine. Le tri juge sur le contenu ; un indice venu de la configuration reste un indice.
 
 ## Verrou : transition

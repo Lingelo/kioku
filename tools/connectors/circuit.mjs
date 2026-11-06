@@ -35,6 +35,7 @@ import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { acquire, holderText, lockPath, release } from './lock.mjs';
 import { inboxDir, logReason, mdIn, park, parkedDir, parseEmptyLines, pruneReasons } from './parked.mjs';
+import { ownsFile } from './owners.mjs';
 import { validState } from './pending.mjs';
 import { CORE_BIN, withCorePath } from '../core-path.mjs';
 import { skill } from '../names.mjs';
@@ -48,6 +49,8 @@ const PENDING = path.join(HERE, 'pending.mjs');
  * Ce qu'un connecteur fournit au circuit.
  * @typedef {object} Connector
  * @property {string} [name] - nom affiche (verrou, messages) ; Plaud : Plaud. A defaut, le dossier d'etat
+ * @property {string} [id] - identifiant de proprietaire (owners.mjs) : le circuit ne trie et ne met en file que les
+ *   sources de ce connecteur. Absent : toutes les sources de l'entrant (comportement anterieur)
  * @property {string} state - dossier d'etat local, relatif au coffre (file d'ingestion) ; Plaud : tools/plaud-sync
  * @property {(ctx: {argv: string[], dryRun: boolean, node: Function, fail: Function, title: Function}) => void} fetch
  *   - depose dans inbox/ (sans domaine) ; appelle `fail` en cas d'echec
@@ -188,7 +191,7 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
   const node = (script, args = [], { capture = false } = {}) =>
     spawnSync(process.execPath, [script, ...args], { cwd: VAULT, env: baseEnv, encoding: 'utf8', stdio: capture ? ['ignore', 'pipe', 'inherit'] : ['ignore', 'inherit', 'inherit'] });
   /** La file d'ingestion du connecteur (etat dans son dossier). */
-  const pending = (args, opts) => node(PENDING, ['--state', connector.state, ...args], opts);
+  const pending = (args, opts) => node(PENDING, ['--state', connector.state, ...(connector.id ? ['--connector', connector.id] : []), ...args], opts);
 
   /**
    * Une session sous la garde : mode et domaine se lisent dans l'environnement, comme dans vault.mjs.
@@ -227,7 +230,10 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
 
   // Les indecis : rien n'est classe, ils attendent l'utilisateur dans inbox/a-trancher/ (local, jamais versionne, comme inbox/).
   const PARKED = parkedDir(VAULT);
-  const inbox = () => mdIn(INBOX);
+  // Seules les sources de CE connecteur (owners.mjs, revue I2) : celles d'un autre circuit restent dans l'entrant.
+  const mine = (rel) => !connector.id || ownsFile(connector.id, path.join(INBOX, rel));
+  const inbox = () => mdIn(INBOX).filter(mine);
+  const foreign = () => mdIn(INBOX).filter((f) => !mine(f));
   const parked = () => mdIn(PARKED);
 
   // Decisions explicites de l'utilisateur sur des indecis (--decide fichier=domaine[:org,org]) : transmises a la session
@@ -337,7 +343,13 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
 
   // 2. Tri : session triage, automatique. La photo de raw/ avant/apres dit ce qui est range ; les indecis sont parques.
   // Sans decision explicite, inbox/a-trancher/ n'est pas re-trie : une source indecise ne bloque pas les lancements suivants.
-  const decided = decisions.map((d) => (existsSync(path.join(PARKED, d.file)) ? `a-trancher/${d.file}` : d.file));
+  const decided = decisions
+    .map((d) => (existsSync(path.join(PARKED, d.file)) ? `a-trancher/${d.file}` : d.file))
+    .filter((rel) => {
+      if (!existsSync(path.join(INBOX, rel)) || mine(rel)) return true;
+      console.warn(`--decide ${path.basename(rel)} ignore : cette source appartient a un autre circuit de capture.`);
+      return false;
+    });
   const toSort = [...new Set([...inbox(), ...decided])];
   // Les notes que le tri dit sans contenu (ligne VIDE), parquees comme les indecis : fichier -> raison.
   let empties = new Map();
@@ -522,6 +534,7 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
   pruneReasons(VAULT);
   const left = queue();
   const undecided = parked();
+  const others = foreign();
   console.log(`Ingerees (page or presente) : ${todo.length - left.length} / ${todo.length}`);
   if (left.length) {
     console.log('PAS entrees dans l\'or (a reprendre : relance avec --skip-fetch) :');
@@ -535,6 +548,10 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
     console.log(`  ${commands.run} --skip-fetch --decide <fichier>=<${DOMAINS.join('|')}>${ORG_DOMAIN ? `[:<org>]` : ''}   (repetable${ORG_DOMAIN ? `, :<org> impose l'organisation en ${ORG_DOMAIN}` : ''})`);
     console.log(`  ${commands.drop.padEnd(65)}(ecartee pour de bon, ne revient pas)`);
     for (const f of undecided) console.log(`  ${f}`);
+  }
+  if (others.length) {
+    console.log(`\nLaissees dans l'entrant, d'un autre circuit de capture (${others.length}) : ce circuit ne les trie pas, lance celui qui les a deposees.`);
+    for (const f of others) console.log(`  ${f}`);
   }
   console.log('\nA decider (retenues par la gate, codes seulement) :');
   spawnSync(KIOKU, ['undecided'], { cwd: VAULT, env: baseEnv, stdio: ['ignore', 'inherit', 'inherit'] });

@@ -10,6 +10,7 @@
  *
  * `--state` : le dossier d'etat local du connecteur, relatif au coffre (Plaud : tools/plaud-sync, voir
  * tools/plaud-sync/pending.mjs qui le fixe). Le coffre vise est CLAUDE_PROJECT_DIR, sinon le dossier courant.
+ * `--connector <id>` (facultatif) : `queue` n'ajoute que les sources de ce connecteur (owners.mjs).
  *
  * Pourquoi une file et pas « tout raw/ sans page or » : les reunions heritees (raw/pro/meetings) ont ete traitees
  * en raccourci bronze -> or (CLAUDE.md §3, amorcage) ; elles ne sont pas a ingerer. Seul ce que CE circuit vient
@@ -44,6 +45,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { domainsOf, vaultRoot } from '../vault-config.mjs';
+import { ownsFile } from './owners.mjs';
 
 /** Un dossier d'etat relatif au coffre, sans remontee ni chemin absolu : l'etat d'un connecteur reste dans le coffre. */
 export const validState = (state) =>
@@ -53,7 +55,7 @@ export const validState = (state) =>
  * La file d'un connecteur, sur le coffre `vault`, etat dans `<vault>/<state>/`. Rend le code de sortie.
  * Configuration absente ou invalide : on s'arrete (code 1), rien n'est ecrit.
  */
-export const runPending = (args, { vault = vaultRoot(undefined), state } = {}) => {
+export const runPending = (args, { vault = vaultRoot(undefined), state, connector } = {}) => {
   if (!validState(state)) {
     console.error(`pending.mjs : --state attend un dossier relatif au coffre, sans "..", recu "${state ?? ''}".`);
     return 1;
@@ -164,6 +166,11 @@ export const runPending = (args, { vault = vaultRoot(undefined), state } = {}) =
       const known = new Set(before[domain] ?? []);
       for (const rel of rawFiles(domain)) {
         if (known.has(rel) || q.some((x) => x.domain === domain && x.rel === rel)) continue;
+        // Une source d'un autre connecteur apparue pendant ce tri (rangee a la main en parallele) : pas dans cette file.
+        if (connector && !ownsFile(connector, path.join(VAULT, 'raw', domain, rel))) {
+          console.log(`hors file (autre connecteur) : ${domain}  ${rel}`);
+          continue;
+        }
         q.push({ domain, rel });
         added++;
         console.log(`file : ${domain}  ${rel}`);
@@ -229,8 +236,15 @@ export const isMain = (url, argv1 = process.argv[1]) => {
 
 // En ligne de commande : `--state <dossier>` puis la commande.
 if (isMain(import.meta.url)) {
-  const argv = process.argv.slice(2);
-  const i = argv.indexOf('--state');
-  const state = i >= 0 ? argv[i + 1] : undefined;
-  process.exit(runPending(i >= 0 ? [...argv.slice(0, i), ...argv.slice(i + 2)] : argv, { state }));
+  let argv = process.argv.slice(2);
+  const take = (name) => {
+    const i = argv.indexOf(name);
+    if (i < 0) return undefined;
+    const value = argv[i + 1];
+    argv = [...argv.slice(0, i), ...argv.slice(i + 2)];
+    return value;
+  };
+  const state = take('--state');
+  const connector = take('--connector');
+  process.exit(runPending(argv, { state, connector }));
 }

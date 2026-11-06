@@ -14,4 +14,4 @@ import { runPending } from '../connectors/pending.mjs';
 
 const PLAUD_STATE = 'tools/plaud-sync';
 
-process.exit(runPending(process.argv.slice(2), { state: PLAUD_STATE }));
+process.exit(runPending(process.argv.slice(2), { state: PLAUD_STATE, connector: 'plaud' }));
