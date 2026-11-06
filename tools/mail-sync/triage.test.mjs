@@ -126,3 +126,37 @@ describe('parcage au doute', () => {
     assert.ok(!r.tours.some((t) => t[0] === 'MODE=ingest'));
   });
 });
+
+// I2 : chaque circuit ne trie que ses propres sources ; celles d'un autre restent dans l'entrant, nommees au rapport.
+describe('sources d un autre circuit', () => {
+  const PLAUD_RUN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'plaud-sync', 'run.mjs');
+  const NOTE = '2026-11-03-reunion-atelier.md';
+
+  test('kioku mail laisse une note Plaud dans l entrant, sans la trier ni la parquer', () => {
+    writeFileSync(path.join(vault, 'inbox', NOTE), '---\nplaud_id: of_invente\n---\n\n# Reunion atelier\n');
+    const r = run('abstient');
+    const prompt = promptOf(r.tours.find((t) => t[0] === 'MODE=triage'));
+    assert.ok(!prompt.includes(NOTE), 'la note Plaud n est pas dans le prompt du tri mail');
+    assert.ok(existsSync(path.join(vault, 'inbox', NOTE)), 'elle reste dans l entrant');
+    assert.ok(!existsSync(path.join(vault, 'inbox', 'a-trancher', NOTE)), 'elle n est pas parquee');
+    assert.match(r.stdout, new RegExp(`Laissees dans l'entrant, d'un autre circuit de capture \\(1\\)[\\s\\S]*${NOTE.replace(/\./g, '\\.')}`));
+  });
+
+  test('kioku plaud laisse les fils et fiches mail dans l entrant ; il ne trie que ses notes', () => {
+    writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }, { id: 'perso' }], modules: { plaud: { state: 'tools/plaud-sync' }, mail: { state: 'tools/mail-sync', accounts: [] } } });
+    writeFileSync(path.join(vault, 'inbox', NOTE), '---\nplaud_id: of_invente\n---\n\n# Reunion atelier\n');
+    const log = path.join(vault, 'appels-plaud.txt');
+    const r = spawnSync(process.execPath, [PLAUD_RUN, '--vault', vault, '--skip-fetch'], {
+      encoding: 'utf8',
+      env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log, FAUX_TRI: 'aucun' },
+    });
+    const tours = readFileSync(log, 'utf8').split('---FIN-TOUR---\n').filter((t) => t.trim()).map((t) => t.split('\n').filter(Boolean));
+    const prompt = promptOf(tours.find((t) => t[0] === 'MODE=triage'));
+    assert.ok(prompt.includes(NOTE));
+    for (const f of [files.thread, files.stub]) assert.ok(!prompt.includes(f), `${f} hors du tri Plaud`);
+    assert.doesNotMatch(prompt, /untrusted-mail-data/, 'pas de consigne mail : ce n est pas son circuit');
+    for (const f of [files.thread, files.stub, files.pdf]) assert.ok(existsSync(path.join(vault, 'inbox', f)), `${f} reste dans l entrant`);
+    assert.match(r.stdout, /Laissees dans l'entrant, d'un autre circuit de capture \(2\)/);
+  });
+});
+

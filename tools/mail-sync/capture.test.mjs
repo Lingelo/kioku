@@ -254,6 +254,22 @@ describe('circuit : compagnons et ecart', () => {
     }
   });
 
+  test('tous les jetons verifies avant le premier depot : un seul refuse, aucun depot (I2)', async () => {
+    const cfgHome = mkdtempSync(path.join(tmpdir(), 'kioku-mail-xdg-'));
+    try {
+      const { saveToken } = await import('./oauth.mjs');
+      saveToken('a', { access_token: 'x', refresh_token: 'r', expires_at: Date.now() + 3_600_000 }, path.join(cfgHome, 'kioku', 'mail'));
+      writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', accounts: [{ id: 'a', provider: 'gmail' }, { id: 'b', provider: 'gmail' }] } } });
+      const r = spawnSync(process.execPath, [path.join(HERE, 'fetch-mail.mjs'), '--since', '2026-11-01'], { encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: vault, XDG_CONFIG_HOME: cfgHome } });
+      assert.equal(r.status, 1);
+      assert.match(r.stderr, /compte b : pas de jeton/);
+      assert.match(r.stderr, /aucun depot/);
+      assert.ok(!existsSync(path.join(vault, 'inbox')), 'le compte a n a rien depose');
+    } finally {
+      rmSync(cfgHome, { recursive: true, force: true });
+    }
+  });
+
   test('run.mjs --login depuis une session Claude Code : refuse, rien n est ouvert', () => {
     writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', accounts: [{ id: 'travail', provider: 'gmail' }] } } });
     const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--login', 'travail'], { encoding: 'utf8', env: { ...process.env, CLAUDECODE: '1' } });

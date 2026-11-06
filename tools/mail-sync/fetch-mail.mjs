@@ -56,6 +56,25 @@ const maxMb = Number(opt('--max-pdf-mb') ?? mail.max_pdf_mb ?? DEFAULT_MAX_PDF_M
 if (!(maxMb > 0)) fail('--max-pdf-mb attend un nombre positif');
 const since = opt('--since') ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
+// Tous les jetons d'abord : un jeton absent, revoque ou expire arrete tout AVANT le premier depot (aucun depot partiel
+// pour cette cause). Une panne en cours de route (reseau, quota) peut encore laisser les comptes deja captes dans
+// l'entrant : ils n'y sont tries que par le circuit mail (owners.mjs), au lancement suivant.
+{
+  const refused = [];
+  for (const account of accounts) {
+    if (!PROVIDERS[account.provider]) continue;
+    try {
+      await accessToken(account.id);
+    } catch (error) {
+      refused.push(`compte ${account.id} : ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  if (refused.length) {
+    for (const line of refused) console.error(line);
+    fail('aucun depot : corrige le ou les jetons ci-dessus, puis relance');
+  }
+}
+
 let failed = 0;
 for (const account of accounts) {
   const make = PROVIDERS[account.provider];

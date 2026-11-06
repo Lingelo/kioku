@@ -133,7 +133,7 @@ Patch de `hooks/guard.mjs`, sans relâcher de règle :
 
 - Volume : un libellé mal choisi déverse des centaines de fils. Plafond par lancement et `--dry-run` en premier.
 - Fils mixtes (pro et perso dans un même fil) : le tri doit parquer, pas trancher.
-- Expiration du jeton en plein lancement : échec franc avant tout dépôt, pas de dépôt partiel.
+- Jeton absent, révoqué ou expiré : tous les jetons sont vérifiés (et rafraîchis) avant le premier dépôt ; un seul refusé arrête tout, sans dépôt. Une panne en cours de route (réseau, quota) peut laisser dans l'entrant les fils des comptes déjà captés : ils n'y sont triés que par le circuit mail (chaque circuit ne trie que ses propres sources, `tools/connectors/owners.mjs`).
 
 ### Écarts de la PR 2 par rapport à ce plan, et pourquoi
 

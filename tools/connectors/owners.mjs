@@ -1,7 +1,8 @@
 /**
  * A quel connecteur appartient une source de l'entrant (revue I2).
  *
- * Chaque connecteur marque ses depots d'un champ de frontmatter qui lui est propre (Plaud : `plaud_id:`). Un circuit
+ * Chaque connecteur marque ses depots d'un champ de frontmatter qui lui est propre (Plaud : `plaud_id:`, mail :
+ * `gmail_thread_id:`, y compris sur la fiche d'un PDF joint). Un circuit
  * ne trie, ne parque et ne met en file que ses propres sources : le tri d'un autre circuit n'a ni sa consigne
  * (`triageNote` : donnee non fiable, indices) ni sa file. Le reste reste dans l'entrant, signale au rapport, pour le
  * circuit qui le possede.
@@ -13,7 +14,7 @@
 import { readFileSync } from 'node:fs';
 
 /** Les marques connues : identifiant du connecteur -> champ de frontmatter. */
-export const MARKERS = { plaud: 'plaud_id' };
+export const MARKERS = { plaud: 'plaud_id', mail: 'gmail_thread_id' };
 export const DEFAULT_OWNER = 'plaud';
 
 const head = (text) => String(text ?? '').replace(/\r\n/g, '\n').match(/^---\n([\s\S]*?)\n---/)?.[1] ?? '';

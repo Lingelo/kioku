@@ -63,6 +63,8 @@ if (argv.includes('--login')) {
 const passThrough = (name) => (opt(name) !== undefined ? [name, opt(name)] : []);
 
 const mailConnector = {
+  id: 'mail',
+  name: 'mail',
   state: STATE,
   fetch: ({ argv: args, dryRun, node, fail, title }) => {
     const i = args.indexOf('--since');
