@@ -421,6 +421,20 @@ describe('upgrade', () => {
     assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
   });
 
+  test('N3 : upgrade --write ajoute .claude/settings.local.json au .gitignore gere d un coffre existant, une seule fois ; git l ignore', () => {
+    const gi = path.join(vault, '.gitignore');
+    writeFileSync(gi, readFileSync(gi, 'utf8').replace('.claude/settings.local.json\n', ''));
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.equal(readFileSync(gi, 'utf8').split('\n').filter((l) => l === '.claude/settings.local.json').length, 1);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.equal(readFileSync(gi, 'utf8').split('\n').filter((l) => l === '.claude/settings.local.json').length, 1);
+    if (spawnSync('git', ['--version']).status === 0) {
+      spawnSync('git', ['init', '-q'], { cwd: vault });
+      assert.equal(spawnSync('git', ['check-ignore', '-q', '.claude/settings.local.json'], { cwd: vault }).status, 0);
+      assert.notEqual(spawnSync('git', ['check-ignore', '-q', '.claude/settings.json'], { cwd: vault }).status, 0, 'settings.json reste versionne');
+    }
+  });
+
   test('(c) XDG_CONFIG_HOME hors ~/.config : regle absolue dans settings.local.json (propre au poste), idempotente', () => {
     const xdg = path.join(root, 'xdg');
     const local = path.join(vault, '.claude', 'settings.local.json');

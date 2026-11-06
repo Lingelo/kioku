@@ -147,6 +147,11 @@ export const gitignoreBlock = ({ plaud = false } = {}) =>
     'tools/*/.lock.json',
     'tools/*/.queue.json',
     'tools/*/.snapshot.json',
+    // Les reglages propres au poste : kioku init / upgrade y posent une regle de refus absolue (XDG_CONFIG_HOME) ; Claude
+    // Code ignore ce fichier quand il le cree, pas quand c'est Kioku. Verifie : un settings.local.json suivi par git est
+    // tenu pour fourni par le depot (doc des permissions).
+    '# Reglages Claude Code propres a ce poste',
+    '.claude/settings.local.json',
     ...(plaud ? ['# Etat local du circuit Plaud', 'tools/plaud-sync/.snapshot.json', 'tools/plaud-sync/.queue.json', 'tools/plaud-sync/.lock.json'] : []),
     BLOCK_END,
   ].join('\n');

@@ -63,6 +63,14 @@ describe('.gitignore', () => {
     assert.doesNotMatch(gitignoreBlock(), /plaud/);
   });
 
+  test('N3 : .claude/settings.local.json (regles propres au poste) est ignore, une seule fois, module Plaud ou non', () => {
+    for (const block of [gitignoreBlock(), gitignoreBlock({ plaud: true })]) {
+      assert.equal(block.split('\n').filter((l) => l === '.claude/settings.local.json').length, 1);
+    }
+    const once = mergeGitignore('node_modules/\n', gitignoreBlock());
+    assert.equal(mergeGitignore(once, gitignoreBlock()), once, 'idempotent');
+  });
+
   test('un bloc d une version anterieure (sans l etat des circuits) est complete, une seule fois', () => {
     const old = `node_modules/\n${BLOCK_START}\ninbox/\n.env\n${BLOCK_END}\nmaison/\n`;
     const once = mergeGitignore(old, gitignoreBlock());
