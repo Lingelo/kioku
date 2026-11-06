@@ -49,22 +49,20 @@ Connexion : PKCE S256, boucle locale `127.0.0.1` (port choisi par le système), 
 
 Un autre fournisseur (IMAP) implémente la même interface et se déclare dans `PROVIDERS` (`fetch-mail.mjs`) et `MAIL_PROVIDERS` (`hooks/config.mjs`) ; `mime.mjs` (`parseRaw`) lit déjà un message brut.
 
-## Encodage des corps : ce que dit la doc, et ce qu'elle ne dit pas
+## Encodage des corps : ce que dit la doc, et ce qui est fait
 
 Documentation officielle, ressource `MessagePartBody` (https://developers.google.com/gmail/api/reference/rest/v1/users.messages.attachments) :
-`data` = « The body data of a MIME message part as a base64url encoded string. » ; `size` = « Number of bytes for the
-message part data (encoding notwithstanding). » Même champ pour `users.messages.attachments.get`.
+`data` = « The body data of a MIME message part as a base64url encoded string. » Même champ pour `attachments.get`.
 
-Le fournisseur décode donc toujours le base64url (alphabet `-_`, remplissage absent toléré). La doc **ne dit pas** si
-l'encodage de transfert de la partie (`Content-Transfer-Encoding: quoted-printable | base64`) est déjà retiré sous ce
-base64url. Le décodeur tolère les deux formes (`undoTransferIfStill`, `mime.mjs`) : il ne décode une seconde fois que
-si les octets portent encore sans ambiguïté la marque de cet encodage. Risque résiduel, dit : un corps déjà décodé de
-8 caractères ou plus, sans espace ni accent, composé seulement de l'alphabet base64 et de longueur multiple de 4, sous
-une partie déclarée `base64`, serait décodé à tort. Tests : `gmail-payload.test.mjs` (charge utile au format réel de
-`messages.get`, les deux formes).
+Le fournisseur décode ce base64url, et rien d'autre : on fait confiance à Gmail pour l'encodage de transfert de la
+partie (revue I1). Un second décodage « au cas où » corromprait un texte déjà décodé (une URL `?id=12&page=2` dans une
+partie `quoted-printable`) dans un bronze jamais réécrit. Si un texte d'une partie déclarée `quoted-printable` ressemble
+fortement à du quoted-printable résiduel (`=C3=A9`, coupures douces), il est laissé tel quel, le bronze porte
+`mail_warnings: ["qp-suspect"]` et le rapport le signale : à vérifier à la main. Tests : `gmail-payload.test.mjs`.
 
 ## Non vérifié contre l'API réelle
 
-Les tests simulent l'API ; aucun appel réel n'a été fait. À confirmer au premier lancement réel : laquelle des deux
-formes ci-dessus l'API rend, et que la requête `after:AAAA/MM/JJ` combinée à `labelIds` liste les fils ayant un message
-depuis cette date.
+Les tests simulent l'API ; aucun appel réel n'a été fait. À confirmer au premier lancement réel : qu'aucun bronze ne
+porte `qp-suspect` sur un mail `quoted-printable` ordinaire (sinon Gmail ne décode pas le transfert, et la décision I1
+est à revoir), et que la requête `after:AAAA/MM/JJ` combinée à `labelIds` liste les fils ayant un message depuis cette
+date.

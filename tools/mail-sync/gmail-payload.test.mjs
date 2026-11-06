@@ -4,8 +4,10 @@
  * Reference (developers.google.com/gmail/api/reference/rest/v1/users.messages.attachments, ressource MessagePartBody) :
  *   data : « The body data of a MIME message part as a base64url encoded string. »
  *   size : « Number of bytes for the message part data (encoding notwithstanding). »
- * La doc ne dit pas si l'encodage de TRANSFERT de la partie (Content-Transfer-Encoding) est deja retire avec
- * format=full : les deux formes sont testees (retire / encore present). Contenus inventes, adresses en example.com.
+ * Revue I1 : on ne decode que ce base64url, et on fait confiance a Gmail pour l'encodage de TRANSFERT de la partie.
+ * Si un texte ressemble fortement a du quoted-printable residuel, il n'est PAS decode une seconde fois (cela
+ * corromprait un texte deja decode) : il est signale (`qp-suspect`, `mail_warnings:` du bronze). Contenus inventes,
+ * adresses en example.com.
  */
 
 import assert from 'node:assert/strict';
@@ -17,7 +19,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { writeTestConfig } from '../test-vault.mjs';
 import { captureAccount } from './capture.mjs';
 import { jsonResponse } from './fixtures.mjs';
-import { fromBase64, undoTransferIfStill } from './mime.mjs';
+import { fromBase64, qpSuspect } from './mime.mjs';
 import { createGmail, messageFromApi } from './providers/gmail.mjs';
 
 /** base64url sans remplissage, comme l'API. */
@@ -107,7 +109,7 @@ const apiMessage = (transfer) => {
 };
 
 /** Un `fetch` qui sert labels, threads.list, threads.get et attachments.get au format de l'API. */
-const api = (message, { attachmentTransfer = 'removed' } = {}) => {
+const api = (message) => {
   const calls = [];
   const fetch = async (url) => {
     calls.push(String(url));
@@ -116,8 +118,7 @@ const api = (message, { attachmentTransfer = 'removed' } = {}) => {
     if (p === '/threads') return jsonResponse(200, { threads: [{ id: message.threadId, snippet: message.snippet, historyId: message.historyId }], resultSizeEstimate: 1 });
     if (p === `/threads/${message.threadId}`) return jsonResponse(200, { id: message.threadId, historyId: message.historyId, messages: [message] });
     if (p === `/messages/${message.id}/attachments/ANGjdJ8-exemple_id`) {
-      const bytes = attachmentTransfer === 'kept' ? Buffer.from(PDF.toString('base64'), 'ascii') : PDF;
-      return jsonResponse(200, { size: PDF.length, data: b64url(bytes) });
+      return jsonResponse(200, { size: PDF.length, data: b64url(PDF) });
     }
     return jsonResponse(404, { error: { code: 404, message: 'Not Found', status: 'NOT_FOUND' } });
   };
@@ -132,23 +133,45 @@ describe('base64url de l API', () => {
   });
 });
 
-for (const transfer of ['removed', 'kept']) {
-  describe(`messages.get format=full, encodage de transfert ${transfer === 'removed' ? 'deja retire' : 'encore present'}`, () => {
-    test('en-tetes RFC 2047, text/plain UTF-8 prefere, pieces jointes par attachmentId', () => {
-      const m = messageFromApi(apiMessage(transfer));
-      assert.equal(m.headers.subject, 'Réunion déplacée');
-      assert.equal(m.headers.from, 'Alice Métayer <alice@example.com>');
-      assert.equal(m.text, TEXT);
-      assert.deepEqual(m.attachments.map((a) => [a.filename, a.attachmentId, a.size, a.transferEncoding]), [['compte-rendu.pdf', 'ANGjdJ8-exemple_id', PDF.length, 'base64']]);
-    });
-
-    test('sans text/plain : le HTML windows-1252 (guillemet 0x92) converti', () => {
-      const msg = apiMessage(transfer);
-      msg.payload.parts[0].parts.shift();
-      assert.equal(messageFromApi(msg).text, 'Réunion déplacée à jeudi, l’ordre du jour suit.');
-    });
+describe('messages.get format=full (corps decode par Gmail)', () => {
+  test('en-tetes RFC 2047, text/plain UTF-8 prefere, pieces jointes par attachmentId, aucun avertissement', () => {
+    const m = messageFromApi(apiMessage('removed'));
+    assert.equal(m.headers.subject, 'Réunion déplacée');
+    assert.equal(m.headers.from, 'Alice Métayer <alice@example.com>');
+    assert.equal(m.text, TEXT);
+    assert.deepEqual(m.attachments.map((a) => [a.filename, a.attachmentId, a.size]), [['compte-rendu.pdf', 'ANGjdJ8-exemple_id', PDF.length]]);
+    assert.deepEqual(m.warnings, []);
   });
-}
+
+  test('sans text/plain : le HTML windows-1252 (guillemet 0x92) converti', () => {
+    const msg = apiMessage('removed');
+    msg.payload.parts[0].parts.shift();
+    assert.equal(messageFromApi(msg).text, 'Réunion déplacée à jeudi, l’ordre du jour suit.');
+  });
+
+  test('une URL a parametres dans une partie quoted-printable deja decodee : intacte, sans avertissement', () => {
+    const msg = apiMessage('removed');
+    const url = 'Facture : https://example.com/facture?id=1234&page=2&x=3D (lien)';
+    msg.payload.parts[0].parts[0].body = { size: url.length, data: b64url(Buffer.from(url)) };
+    const m = messageFromApi(msg);
+    assert.equal(m.text, url);
+    assert.deepEqual(m.warnings, []);
+  });
+});
+
+describe('quoted-printable residuel : signale, jamais decode (I1)', () => {
+  test('le texte reste tel quel, avec l avertissement qp-suspect', () => {
+    const m = messageFromApi(apiMessage('kept'));
+    assert.equal(m.text, 'R=C3=A9union d=C3=A9plac=C3=A9e =C3=A0 jeudi =E2=80=94 merci.');
+    assert.deepEqual(m.warnings, ['qp-suspect']);
+  });
+  test('qpSuspect : octets hauts encodes en suite, ou deux coupures douces ; pas une URL ni un = isole', () => {
+    assert.equal(qpSuspect('caf=C3=A9'), true);
+    assert.equal(qpSuspect('ligne un=\nligne deux=\nfin'), true);
+    assert.equal(qpSuspect('?id=1234&page=2&x=3D'), false);
+    assert.equal(qpSuspect('Prix = 3 €, a=b'), false);
+  });
+});
 
 describe('bout en bout : depot d un fil reel', () => {
   let vault;
@@ -158,32 +181,25 @@ describe('bout en bout : depot d un fil reel', () => {
   });
   afterEach(() => rmSync(vault, { recursive: true, force: true }));
 
-  for (const [transfer, attachmentTransfer] of [['removed', 'removed'], ['kept', 'kept']]) {
-    test(`corps et PDF (attachments.get) decodes, transfert ${transfer}`, async () => {
-      const { fetch, calls } = api(apiMessage(transfer), { attachmentTransfer });
-      const out = await captureAccount({ vault, account: { id: 'travail', provider: 'gmail' }, provider: createGmail({ token: async () => 'tok', fetch }), since: '2026-11-01', log: () => {} });
-      assert.equal(out.deposited.length, 1);
-      assert.ok(calls.some((u) => u.endsWith('/attachments/ANGjdJ8-exemple_id')), 'le PDF est telecharge par attachmentId');
-      const md = readFileSync(path.join(vault, 'inbox', out.deposited[0]), 'utf8');
-      assert.ok(md.includes(TEXT));
-      assert.match(md, /^subject: "Réunion déplacée"$/m);
-      assert.deepEqual(readFileSync(path.join(vault, 'inbox', out.pdfs[0])), PDF, 'le PDF depose est le PDF d origine, octet pour octet');
-    });
-  }
-});
+  test('corps et PDF (attachments.get, base64url) decodes, octet pour octet', async () => {
+    const { fetch, calls } = api(apiMessage('removed'));
+    const out = await captureAccount({ vault, account: { id: 'travail', provider: 'gmail' }, provider: createGmail({ token: async () => 'tok', fetch }), since: '2026-11-01', log: () => {} });
+    assert.equal(out.deposited.length, 1);
+    assert.ok(calls.some((u) => u.endsWith('/attachments/ANGjdJ8-exemple_id')), 'le PDF est telecharge par attachmentId');
+    const md = readFileSync(path.join(vault, 'inbox', out.deposited[0]), 'utf8');
+    assert.ok(md.includes(TEXT));
+    assert.match(md, /^subject: "Réunion déplacée"$/m);
+    assert.doesNotMatch(md, /^mail_warnings:/m);
+    assert.deepEqual(readFileSync(path.join(vault, 'inbox', out.pdfs[0])), PDF);
+  });
 
-describe('undoTransferIfStill : ne decode pas deux fois', () => {
-  test('texte deja decode (accents, espaces) : intact', () => {
-    for (const cte of ['quoted-printable', 'base64']) {
-      assert.equal(undoTransferIfStill(Buffer.from('Prix = 3 €, réunion à 10h', 'utf8'), cte).toString('utf8'), 'Prix = 3 €, réunion à 10h');
-      assert.equal(undoTransferIfStill(Buffer.from('Merci', 'ascii'), cte).toString(), 'Merci');
-    }
-  });
-  test('PDF deja decode : intact ; PDF encore en base64 : decode', () => {
-    assert.deepEqual(undoTransferIfStill(PDF, 'base64'), PDF);
-    assert.deepEqual(undoTransferIfStill(Buffer.from(PDF.toString('base64').replace(/(.{76})/g, '$1\r\n')), 'base64'), PDF);
-  });
-  test('7bit, 8bit, absent : jamais touche', () => {
-    for (const cte of ['7bit', '8bit', 'binary', '']) assert.equal(undoTransferIfStill(Buffer.from('a=C3=A9'), cte).toString(), 'a=C3=A9');
+  test('quoted-printable residuel : bronze avec mail_warnings et texte intact, signale au rapport', async () => {
+    const logs = [];
+    const out = await captureAccount({ vault, account: { id: 'travail', provider: 'gmail' }, provider: createGmail({ token: async () => 'tok', fetch: api(apiMessage('kept')).fetch }), since: '2026-11-01', log: (l) => logs.push(l) });
+    const md = readFileSync(path.join(vault, 'inbox', out.deposited[0]), 'utf8');
+    assert.match(md, /^mail_warnings: \["qp-suspect"\]$/m);
+    assert.ok(md.includes('R=C3=A9union d=C3=A9plac=C3=A9e'), 'rien n est decode une seconde fois');
+    assert.deepEqual(out.warnings, [{ file: out.deposited[0], warnings: ['qp-suspect'] }]);
+    assert.ok(logs.some((l) => /\[avertissement\].*qp-suspect/.test(l)));
   });
 });

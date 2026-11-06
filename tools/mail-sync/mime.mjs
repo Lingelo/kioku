@@ -6,7 +6,9 @@
  *   - l'arbre `payload` de l'API Gmail, converti par le fournisseur (providers/gmail.mjs).
  * Arbre : { mimeType, headers: [{ name, value }], filename, body: { data: Buffer|null, size, attachmentId? }, parts: [] }.
  * `body.data` est TOUJOURS le contenu apres decodage du transfert (base64, quoted-printable) : parseRaw le decode ;
- * pour l'API Gmail, le fournisseur decode le base64url puis, au besoin, l'encodage de transfert (undoTransferIfStill).
+ * pour l'API Gmail, le fournisseur ne decode que le base64url de l'API (doc MessagePartBody) et fait confiance a Gmail
+ * pour le reste. Un texte qui ressemble a du quoted-printable residuel est signale (`warnings: ['qp-suspect']`), jamais
+ * decode une seconde fois.
  *
  * Puis messageFromTree(tree) : en-tetes utiles, texte (text/plain, sinon HTML converti), pieces jointes.
  * Charsets par TextDecoder (utf-8, iso-8859-1, windows-1252, et ce que Node connait). Sujets RFC 2047.
@@ -130,29 +132,12 @@ const parseHeaders = (text) =>
     .map((m) => ({ name: m[1], value: m[2] }));
 
 /**
- * Tolerance pour l'API Gmail (format=full) : `body.data` est du base64url (doc : « The body data of a MIME message
- * part as a base64url encoded string »), mais la documentation ne dit pas si l'encodage de TRANSFERT de la partie
- * (Content-Transfer-Encoding) a deja ete retire. On ne decode donc une seconde fois que si les octets portent encore,
- * sans ambiguite, la marque de cet encodage :
- *   - quoted-printable : octets tous ASCII, et au moins une sequence `=XX` ou une coupure douce `=` en fin de ligne
- *     (un texte deja decode qui contient un accent a des octets >= 0x80 : il n'est pas touche) ;
- *   - base64 : uniquement l'alphabet base64 et des retours de ligne (aucune espace : un texte decode en a presque
- *     toujours), longueur utile multiple de 4 et >= 8.
- * Un `7bit`, `8bit`, `binary` ou absent : rien a faire. Rend les octets, decodes ou tels quels.
+ * Un texte qui ressemble fortement a du quoted-printable encore encode : deux octets hauts encodes de suite (`=C3=A9`,
+ * la forme d'un caractere accentue en UTF-8), ou au moins deux coupures douces (`=` en fin de ligne). Une URL a
+ * parametres (`?id=12&page=2`) ou un `=` isole n'y repondent pas. On ne decode RIEN sur ce soupcon (revue I1 : un
+ * second decodage corrompt un texte deja decode, dans un bronze qui ne sera jamais reecrit) ; on le signale.
  */
-export const undoTransferIfStill = (bytes, cte) => {
-  const buf = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes ?? []);
-  const enc = String(cte ?? '').trim().toLowerCase();
-  if (!buf.length) return buf;
-  const ascii = !buf.some((b) => b >= 0x80);
-  const text = ascii ? buf.toString('latin1') : '';
-  if (enc === 'quoted-printable' && ascii && /=[0-9A-Fa-f]{2}|=\r?\n/.test(text)) return fromQuotedPrintable(text);
-  if (enc === 'base64' && ascii && /^[A-Za-z0-9+/=\r\n]+$/.test(text)) {
-    const compact = text.replace(/\r?\n/g, '');
-    if (compact.length >= 8 && compact.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(compact)) return fromBase64(compact);
-  }
-  return buf;
-};
+export const qpSuspect = (text) => /(=[89A-F][0-9A-F]){2}/.test(String(text ?? '')) || (String(text ?? '').match(/=\r?\n/g) ?? []).length >= 2;
 
 const decodeTransfer = (raw, cte) => {
   const enc = String(cte ?? '').trim().toLowerCase();
@@ -276,6 +261,7 @@ export const messageFromTree = (tree) => {
   const plain = [];
   const html = [];
   const attachments = [];
+  const warnings = new Set();
   const walk = (node) => {
     const disp = parseParams(header(node.headers, 'content-disposition')).value;
     const isAttachment = Boolean(node.filename) || disp === 'attachment';
@@ -292,8 +278,11 @@ export const messageFromTree = (tree) => {
       return;
     }
     const charset = parseParams(header(node.headers, 'content-type')).params.charset ?? 'utf-8';
-    if (node.mimeType === 'text/plain' && node.body?.data) plain.push(decodeText(node.body.data, charset));
-    else if (node.mimeType === 'text/html' && node.body?.data) html.push(decodeText(node.body.data, charset));
+    if ((node.mimeType === 'text/plain' || node.mimeType === 'text/html') && node.body?.data) {
+      const text = decodeText(node.body.data, charset);
+      if (header(node.headers, 'content-transfer-encoding').toLowerCase() === 'quoted-printable' && qpSuspect(text)) warnings.add('qp-suspect');
+      (node.mimeType === 'text/plain' ? plain : html).push(text);
+    }
   };
   walk(tree);
   const h = (n) => header(tree.headers, n);
@@ -302,5 +291,6 @@ export const messageFromTree = (tree) => {
     headers: { from: h('from'), to: h('to'), cc: h('cc'), date: h('date'), subject: h('subject'), messageId: h('message-id') },
     text: text.replace(/\r\n/g, '\n'),
     attachments,
+    warnings: [...warnings],
   };
 };

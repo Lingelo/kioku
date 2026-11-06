@@ -15,7 +15,6 @@ import path from 'node:path';
 
 import { buildPdfStub, buildThread, pdfFileName } from './bronze.mjs';
 import { classifyThread, knownAttachment, loadRegistry, scanMail } from './dedup.mjs';
-import { undoTransferIfStill } from './mime.mjs';
 
 export const DEFAULT_LABEL = 'kb';
 export const DEFAULT_MAX_PDF_MB = 20;
@@ -50,7 +49,7 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
   const inbox = path.join(vault, 'inbox');
   const known = scanMail(vault);
   const registry = loadRegistry(vault);
-  const out = { deposited: [], pdfs: [], ignored: [], counts: { nouveau: 0, suite: 0, connu: 0, ecarte: 0, contenu: 0 } };
+  const out = { deposited: [], pdfs: [], ignored: [], warnings: [], counts: { nouveau: 0, suite: 0, connu: 0, ecarte: 0, contenu: 0 } };
   const threads = await provider.listThreads(label, since);
   log(`compte ${account.id} : ${threads.length} fil(s) du libelle "${label}" depuis ${since}`);
   if (!dryRun) mkdirSync(inbox, { recursive: true });
@@ -81,7 +80,7 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
           out.ignored.push({ thread: thread.id, filename: a.filename, reason: `PDF trop gros (${a.size} octets)` });
           continue;
         }
-        const data = a.data?.length ? a.data : undoTransferIfStill(await provider.getAttachment(m.id, a.attachmentId), a.transferEncoding);
+        const data = a.data?.length ? a.data : await provider.getAttachment(m.id, a.attachmentId);
         if (data.length > maxPdfBytes) {
           list.push({ filename: a.filename, note: 'ignoree (PDF au-dela de la taille maximale)' });
           out.ignored.push({ thread: thread.id, filename: a.filename, reason: `PDF trop gros (${data.length} octets)` });
@@ -115,6 +114,10 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
     }
     out.counts[c.kind]++;
     out.deposited.push(built.fileName);
+    if (built.warnings.length) {
+      out.warnings.push({ file: built.fileName, warnings: built.warnings });
+      log(`  [avertissement] ${built.fileName} : ${built.warnings.join(', ')} (texte qui ressemble a du quoted-printable non decode, laisse tel quel : a verifier)`);
+    }
     known.bodies.add(built.bodySha);
     log(`  ${tagLabel}`);
     for (const p of pending) {

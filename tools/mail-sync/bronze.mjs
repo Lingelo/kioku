@@ -3,7 +3,8 @@
  * fiche d'un PDF joint (raw/<D>/pdfs/, a cote du PDF lui-meme).
  *
  * Frontmatter d'un fil : mail_account, gmail_thread_id, last_message_id, message_ids, subject, participants, date,
- * hint, body_sha256, et pour une suite suite_of + previous_message_id. `message_ids` (en plus de la liste du plan) dit
+ * hint, body_sha256, mail_warnings (seulement s'il y a lieu : `qp-suspect`), et pour une suite suite_of +
+ * previous_message_id. `message_ids` (en plus de la liste du plan) dit
  * quels messages ce fichier couvre : la deduplication s'appuie dessus, et un message supprime dans Gmail ne fait pas
  * re-deposer le fil.
  *
@@ -114,6 +115,7 @@ export const buildThread = ({ account, hint, thread, messages, previous, attachm
   const suite = Boolean(previous);
   const fileName = threadFileName({ subject, threadId: thread.id, lastMessage: last, suite });
   const indexOf = (m) => thread.messages.findIndex((x) => x.id === m.id);
+  const warnings = [...new Set(messages.flatMap((m) => m.warnings ?? []))].sort();
   const body = renderMessages({ subject, messages, indexOf, attachmentNotes });
   // L'empreinte ne porte que sur le mail (sans le devenir des pieces jointes, qui depend de ce qui est deja capte).
   const bodySha = sha256(renderMessages({ subject, messages, indexOf, attachmentNotes: new Map() }));
@@ -129,6 +131,7 @@ export const buildThread = ({ account, hint, thread, messages, previous, attachm
     `date: ${isoDay(last.internalDate)}`,
     `hint: ${hintYaml(hint)}`,
     `body_sha256: ${bodySha}`,
+    ...(warnings.length ? [`mail_warnings: ${JSON.stringify(warnings)}`] : []),
     ...(suite ? [`suite_of: ${JSON.stringify(previous.file ?? '')}`, `previous_message_id: ${safeId(previous.lastMessageId ?? '')}`] : []),
     '---',
   ];
@@ -139,7 +142,7 @@ export const buildThread = ({ account, hint, thread, messages, previous, attachm
     `> Compte ${account}, ${messages.length} message(s)${suite ? ` : suite de \`${previous.file ?? '(fichier ecarte)'}\`, seuls les messages nouveaux sont ici` : ''}. Indice de configuration (\`hint\`) : un indice pour le tri, jamais une decision.`,
   ];
   const markdown = `${fm.join('\n')}\n\n${intro.join('\n')}\n\n<${tag}>\n${body}\n</${tag}>\n`;
-  return { fileName, markdown, bodySha };
+  return { fileName, markdown, bodySha, warnings };
 };
 
 /** La fiche d'un PDF joint : la source que la file d'ingestion connait ; le PDF est a cote, meme nom sans `.md`. */
