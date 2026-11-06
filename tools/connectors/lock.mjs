@@ -38,7 +38,7 @@
  * postes ne se voient pas : le verrou est local, comme `.queue.json`.
  */
 
-import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
@@ -174,10 +174,32 @@ export const CONTESTED = Object.freeze({ pid: null, contested: true });
  * lecture vide recente, et jamais celui, tout neuf, d'un autre lanceur. Le retrait passe par un renommage vers un nom unique, puis une
  * relecture : si ce n'etait pas le verrou de reprise perime vu, il est remis en place.
  */
-export const acquireFile = (file, mine, pid, { onStale, link, onStaleBreaker, onTrashed } = {}) => {
+/**
+ * Les fichiers mis de cote par une reprise (`<fichier>.<pid>.<hasard>.old`) dont le detenteur d'origine est mort : retires.
+ * Ceux d'un detenteur vivant restent : on ne detruit jamais le verrou (ou le verrou de reprise) d'un vivant.
+ */
+const sweepSetAside = (file) => {
+  const dir = path.dirname(file);
+  const base = path.basename(file);
+  let names = [];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const n of names) {
+    if (!(n.startsWith(`${base}.`) && n.endsWith('.old'))) continue;
+    const held = readLock(path.join(dir, n));
+    if (!held || !isAlive(held.pid)) rmSync(path.join(dir, n), { force: true });
+  }
+};
+
+export const acquireFile = (file, mine, pid, { onStale, link, onStaleBreaker, onTrashed, onBeforeCreate } = {}) => {
   mkdirSync(path.dirname(file), { recursive: true });
   const breaker = `${file}.break`;
   const mineBreaker = JSON.stringify({ pid });
+  sweepSetAside(file);
+  sweepSetAside(breaker);
   let stale = null;
   for (let attempt = 0; attempt < 40; attempt++) {
     if (createExclusive(file, mine, { link })) return { ok: true, stale };
@@ -195,10 +217,11 @@ export const acquireFile = (file, mine, pid, { onStale, link, onStaleBreaker, on
       if (b.state === 'stale') {
         // Reprise abandonnee par un processus mort : retrait verifie (voir l'en-tete). Si ce qu'on a deplace n'etait
         // pas ce verrou perime (un autre lanceur l'avait deja remplace par le sien), on le remet en place ; si cette
-        // remise echoue (un troisieme a cree le sien entre-temps), le verrou de reprise de l'autre est perdu et deux
-        // lanceurs pourraient se croire seuls : on ne poursuit pas, on rend « dispute » (verification finale, n°8).
+        // remise echoue (un troisieme a cree le sien entre-temps), on rend « dispute » (n°8) et on GARDE le fichier
+        // deplace : il appartient a un vivant, on ne le detruit pas (revue N4 ; sweepSetAside le retirera a sa mort).
         const trash = `${breaker}.${process.pid}.${randomBytes(4).toString('hex')}.old`;
         let lost = false;
+        let keep = false;
         try {
           onStaleBreaker?.();
           renameSync(breaker, trash);
@@ -208,21 +231,45 @@ export const acquireFile = (file, mine, pid, { onStale, link, onStaleBreaker, on
               (link ?? linkSync)(trash, breaker);
             } catch {
               lost = true;
+              keep = true;
             }
           }
         } catch {
           // deja retire par un autre
         } finally {
-          rmSync(trash, { force: true });
+          if (!keep) rmSync(trash, { force: true });
         }
         if (lost) return { ok: false, held: CONTESTED };
       } else pause(5);
       continue;
     }
     try {
+      // Revue N4 : le remplacement du verrou principal ne depend plus de l'exclusivite du verrou de reprise (deux
+      // lanceurs peuvent s'en croire detenteurs apres un arret brutal). Le verrou perime est mis de cote par rename vers
+      // un nom unique, compare a ce qu'on avait juge perime (remis en place sinon), puis le notre est CREE de facon
+      // exclusive (link) : un seul gagnant, meme a deux detenteurs du verrou de reprise.
       if (readRaw(file) !== seen.raw) continue; // repris ou rendu entre-temps : on reexamine
-      replace(file, mine);
-      if (readLock(file)?.pid !== pid) continue;
+      const aside = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.old`;
+      try {
+        renameSync(file, aside);
+      } catch (error) {
+        if (error.code === 'ENOENT') continue;
+        throw error;
+      }
+      if (readRaw(aside) !== seen.raw) {
+        // Ce n'etait plus le verrou perime : celui d'un autre, a remettre en place tel quel.
+        try {
+          (link ?? linkSync)(aside, file);
+          rmSync(aside, { force: true });
+        } catch {
+          // Un troisieme a cree le sien entre-temps : on garde le fichier deplace (celui d'un vivant), et on ne poursuit pas.
+          return { ok: false, held: CONTESTED };
+        }
+        continue;
+      }
+      rmSync(aside, { force: true });
+      onBeforeCreate?.(); // point d'injection des tests : un autre lanceur agit entre le retrait et la creation
+      if (!createExclusive(file, mine, { link })) continue;
       stale = seen.held;
       return { ok: true, stale };
     } finally {

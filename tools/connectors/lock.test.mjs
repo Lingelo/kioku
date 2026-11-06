@@ -387,7 +387,10 @@ describe('verrou de reprise : remise en place impossible (n°8)', () => {
     assert.equal(r.held.contested, true);
     assert.equal(readFileSync(breaker, 'utf8'), third, 'le verrou de reprise du troisieme est intact');
     assert.equal(readLock(file).pid !== 4242, true, 'le verrou n a pas ete pris');
-    assert.deepEqual(readdirSync(path.dirname(file)).filter((n) => n.endsWith('.old')), [], 'aucun residu');
+    // Revue N4 : le verrou de reprise du deuxieme (vivant), deplace par erreur, n'est plus detruit : il est garde de cote.
+    const kept = readdirSync(path.dirname(file)).filter((n) => n.endsWith('.old'));
+    assert.equal(kept.length, 1);
+    assert.equal(readFileSync(path.join(path.dirname(file), kept[0]), 'utf8'), second);
   });
 
   test('remise en place reussie : la reprise continue normalement', () => {
@@ -406,6 +409,36 @@ describe('verrou de reprise : remise en place impossible (n°8)', () => {
     });
     assert.equal(r.ok, true);
     assert.equal(readLock(file).pid, 4242);
+  });
+});
+
+// Revue N4 : deux lanceurs qui se croient tous deux detenteurs du verrou de reprise ne peuvent pas prendre ensemble le
+// verrou principal perime : le perime est mis de cote par rename, puis le verrou est CREE de facon exclusive.
+describe('verrou principal : un seul gagnant meme a deux detenteurs du verrou de reprise (N4)', () => {
+  test('B retire le perime ; C, qui se croit aussi detenteur du verrou de reprise, prend le verrou entre-temps : B perd', () => {
+    const file = lockPath(vault);
+    const breaker = `${file}.break`;
+    put(file, { pid: deadPid(), started: 'vieux' });
+    let c;
+    const b = acquireFile(file, JSON.stringify({ pid: 4242 }), 4242, {
+      onBeforeCreate: () => {
+        // Le verrou de reprise de B a ete detruit par un troisieme (scenario du rapport) : C crée le sien et va au bout.
+        rmSync(breaker, { force: true });
+        c = c ?? acquireFile(file, JSON.stringify({ pid: process.pid }), process.pid);
+      },
+    });
+    assert.equal(c.ok, true, 'C a pris le verrou');
+    assert.equal(b.ok, false, 'B ne se croit pas seul');
+    assert.equal(readLock(file).pid, process.pid);
+  });
+
+  test('un fichier mis de cote par une reprise, dont le detenteur est mort, est nettoye au lancement suivant', () => {
+    const file = lockPath(vault);
+    put(`${file}.break.1.abcd.old`, { pid: deadPid() });
+    put(`${file}.2.ef01.old`, { pid: process.pid });
+    assert.equal(acquire(vault, { pid: 4242 }).ok, true);
+    const left = readdirSync(path.dirname(file)).filter((n) => n.endsWith('.old'));
+    assert.deepEqual(left, [path.basename(`${file}.2.ef01.old`)], 'celui d un vivant reste');
   });
 });
 
