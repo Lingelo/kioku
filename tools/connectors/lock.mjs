@@ -174,7 +174,7 @@ export const CONTESTED = Object.freeze({ pid: null, contested: true });
  * lecture vide recente, et jamais celui, tout neuf, d'un autre lanceur. Le retrait passe par un renommage vers un nom unique, puis une
  * relecture : si ce n'etait pas le verrou de reprise perime vu, il est remis en place.
  */
-export const acquireFile = (file, mine, pid, { onStale, link } = {}) => {
+export const acquireFile = (file, mine, pid, { onStale, link, onStaleBreaker, onTrashed } = {}) => {
   mkdirSync(path.dirname(file), { recursive: true });
   const breaker = `${file}.break`;
   const mineBreaker = JSON.stringify({ pid });
@@ -193,15 +193,21 @@ export const acquireFile = (file, mine, pid, { onStale, link } = {}) => {
       const b = stateOf(breaker, pid);
       if (b.state === 'held') return { ok: false, held: { ...CONTESTED, breaker: b.held.pid } };
       if (b.state === 'stale') {
-        // Reprise abandonnee par un processus mort : retrait verifie (voir l'en-tete).
+        // Reprise abandonnee par un processus mort : retrait verifie (voir l'en-tete). Si ce qu'on a deplace n'etait
+        // pas ce verrou perime (un autre lanceur l'avait deja remplace par le sien), on le remet en place ; si cette
+        // remise echoue (un troisieme a cree le sien entre-temps), le verrou de reprise de l'autre est perdu et deux
+        // lanceurs pourraient se croire seuls : on ne poursuit pas, on rend « dispute » (verification finale, n°8).
         const trash = `${breaker}.${process.pid}.${randomBytes(4).toString('hex')}.old`;
+        let lost = false;
         try {
+          onStaleBreaker?.();
           renameSync(breaker, trash);
           if (readRaw(trash) !== b.raw) {
+            onTrashed?.();
             try {
-              linkSync(trash, breaker);
+              (link ?? linkSync)(trash, breaker);
             } catch {
-              // un autre verrou de reprise est deja en place : le notre etait de trop, on le laisse tomber
+              lost = true;
             }
           }
         } catch {
@@ -209,6 +215,7 @@ export const acquireFile = (file, mine, pid, { onStale, link } = {}) => {
         } finally {
           rmSync(trash, { force: true });
         }
+        if (lost) return { ok: false, held: CONTESTED };
       } else pause(5);
       continue;
     }

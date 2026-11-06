@@ -359,3 +359,53 @@ describe('verrou atomique (N2)', () => {
   });
 });
 
+// Verification finale n°8 : la remise en place d'un verrou de reprise deplace par erreur echoue -> « dispute ».
+describe('verrou de reprise : remise en place impossible (n°8)', () => {
+  test('un autre a remplace le verrou de reprise perime, puis un troisieme cree le sien : on ne poursuit pas', () => {
+    const file = lockPath(vault);
+    const breaker = `${file}.break`;
+    put(file, { pid: deadPid(), started: 'vieux' });
+    put(breaker, { pid: deadPid() });
+    const second = JSON.stringify({ pid: process.pid, n: 2 });
+    // Le troisieme porte un PID mort (simule) : l'ancien code poursuivait, retirait ce verrou de reprise et prenait le
+    // verrou ; le nouveau s'arrete des que la remise en place echoue.
+    const third = JSON.stringify({ pid: deadPid(), n: 3 });
+    let done = false;
+    const r = acquireFile(file, JSON.stringify({ pid: 4242 }), 4242, {
+      // Une seule fois : entre le constat « verrou de reprise perime » et notre rename, un deuxieme lanceur l'a remplace
+      // par le sien…
+      onStaleBreaker: () => {
+        if (!done) writeFileSync(breaker, second);
+      },
+      // … et entre notre rename et la remise en place, un troisieme a cree le sien.
+      onTrashed: () => {
+        if (!done) writeFileSync(breaker, third);
+        done = true;
+      },
+    });
+    assert.equal(r.ok, false);
+    assert.equal(r.held.contested, true);
+    assert.equal(readFileSync(breaker, 'utf8'), third, 'le verrou de reprise du troisieme est intact');
+    assert.equal(readLock(file).pid !== 4242, true, 'le verrou n a pas ete pris');
+    assert.deepEqual(readdirSync(path.dirname(file)).filter((n) => n.endsWith('.old')), [], 'aucun residu');
+  });
+
+  test('remise en place reussie : la reprise continue normalement', () => {
+    const file = lockPath(vault);
+    const breaker = `${file}.break`;
+    put(file, { pid: deadPid(), started: 'vieux' });
+    put(breaker, { pid: deadPid() });
+    let once = false;
+    const r = acquireFile(file, JSON.stringify({ pid: 4242 }), 4242, {
+      onStaleBreaker: () => {
+        if (!once) {
+          once = true;
+          writeFileSync(breaker, JSON.stringify({ pid: deadPid(), autre: true }));
+        }
+      },
+    });
+    assert.equal(r.ok, true);
+    assert.equal(readLock(file).pid, 4242);
+  });
+});
+
