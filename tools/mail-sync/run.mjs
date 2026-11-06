@@ -9,6 +9,7 @@
  *   kioku mail --dry-run                       montre ce qui serait depose, aucune session
  *   kioku mail --skip-fetch [--decide <fichier>=<domaine>] [--yes] [--group-by-day] [--retries N]
  *   kioku mail --skip <thread_id>              ecarte un fil pour de bon (seen.json), repetable
+ *   kioku mail --requeue <domaine> <chemin>    remet en file une source deplacee a la main (circuit commun)
  *   kioku mail --drop <fichier>...             ecarte une source parquee (fil ou PDF), et son PDF compagnon
  *   kioku mail --max-pdf-mb N                  taille maximale d'un PDF joint (defaut : modules.mail.max_pdf_mb, sinon 20)
  *   kioku mail --max-threads N                 fils deposes au plus par compte et par lancement (defaut 100), les plus anciens d'abord
@@ -32,7 +33,6 @@ import { addToRegistry, dropIdOf, STATE } from './dedup.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FETCH = path.join(HERE, 'fetch-mail.mjs');
-const PENDING = path.join(HERE, '..', 'connectors', 'pending.mjs');
 const argv = process.argv.slice(2);
 const opt = (n) => {
   const i = argv.indexOf(n);
@@ -103,7 +103,6 @@ const mailConnector = {
     }),
   commands: {
     run: 'kioku mail',
-    pending: `node ${PENDING} --state ${STATE}`,
     drop: 'npm run mail:drop -- <fichier> [<fichier>...]',
     registry: `${STATE}/seen.json`,
   },
