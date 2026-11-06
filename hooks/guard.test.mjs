@@ -340,8 +340,8 @@ describe('U8 : mode de session setup', () => {
     ]) {
       assert.equal(guard(s, bash(cmd)), REFUS, cmd);
     }
-    // Hors setup, rien de neuf : la regle ne vise que setup.
-    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('cat tools/connectors/.lock.json')), OK);
+    // Hors setup aussi (m9) : le socle des connecteurs est refuse dans toutes les sessions.
+    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('cat tools/connectors/.lock.json')), REFUS);
   });
 
   // init genere un script npm par domaine declare (`npm run a` ouvre une session query/a) : les noms viennent de la
@@ -606,6 +606,56 @@ describe('chemins canoniques : ~ et liens symboliques', () => {
   test('boucle de liens : refuse (dans le doute)', () => {
     symlinkSync('boucle', path.join(vault, 'wiki', 'pro', 'boucle'));
     assert.equal(guard(q, read('wiki/pro/boucle/x.md')), REFUS);
+  });
+});
+
+// m9 : un circuit de capture se lance depuis le terminal de l'utilisateur, jamais depuis une session du coffre.
+describe('circuits de capture refuses dans toutes les sessions', () => {
+  beforeEach(() => config(THREE));
+  const SESSIONS = [{ mode: 'query', domain: 'a' }, { mode: 'ingest', domain: 'a' }, { mode: 'triage' }, { mode: 'setup' }];
+  const CMDS = [
+    'kioku plaud --dry-run',
+    "kioku 'plaud' --skip-fetch",
+    'kioku "plaud"',
+    'node tools/kioku.mjs plaud',
+    'npm run plaud:sync',
+    'npm run-script plaud:dry-run',
+    'npm rum plaud:pending',
+    'npm urn plaud:drop -- x.md',
+    'npm run "plaud:sync"',
+    'node tools/plaud-sync/run.mjs --dry-run',
+    'node tools/connectors/pending.mjs --state tools/plaud-sync list',
+    'npm test && kioku plaud',
+  ];
+  for (const sess of SESSIONS) {
+    test(`${sess.mode} : kioku plaud, ses scripts npm et ses outils refuses`, () => {
+      for (const cmd of CMDS) assert.equal(guard(sess, bash(cmd)), REFUS, `${sess.mode} : ${cmd}`);
+    });
+  }
+  test('la gate et doctor restent admis la ou ils l etaient ; un mot voisin ne declenche rien', () => {
+    assert.equal(guard({ mode: 'ingest', domain: 'a' }, bash('kioku check .candidats/wiki/a/concepts/x.md')), OK);
+    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('kioku doctor')), OK);
+    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('npm run plaudit')), OK);
+  });
+});
+
+// I6 : guillemets autour du sous-mot, et alias de `npm run`, pour les relais deja refuses en setup.
+describe('setup : relais et scripts npm, sous toutes leurs formes', () => {
+  beforeEach(() => config(THREE));
+  test('kioku <sous-mot entre guillemets> et npm run-script / rum / urn refuses', () => {
+    for (const cmd of [
+      "kioku 'session' a",
+      'kioku "dashboard" a',
+      "node tools/kioku.mjs 'session' --mode ingest --domain b",
+      'npm run-script a',
+      'npm rum dashboard:serve:b',
+      'npm urn ingest:a',
+      "npm run 'lint:a'",
+    ]) {
+      assert.equal(guard({ mode: 'setup' }, bash(cmd)), REFUS, cmd);
+    }
+    assert.equal(guard({ mode: 'setup' }, bash('npm run-script doctor')), OK);
+    assert.equal(guard({ mode: 'setup' }, bash("kioku 'doctor'")), OK);
   });
 });
 

@@ -316,12 +316,19 @@ const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(commit|check|verdict|pr
 // Les domaines viennent de la configuration : une liste figee laisserait `npm run travail` ouvrir une session de domaine
 // depuis setup. `pro` et `perso` restent, pour les coffres anterieurs a la configuration.
 const NPM_SCRIPTS = [...new Set([...cfg.domains, 'pro', 'perso', 'vault', 'ingest', 'triage', 'lint', 'dashboard', 'plaud', 'audit', 'undecided'])];
-const NPM_DENIED = new RegExp(`(^|[\\s;&|(])npm\\s+(run\\s+)?(${NPM_SCRIPTS.join('|')})(?![\\w-])`);
-// Les relais du CLI vers le lanceur, le dashboard et Plaud : sans chemin d'outil dans la commande, refuses par leur nom.
-const KIOKU_TOOLS = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(session|dashboard|plaud)\b/;
-// Le socle des connecteurs (tools/connectors/ : circuit, file d'ingestion, verrou) ouvre des sessions ou touche l'etat
-// d'un circuit, comme plaud-sync/ : refuse au meme titre.
-const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /plaud-sync[/\\]/, /tools[/\\]connectors[/\\]/, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
+// `npm run`, et ses alias (`run-script`, `rum`, `urn`) ; le nom du script, entre guillemets ou non.
+const npmScripts = (names) => new RegExp(`(^|[\\s;&|(])npm\\s+((run|run-script|rum|urn)\\s+)?["']?(${names.join('|')})(?![\\w-])`);
+const NPM_DENIED = npmScripts(NPM_SCRIPTS);
+// Un relais du CLI (`kioku <sous-commande>`), le sous-mot entre guillemets ou non (`kioku 'plaud'`).
+const kiokuSub = (names) => new RegExp(`(^|[\\s;&|(/\\\\])kioku(\\.mjs)?["']?\\s+["']?(${names.join('|')})["']?(?![\\w-])`);
+// Les relais du CLI vers le lanceur, le dashboard et les circuits : sans chemin d'outil dans la commande, refuses par leur nom.
+const KIOKU_TOOLS = kiokuSub(['session', 'dashboard', 'plaud']);
+// Les circuits de capture se lancent depuis le terminal de l'utilisateur, jamais depuis une session du coffre : ils
+// ouvrent eux-memes des sessions (tri, ingestion) avec leurs propres droits, et leur simple dry-run liste les sources
+// de tous les domaines. Refuses dans TOUS les modes : le relais, les scripts npm, leurs outils et le socle des
+// connecteurs (circuit, file d'ingestion, verrou). Le circuit, lui, n'a jamais besoin de se relancer depuis une session.
+const CIRCUIT_DENIED = [kiokuSub(['plaud']), npmScripts(['plaud']), /plaud-sync[/\\]/, /tools[/\\]connectors[/\\]/];
+const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
 
 // Une commande shell qui ecrit, et qui vise une zone fermee en ecriture.
 const WRITERS = [/(^|[\s;&|(])(sed|perl)\b[^\n;&|]*\s-\w*i/, /(^|[\s;&|(])tee\b/, /(^|[\s;&|(])(mv|cp|rm|touch|truncate|ln|install|dd)\b/];
@@ -459,6 +466,9 @@ const decide = () => {
     }
     if (hit(KIOKU_WRITE) && MODE !== 'setup') {
       refuse(`Session ${MODE}/${D ?? '-'} : configurer le coffre (kioku init, add-domain, upgrade --write) se fait en session setup (npm run setup, ou kioku session --mode setup), ou depuis un terminal hors de Claude Code.`);
+    }
+    if (CIRCUIT_DENIED.some(hit)) {
+      refuse(`Session ${MODE}/${D ?? '-'} : un circuit de capture (kioku plaud, npm run plaud:*, ses outils, tools/connectors/) se lance depuis le terminal de l'utilisateur, jamais depuis une session du coffre. Donne-lui la commande.`);
     }
     if (MODE === 'setup' && SETUP_DENIED.some(hit)) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : en session setup, ni la gate, ni le circuit Plaud, ni le lanceur, ni le dashboard : ils lisent un domaine ou ouvrent une autre session.)`);
