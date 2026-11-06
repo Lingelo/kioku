@@ -38,7 +38,8 @@
  * postes ne se voient pas : le verrou est local, comme `.queue.json`.
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { linkSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 
 /** L'etat suit le coffre vise, pas l'emplacement du script (--vault). */
@@ -77,57 +78,151 @@ const readRaw = (file) => {
   }
 };
 
+const ageMs = (file) => {
+  try {
+    return Date.now() - statSync(file).mtimeMs;
+  } catch {
+    return Infinity;
+  }
+};
+
+/** Attente synchrone courte (le verrou est pris par du code synchrone). */
+const pause = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/**
+ * Un fichier vide, tronque ou sans PID n'est perime que s'il est VIEUX : un fichier tout juste cree peut etre en cours
+ * d'ecriture (repli sans `link`, ci-dessous), et le croire perime menerait a supprimer le verrou d'un autre (revue N2).
+ */
+export const GRACE_MS = 3000;
+
+// Les systemes de fichiers sans liens physiques (FAT, exFAT, certains partages reseau) rendent l'une de ces erreurs.
+const NO_LINK = new Set(['EPERM', 'ENOTSUP', 'EOPNOTSUPP', 'ENOSYS', 'EXDEV', 'EINVAL', 'EMLINK']);
+
+/**
+ * Creation exclusive d'un fichier AVEC son contenu : le contenu est ecrit dans un fichier temporaire, puis lie au nom
+ * vise (`link`, qui echoue en EEXIST si le nom est pris). Le fichier n'est donc jamais visible vide ni a moitie ecrit.
+ * Repli explicite si le systeme de fichiers refuse les liens : creation `wx` puis ecriture (le fichier peut etre vu
+ * vide un instant ; GRACE_MS l'empeche d'etre pris pour perime). Rend true si cree, false si le nom etait pris.
+ */
+export const createExclusive = (file, content, { link = linkSync } = {}) => {
+  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  writeFileSync(tmp, content, { flag: 'wx' });
+  try {
+    link(tmp, file);
+    return true;
+  } catch (error) {
+    if (error.code === 'EEXIST') return false;
+    if (!NO_LINK.has(error.code)) throw error;
+    try {
+      writeFileSync(file, content, { flag: 'wx' });
+      return true;
+    } catch (e) {
+      if (e.code === 'EEXIST') return false;
+      throw e;
+    }
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+};
+
+/** Remplacement atomique (rename par-dessus) ; sous Windows, un EPERM passager (fichier ouvert ailleurs) se reessaie. */
+const replace = (file, content) => {
+  const tmp = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`;
+  writeFileSync(tmp, content, { flag: 'wx' });
+  try {
+    for (let i = 0; ; i++) {
+      try {
+        renameSync(tmp, file);
+        return;
+      } catch (error) {
+        if (!(error.code === 'EPERM' || error.code === 'EACCES' || error.code === 'EBUSY') || i >= 5) throw error;
+        pause(15);
+      }
+    }
+  } finally {
+    rmSync(tmp, { force: true });
+  }
+};
+
+/**
+ * L'etat d'un fichier de verrou vu par `pid` : 'free' (absent), 'held' (un autre processus vivant), 'stale' (PID mort,
+ * notre propre PID d'un lancement precedent, illisible non vide, ou vide ET vieux), 'young' (vide et recent : en cours
+ * d'ecriture, on attend).
+ */
+const stateOf = (file, pid) => {
+  const raw = readRaw(file);
+  if (raw === null) return { state: 'free', raw };
+  const held = readLock(file);
+  if (held) return { state: held.pid !== pid && isAlive(held.pid) ? 'held' : 'stale', raw, held };
+  // Vide : peut-etre en cours d'ecriture (repli sans lien) ; perime seulement s'il est vieux. Non vide mais illisible
+  // ou sans PID (tronque par un arret brutal) : perime. Le contenu, minuscule, s'ecrit en un seul appel : il n'est
+  // jamais vu a moitie ecrit, seulement vide ou entier.
+  if (raw.trim() === '') return { state: ageMs(file) > GRACE_MS ? 'stale' : 'young', raw, held: null };
+  return { state: 'stale', raw, held: null };
+};
+
+/** Un verrou dispute : une reprise ou une ecriture est en cours chez un autre lanceur, sans PID a nommer. */
+export const CONTESTED = Object.freeze({ pid: null, contested: true });
+
 /**
  * Prend UN fichier de verrou. Rend `{ ok: true, stale }` ou `{ ok: false, held }`.
  *
- * Creation exclusive (`wx`). Si le fichier existe et que son processus vit : refus. S'il est perime (processus mort,
- * fichier illisible, ou notre propre PID d'un lancement precedent), la REPRISE doit etre atomique : sans precaution,
- * deux lanceurs qui le voient perime en meme temps le suppriment chacun, et le second supprime le verrou tout neuf du
- * premier (revue I3). La reprise passe donc par un verrou de reprise `<fichier>.break`, lui-meme pris en `wx` : un seul
- * lanceur reprend a la fois. Sous lui, on relit le verrou : s'il n'a pas change depuis qu'on l'a juge perime, on le
- * remplace (suppression puis creation exclusive, sous le verrou de reprise) ; sinon un autre l'a repris entre-temps,
- * et on recommence l'examen. Un verrou de reprise dont le processus est mort (arret pendant les quelques
- * microsecondes de la reprise) est retire au tour suivant.
+ * Creation : `createExclusive` (jamais visible vide). Reprise d'un verrou perime (revues I3 puis N2) : sous un verrou de
+ * reprise `<fichier>.break`, lui-meme cree par `createExclusive`, on relit le verrou ; s'il est toujours le meme
+ * contenu perime, on le remplace par `rename` (atomique), puis on relit pour verifier que c'est bien notre PID. Un
+ * verrou de reprise n'est retire que s'il porte un PID mort (ou s'il est vide ET vieux, GRACE_MS) : jamais sur une
+ * lecture vide recente, et jamais celui, tout neuf, d'un autre lanceur. Le retrait passe par un renommage vers un nom unique, puis une
+ * relecture : si ce n'etait pas le verrou de reprise perime vu, il est remis en place.
  */
-export const acquireFile = (file, mine, pid, { onStale } = {}) => {
+export const acquireFile = (file, mine, pid, { onStale, link } = {}) => {
   mkdirSync(path.dirname(file), { recursive: true });
   const breaker = `${file}.break`;
+  const mineBreaker = JSON.stringify({ pid });
   let stale = null;
-  for (let attempt = 0; attempt < 4; attempt++) {
-    try {
-      writeFileSync(file, mine, { flag: 'wx' });
-      return { ok: true, stale };
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    if (createExclusive(file, mine, { link })) return { ok: true, stale };
+    const seen = stateOf(file, pid);
+    if (seen.state === 'free') continue; // rendu entre-temps : on retente la creation
+    if (seen.state === 'held') return { ok: false, held: seen.held };
+    if (seen.state === 'young') {
+      pause(10);
+      continue;
     }
-    const seen = readRaw(file);
-    const held = readLock(file);
-    if (held && held.pid !== pid && isAlive(held.pid)) return { ok: false, held };
     onStale?.(); // point d'injection des tests : un autre lanceur agit entre le constat « perime » et la reprise
-    try {
-      writeFileSync(breaker, JSON.stringify({ pid }), { flag: 'wx' });
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      const b = readLock(breaker);
-      if (b && b.pid !== pid && isAlive(b.pid)) return { ok: false, held: b }; // un autre lanceur reprend en ce moment
-      rmSync(breaker, { force: true }); // reprise abandonnee par un processus mort
+    if (!createExclusive(breaker, mineBreaker, { link })) {
+      const b = stateOf(breaker, pid);
+      if (b.state === 'held') return { ok: false, held: { ...CONTESTED, breaker: b.held.pid } };
+      if (b.state === 'stale') {
+        // Reprise abandonnee par un processus mort : retrait verifie (voir l'en-tete).
+        const trash = `${breaker}.${process.pid}.${randomBytes(4).toString('hex')}.old`;
+        try {
+          renameSync(breaker, trash);
+          if (readRaw(trash) !== b.raw) {
+            try {
+              linkSync(trash, breaker);
+            } catch {
+              // un autre verrou de reprise est deja en place : le notre etait de trop, on le laisse tomber
+            }
+          }
+        } catch {
+          // deja retire par un autre
+        } finally {
+          rmSync(trash, { force: true });
+        }
+      } else pause(5);
       continue;
     }
     try {
-      if (readRaw(file) !== seen) continue; // repris ou rendu entre-temps : on reexamine
-      stale = held;
-      rmSync(file, { force: true });
-      try {
-        writeFileSync(file, mine, { flag: 'wx' });
-        return { ok: true, stale };
-      } catch (error) {
-        if (error.code !== 'EEXIST') throw error;
-      }
+      if (readRaw(file) !== seen.raw) continue; // repris ou rendu entre-temps : on reexamine
+      replace(file, mine);
+      if (readLock(file)?.pid !== pid) continue;
+      stale = seen.held;
+      return { ok: true, stale };
     } finally {
-      rmSync(breaker, { force: true });
+      if (readLock(breaker)?.pid === pid) rmSync(breaker, { force: true });
     }
   }
-  return { ok: false, held: readLock(file) ?? { pid: null } };
+  return { ok: false, held: CONTESTED };
 };
 
 /** Rend un fichier de verrou, seulement s'il est a nous : un verrou repris par un autre ne se supprime pas. */
@@ -169,6 +264,7 @@ export const release = (vault, pid = process.pid) => {
  * anterieure du core, ou seul le circuit Plaud et les commandes de la gate le prenaient.
  */
 export const holderText = (held) => {
+  if (held?.contested) return 'le verrou du coffre est dispute : un autre lanceur le reprend en ce moment';
   const owner = typeof held?.owner === 'string' ? held.owner.replace(/[^\w :.-]/g, '').slice(0, 60) : '';
   const pid = held?.pid ? `, PID ${held.pid}` : '';
   if (owner.startsWith('circuit ')) return `un circuit de capture (${owner.slice(8)}${pid}) tourne`;

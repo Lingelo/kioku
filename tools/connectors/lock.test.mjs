@@ -7,12 +7,13 @@
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { acquire, acquireFile, holderText, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
+import { acquire, acquireFile, createExclusive, GRACE_MS, holderText, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
+import { stress } from './lock-stress.mjs';
 
 const LOCK = pathToFileURL(new URL('./lock.mjs', import.meta.url).pathname).href;
 
@@ -100,7 +101,8 @@ describe('verrou canonique', () => {
   });
 
   test('perime (processus mort), tronque ou sans PID : repris', () => {
-    for (const content of [{ pid: deadPid(), started: 'x' }, '{"pid": 4', { started: 'x' }, '']) {
+    // Le fichier vide n'en fait plus partie (revue N2) : recent, il peut etre en cours d'ecriture ; voir plus bas.
+    for (const content of [{ pid: deadPid(), started: 'x' }, '{"pid": 4', { started: 'x' }]) {
       put(lockPath(vault), content);
       const r = acquire(vault, { pid: 4242 });
       assert.equal(r.ok, true, JSON.stringify(content));
@@ -281,7 +283,10 @@ describe('reprise concurrente d un verrou perime', { skip: process.platform === 
     put(`${lockPath(vault)}.break`, { pid: process.pid });
     const r = acquire(vault, { pid: 4242 });
     assert.equal(r.ok, false);
-    assert.equal(r.held.pid, process.pid);
+    // Revue N9 : un verrou dispute (reprise en cours) n'a pas de PID a tuer ; le detenteur de la reprise est nomme a part.
+    assert.equal(r.held.contested, true);
+    assert.equal(r.held.breaker, process.pid);
+    assert.match(holderText(r.held), /dispute/);
     assert.ok(existsSync(lockPath(vault)));
   });
 });
@@ -298,6 +303,59 @@ describe('qui tient le verrou', () => {
     assert.equal(holderText({ pid: 7, owner: 'kioku rotate-log' }), 'kioku rotate-log tourne (verrou du coffre, PID 7)');
     assert.equal(holderText({ pid: 7 }), 'un circuit de capture (Plaud ou version anterieure du core, PID 7) tourne');
     assert.equal(holderText({ pid: 7, owner: 'circuit x\n<b>' }), 'un circuit de capture (xb, PID 7) tourne');
+  });
+});
+
+// N2 : creation atomique avec contenu (link), jamais de suppression sur une lecture vide recente, repli sans lien.
+describe('verrou atomique (N2)', () => {
+  test('verrou vide et recent (en cours d ecriture) : ni repris ni supprime, verrou dispute', () => {
+    put(lockPath(vault), '');
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(r.ok, false);
+    assert.equal(r.held.contested, true);
+    assert.equal(readFileSync(lockPath(vault), 'utf8'), '', 'le fichier d un autre n est pas touche');
+  });
+
+  test('verrou vide et vieux (arret brutal pendant l ecriture) : repris', () => {
+    put(lockPath(vault), '');
+    const past = (Date.now() - GRACE_MS * 2) / 1000;
+    utimesSync(lockPath(vault), past, past);
+    assert.equal(acquire(vault, { pid: 4242 }).ok, true);
+    assert.equal(readLock(lockPath(vault)).pid, 4242);
+  });
+
+  test('createExclusive : contenu complet des la creation ; nom pris : false, rien d ecrase', () => {
+    const f = path.join(vault, 'x.json');
+    assert.equal(createExclusive(f, '{"pid":1}'), true);
+    assert.equal(readFileSync(f, 'utf8'), '{"pid":1}');
+    assert.equal(createExclusive(f, '{"pid":2}'), false);
+    assert.equal(readFileSync(f, 'utf8'), '{"pid":1}');
+    assert.deepEqual(readdirSync(vault).filter((n) => n.endsWith('.tmp')), [], 'aucun temporaire laisse');
+  });
+
+  for (const code of ['EPERM', 'ENOTSUP']) {
+    test(`systeme de fichiers sans lien (${code}) : repli explicite, le verrou se prend et se reprend`, () => {
+      const noLink = () => {
+        throw Object.assign(new Error('pas de lien'), { code });
+      };
+      const file = lockPath(vault);
+      mkdirSync(path.dirname(file), { recursive: true });
+      assert.equal(acquireFile(file, JSON.stringify({ pid: 4242 }), 4242, { link: noLink }).ok, true);
+      assert.equal(acquireFile(file, JSON.stringify({ pid: process.pid }), process.pid, { link: noLink }).ok, true, 'PID 4242 mort : repris');
+      assert.equal(readLock(file).pid, process.pid);
+      assert.equal(acquireFile(file, JSON.stringify({ pid: 4243 }), 4243, { link: noLink }).ok, false, 'tenu par un vivant');
+    });
+  }
+
+  test('une autre erreur de lien remonte (pas de repli silencieux)', () => {
+    const file = lockPath(vault);
+    mkdirSync(path.dirname(file), { recursive: true });
+    assert.throws(() => acquireFile(file, '{}', 1, { link: () => { throw Object.assign(new Error('io'), { code: 'EIO' }); } }), /io/);
+  });
+
+  test('banc de stress : 16 lanceurs, verrou perime, detenteurs gardes vivants, 150 manches : un seul detenteur a chaque fois', { skip: process.platform === 'win32', timeout: 120_000 }, async () => {
+    const r = await stress({ rounds: 150, workers: 16 });
+    assert.deepEqual(r.failures, [], `${r.doubles} double(s), ${r.none} sans detenteur`);
   });
 });
 

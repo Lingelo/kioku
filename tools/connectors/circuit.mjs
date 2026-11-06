@@ -264,7 +264,9 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
     if (!lock.ok) {
       fail(
         `un autre lancement est en cours sur ce coffre : ${holderText(lock.held)}${lock.held.started ? `, depuis ${lock.held.started}` : ''}.\n` +
-          `Attends qu'il finisse, ou arrete-le : kill ${lock.held.pid}. Le verrou se libere tout seul (${path.relative(VAULT, lockPath(VAULT)).split(path.sep).join('/')}).`,
+          (lock.held.pid
+            ? `Attends qu'il finisse, ou arrete-le : kill ${lock.held.pid}. Le verrou se libere tout seul (${path.relative(VAULT, lockPath(VAULT)).split(path.sep).join('/')}).`
+            : 'Verrou dispute : relance dans quelques secondes.'),
       );
     }
     if (lock.stale) console.log(`Verrou perime repris (PID ${lock.stale.pid} n'existe plus).`);
