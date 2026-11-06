@@ -16,10 +16,12 @@
  *   kioku plaud --allow-worktree        accepte de tourner dans un worktree git
  *   kioku plaud --init-structure        donne a chaque domaine declare le meme squelette : les 8 dossiers
  *                                       (un .gitkeep si vide) et overview.md s'il manque. Aucun contenu de page.
- *   kioku plaud --skip-fetch --decide <fichier-de-l-entrant>=<domaine>
+ *   kioku plaud --skip-fetch --decide <fichier-de-l-entrant>=<domaine>[:<org>,<org>]
  *                                       tranche une source que le tri avait laissee (repetable) :
  *                                       la decision de l'utilisateur est transmise a la session de tri,
  *                                       qui range sans s'abstenir. Le script ne deplace rien lui-meme.
+ *                                       `:<org>` (domaine a extension org, registre seulement) impose
+ *                                       l'organisation montree a la confirmation et passee a l'ingestion.
  *   kioku plaud --drop <fichier-de-a-trancher>
  *                                       ecarte pour de bon une source parquee (repetable) : son plaud_id
  *                                       passe « ecarte » dans seen.json, le fichier et sa raison sont
@@ -210,11 +212,15 @@ const park = (file, reason) => {
   logReason(file, reason);
 };
 
-// Decisions explicites de l'utilisateur sur des indecis (--decide fichier=domaine) : transmises a la session de tri, qui range.
+// Decisions explicites de l'utilisateur sur des indecis (--decide fichier=domaine[:org,org]) : transmises a la session
+// de tri, qui range. L'organisation, facultative, est celle de l'utilisateur : elle remplace la proposition du tri
+// (validee contre le registre plus bas, une fois celui-ci charge). Sans elle, le tri la propose comme pour toute source.
 const decisions = argv.flatMap((a, i) => (a === '--decide' ? [argv[i + 1] ?? ''] : [])).map((d) => {
-  const [file, domain] = d.split('=');
-  if (!file || !DOMAINS.includes(domain)) fail(`--decide attend <fichier>=<${DOMAINS.join('|')}>, recu "${d}".`);
-  return { file, domain };
+  const [file, target = ''] = d.split('=');
+  const [domain, orgList] = target.split(':');
+  const orgIds = orgList === undefined ? null : [...new Set(orgList.split(',').map((s) => s.trim()).filter(Boolean))].sort();
+  if (!file || !DOMAINS.includes(domain) || orgIds?.length === 0) fail(`--decide attend <fichier>=<${DOMAINS.join('|')}>[:<org>,<org>], recu "${d}".`);
+  return { file, domain, orgIds };
 });
 
 // `pending.mjs list` rend <domaine>\t<chemin>\t<etat>[\t<candidates>], etat = neuf | argent (redigee mais pas
@@ -307,6 +313,13 @@ if (target) {
     fail(error instanceof Error ? error.message : String(error));
   }
 }
+// Une organisation imposee par --decide : seulement dans le domaine qui porte l'extension org, et du registre.
+// Refus avant toute session : une organisation inconnue serait ignoree en silence par parseOrgLines.
+for (const d of decisions.filter((x) => x.orgIds)) {
+  if (d.domain !== ORG_DOMAIN || !orgs) fail(`--decide ${d.file} : une organisation ne s'impose que dans le domaine a extension org${ORG_DOMAIN ? ` (${ORG_DOMAIN})` : ' (aucun ici)'}.`);
+  const unknown = d.orgIds.filter((id) => !orgs.ids.has(id));
+  if (unknown.length) fail(`--decide ${d.file} : organisation hors registre : ${unknown.join(', ')} (registre : ${[...orgs.ids].join(', ')}).`);
+}
 const triageScope = { domains: DOMAINS.map((id) => CFG.domain(id)), orgDomain: ORG_DOMAIN };
 // Les organisations proposees par le tri, par source du domaine a extension org (chemin relatif a raw/<domaine>/).
 let orgProposals = new Map();
@@ -337,6 +350,17 @@ if (toSort.length) {
   node(PENDING, ['queue']);
   if (code !== 0) console.warn(`Attention : la session de tri a rendu le code ${code}.`);
   if (orgs) orgProposals = parseOrgLines(out, orgs, undefined, ORG_DOMAIN);
+  // L'organisation imposee par l'utilisateur (--decide f=pro:org) l'emporte sur celle du tri. La file connait la source
+  // par son chemin sous raw/<domaine>/, l'utilisateur par son nom dans l'entrant : on la retrouve par le nom.
+  const imposed = decisions.filter((x) => x.orgIds);
+  if (imposed.length) {
+    const filed = queue().filter((e) => e.domain === ORG_DOMAIN);
+    for (const d of imposed) {
+      const hit = filed.filter((e) => path.basename(e.rel) === d.file);
+      if (hit.length === 1) orgProposals.set(hit[0].rel, d.orgIds);
+      else console.warn(`  (organisation imposee pour ${d.file} non appliquee : source ${hit.length ? 'en double' : 'introuvable'} sous raw/${ORG_DOMAIN}/ apres le tri (renommee ou non rangee) ; l'ingestion decidera)`);
+    }
+  }
   // Les raisons dites par la session ; ce qu'elle a laisse dans l'entrant sans rien ranger est parque par le script (parquer ne classe rien).
   const why = new Map([
     ...[...out.matchAll(/^ABSTENTION\s+(\S+)\s*:\s*(.+)$/gm)].map((m) => [path.basename(m[1]), m[2].trim()]),
@@ -518,7 +542,7 @@ if (left.length) {
 }
 if (undecided.length) {
   console.log(`\nA trancher a part (${undecided.length}) : inbox/a-trancher/ (raisons dans _raisons.md). Pour en decider une :`);
-  console.log(`  kioku plaud --skip-fetch --decide <fichier>=<${DOMAINS.join('|')}>   (repetable)`);
+  console.log(`  kioku plaud --skip-fetch --decide <fichier>=<${DOMAINS.join('|')}>${ORG_DOMAIN ? `[:<org>]` : ''}   (repetable${ORG_DOMAIN ? `, :<org> impose l'organisation en ${ORG_DOMAIN}` : ''})`);
   console.log('  kioku plaud --drop <fichier> [<fichier>...]                      (ecartee pour de bon, ne revient pas)');
   for (const f of undecided) console.log(`  ${f}`);
 }

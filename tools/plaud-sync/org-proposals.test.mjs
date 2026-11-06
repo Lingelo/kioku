@@ -41,6 +41,14 @@ describe('prompt du tri depuis le registre', () => {
     }
   });
 
+  test('transmet l organisation imposee par --decide et interdit de renommer', () => {
+    const p = triagePrompt(registry(BASE), ['a.md'], [{ file: 'a.md', domain: 'pro', orgIds: ['acme'] }, { file: 'b.md', domain: 'perso', orgIds: null }], SCOPE);
+    assert.match(p, /sans renommer le fichier/);
+    assert.match(p, /a\.md -> pro \(organisation acme, a reprendre telle quelle dans sa ligne ORG\)/);
+    assert.match(p, /b\.md -> perso(?! \()/);
+    assert.doesNotMatch(p, /["\n]/);
+  });
+
   test('cite l employeur et le client du registre', () => {
     const p = triagePrompt(registry(BASE), ['a.md'], [], SCOPE);
     assert.match(p, /employeur ACME \[acme\]/);
