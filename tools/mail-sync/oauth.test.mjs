@@ -10,6 +10,8 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, wri
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
+import { spawnSync } from 'node:child_process';
+import { HOOKS_DIR, writeTestConfig } from '../test-vault.mjs';
 
 import { fakeGmail, gmailMessage, jsonResponse } from './fixtures.mjs';
 import { HttpError, requestJson } from './http.mjs';
@@ -243,3 +245,32 @@ describe('fournisseur Gmail', () => {
     assert.deepEqual(await gm.getAttachment('a', 'A1'), pdf);
   });
 });
+
+// B1 : la garde ferme le dossier que paths.mjs calcule, quel que soit l'emplacement retenu (meme calcul, deux copies :
+// la garde ne depend pas de tools/). Ce test les tient ensemble.
+describe('le dossier des jetons est ferme par la garde', () => {
+  test('pour chaque mode, le jeton et le client calcules par paths.mjs sont refuses en lecture', () => {
+    const vault = mkdtempSync(path.join(tmpdir(), 'kioku-mail-guard-'));
+    try {
+      writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }] });
+      for (const env of [{ XDG_CONFIG_HOME: dir }, { XDG_CONFIG_HOME: '' }]) {
+        const home = mkdtempSync(path.join(tmpdir(), 'kioku-mail-home-'));
+        const full = { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: vault, ...env };
+        if (!full.XDG_CONFIG_HOME) delete full.XDG_CONFIG_HOME;
+        const target = configDir(full, process.platform, home);
+        for (const mode of [['query', 'pro'], ['ingest', 'pro'], ['triage'], ['setup']]) {
+          for (const file of [tokenPath('travail', target), path.join(target, 'client.json')]) {
+            const e = { ...full, VAULT_MODE: mode[0], ...(mode[1] ? { VAULT_DOMAIN: mode[1] } : {}) };
+            if (!mode[1]) delete e.VAULT_DOMAIN;
+            const r = spawnSync(process.execPath, [path.join(HOOKS_DIR, 'guard.mjs')], { input: JSON.stringify({ tool_name: 'Read', tool_input: { file_path: file }, cwd: vault }), env: e, encoding: 'utf8' });
+            assert.equal(r.status, 2, `${mode[0]} : ${file}`);
+          }
+        }
+        rmSync(home, { recursive: true, force: true });
+      }
+    } finally {
+      rmSync(vault, { recursive: true, force: true });
+    }
+  });
+});
+

@@ -12,7 +12,8 @@
  * Jeton : `<config>/kioku/mail/<compte>.json` (paths.mjs), ecrit en 0600 par fichier temporaire puis renommage,
  * dossier en 0700. Sous Windows, les modes POSIX n'ont pas d'effet : le fichier herite des droits du profil
  * utilisateur (%APPDATA%), c'est la protection disponible. Le jeton n'est jamais affiche ni journalise ; il n'est
- * jamais passe a une session claude.
+ * jamais passe a une session claude, et la garde ferme ce dossier a toute session, en lecture comme en ecriture
+ * (zone secrete de hooks/guard.mjs, revue B1).
  *
  * Rafraichissement : accessToken() rend un jeton valide, rafraichi s'il expire dans la minute. Un rafraichissement
  * refuse (`invalid_grant` : jeton revoque, mot de passe change, appli non verifiee expiree au bout de 7 jours en mode
