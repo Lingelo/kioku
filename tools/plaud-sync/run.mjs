@@ -41,6 +41,9 @@
  * code de sortie de claude ne dit pas si l'erreur est passagere : on relance sur tout echec, et c'est le
  * plafond (--retries) qui borne le cout d'un echec qui se reproduit a chaque fois.
  *
+ * Les notes que le tri dit sans contenu (ligne VIDE : test de connexion, fragment) sont parquees comme les indecis,
+ * puis proposees a l'ecart (Entree = non). Ni --yes ni l'absence de terminal n'ecartent rien : l'ecart est irreversible.
+ *
  * Entre le tri et l'ingestion, le script montre ce qui va entrer dans l'or, par domaine, et demande confirmation
  * (Entree = non). C'est le dernier moment ou une erreur de domaine du tri se corrige sans effort : apres, la
  * source est dans le wiki du mauvais domaine et seul le relecteur peut encore la retenir. Sans terminal, pas de
@@ -59,7 +62,7 @@ import { appendFileSync, existsSync, mkdirSync, readdirSync, renameSync, statSyn
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { dropParked, pruneReasons } from './drop.mjs';
+import { dropParked, parseEmptyLines, pruneReasons } from './drop.mjs';
 import { acquire, release } from './lock.mjs';
 import { CORE_BIN, withCorePath } from '../core-path.mjs';
 import { skill } from '../names.mjs';
@@ -324,6 +327,8 @@ if (flag('--dry-run')) {
 // Sans decision explicite, inbox/a-trancher/ n'est pas re-trie : une source indecise ne bloque pas les lancements suivants.
 const decided = decisions.map((d) => (existsSync(path.join(PARKED, d.file)) ? `a-trancher/${d.file}` : d.file));
 const toSort = [...new Set([...inbox(), ...decided])];
+// Les notes que le tri dit sans contenu (ligne VIDE), parquees comme les indecis : fichier -> raison.
+let empties = new Map();
 if (toSort.length) {
   title(`Tri de ${toSort.length} source(s) de l'entrant`);
   node(PENDING, ['snapshot'], { capture: true });
@@ -333,12 +338,47 @@ if (toSort.length) {
   if (code !== 0) console.warn(`Attention : la session de tri a rendu le code ${code}.`);
   if (orgs) orgProposals = parseOrgLines(out, orgs, undefined, ORG_DOMAIN);
   // Les raisons dites par la session ; ce qu'elle a laisse dans l'entrant sans rien ranger est parque par le script (parquer ne classe rien).
-  const why = new Map([...out.matchAll(/^ABSTENTION\s+(\S+)\s*:\s*(.+)$/gm)].map((m) => [path.basename(m[1]), m[2].trim()]));
+  const why = new Map([
+    ...[...out.matchAll(/^ABSTENTION\s+(\S+)\s*:\s*(.+)$/gm)].map((m) => [path.basename(m[1]), m[2].trim()]),
+    ...[...out.matchAll(/^VIDE\s+(\S+)\s*:\s*(.+)$/gm)].map((m) => [path.basename(m[1]), `sans contenu : ${m[2].trim()}`]),
+  ]);
   const leftover = new Set(inbox());
   for (const [f, reason] of why) if (!leftover.has(f) && existsSync(path.join(PARKED, f))) logReason(f, reason);
   for (const f of leftover) park(f, why.get(f) ?? "tri sans resultat : la session ne l'a ni rangee ni signalee");
+  // Une source tranchee par l'utilisateur (--decide) n'est jamais proposee a l'ecart, meme si la session la dit vide.
+  const decidedFiles = new Set(decisions.map((d) => d.file));
+  empties = parseEmptyLines(out, parked().filter((f) => !decidedFiles.has(f)));
 } else {
   console.log('\nEntrant vide : rien a trier.');
+}
+
+// 2 ter. Ecart propose : les notes que le tri dit sans contenu (test de connexion, fragment, silence) restent
+// parquees, et l'utilisateur peut les ecarter ici d'un mot au lieu d'un `--drop` a part. Ecarter est irreversible
+// (plaud_id consigne « ecarte » dans seen.json, jamais redepose) : on montre taille et raison, Entree = non, et ni
+// --yes ni l'absence de terminal n'ecartent rien. --yes veut dire « ingere sans demander », pas « supprime ».
+if (empties.size) {
+  title(`${empties.size} note(s) sans contenu selon le tri, parquees dans inbox/a-trancher/`);
+  for (const [f, reason] of empties) console.log(`  ${f}  (${statSync(path.join(PARKED, f)).size} octets) : ${reason}`);
+  let drop = false;
+  if (flag('--yes') || !process.stdin.isTTY) {
+    console.log(`${flag('--yes') ? '--yes n\'ecarte rien' : 'Pas de terminal'} : elles restent parquees (kioku plaud --drop <fichier> pour les ecarter).`);
+  } else {
+    const rl = createInterface({ input: process.stdin, output: process.stdout });
+    const a = (await rl.question('Les ecarter pour de bon (elles ne reviendront pas) ? [o]ui / [N]on ')).trim().toLowerCase();
+    rl.close();
+    drop = ['o', 'oui', 'y', 'yes'].includes(a);
+  }
+  if (drop) {
+    let failed = 0;
+    for (const f of empties.keys()) {
+      const r = dropParked(VAULT, f);
+      if (r.ok) console.log(`ecarte   ${f}  (${r.id}${r.registered ? '' : ', deja dans seen.json'})`);
+      else (failed++, console.error(`REFUSE   ${f} : ${r.reason}`));
+    }
+    console.log(`${empties.size - failed} / ${empties.size} ecartee(s). seen.json est versionne : a commiter.`);
+  } else if (process.stdin.isTTY && !flag('--yes')) {
+    console.log('Gardees : elles restent parquees et listees au rapport.');
+  }
 }
 
 // 3. Ingestion : une session par source, dans le domaine de son dossier raw/<domaine>/

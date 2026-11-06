@@ -18,6 +18,22 @@ import { addToRegistry, plaudIdOf } from './dedup.mjs';
 export const parkedDir = (vault) => path.join(vault, 'inbox', 'a-trancher');
 
 /**
+ * Les lignes `VIDE <fichier> : <raison>` de la sortie du tri -> Map(fichier -> raison), dans l'ordre de la sortie.
+ * Seuls les fichiers de `parkedFiles` (noms de inbox/a-trancher/, deja filtres par l'appelant) sont retenus : un nom
+ * invente par la session, un fichier range dans un domaine ou reste dans l'entrant n'est jamais propose a l'ecart.
+ * La session peut ecrire le chemin de son `mv` (a-trancher/x.md, inbox/a-trancher/x.md) : seul le nom compte.
+ */
+export const parseEmptyLines = (out, parkedFiles) => {
+  const parked = new Set(parkedFiles);
+  const empties = new Map();
+  for (const m of String(out ?? '').matchAll(/^VIDE\s+(\S+)\s*:\s*(.+)$/gm)) {
+    const file = path.basename(m[1].replace(/\\/g, '/'));
+    if (parked.has(file) && !empties.has(file)) empties.set(file, m[2].trim());
+  }
+  return empties;
+};
+
+/**
  * Retire de _raisons.md les lignes `- <fichier> (date) : …` dont le fichier n'est plus parque (tranche par --decide,
  * ou deplace a la main). Les autres lignes restent. Rend le nombre de lignes retirees.
  */

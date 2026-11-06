@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { beforeEach, afterEach, test } from 'node:test';
 import { classify, loadRegistry, scanKnown, withPlaudId } from './dedup.mjs';
-import { dropParked, pruneReasons } from './drop.mjs';
+import { dropParked, parseEmptyLines, pruneReasons } from './drop.mjs';
 import { writeTestConfig } from '../test-vault.mjs';
 
 const RUN = path.join(path.dirname(new URL(import.meta.url).pathname), 'run.mjs');
@@ -83,6 +83,31 @@ test('run.mjs --drop a b c : ecarte chaque fichier, refuse celui sans id, ne lan
   assert.match(r.stderr, /REFUSE {3}c\.md/);
   assert.deepEqual(loadRegistry(vault).map((e) => e.id), ['of_aaa', 'of_bbb']);
   assert.equal(existsSync(parked('c.md')), true);
+});
+
+test('parseEmptyLines : ne retient que les notes parquees, par leur nom, dans l ordre et sans doublon', () => {
+  const out = [
+    'VIDE a.md : test de connexion audio',
+    'VIDE a-trancher/b.md : fragment d une phrase',
+    'VIDE inbox\\a-trancher\\c.md : silence',
+    'VIDE invente.md : nom que la session a imagine',
+    'VIDE rangee.md : rangee dans un domaine, pas parquee',
+    'ABSTENTION d.md : source mixte',
+    '  VIDE e.md : indentee, pas une ligne de protocole',
+    'VIDE a.md : doublon',
+  ].join('\n');
+  const empties = parseEmptyLines(out, ['a.md', 'b.md', 'c.md', 'd.md', 'e.md']);
+  assert.deepEqual([...empties], [
+    ['a.md', 'test de connexion audio'],
+    ['b.md', 'fragment d une phrase'],
+    ['c.md', 'silence'],
+  ]);
+});
+
+test('parseEmptyLines : sortie vide ou absente, rien a proposer', () => {
+  assert.equal(parseEmptyLines('', ['a.md']).size, 0);
+  assert.equal(parseEmptyLines(undefined, ['a.md']).size, 0);
+  assert.equal(parseEmptyLines('VIDE a.md : x', []).size, 0);
 });
 
 test('id deja consigne : supprime quand meme, sans doublon dans seen.json', () => {
