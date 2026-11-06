@@ -139,8 +139,8 @@ export const releaseFile = (file, pid) => {
  * Prend le verrou du coffre (les deux fichiers). Rend `{ ok: true, stale }` (`stale` : le verrou perime repris, ou
  * null) ou `{ ok: false, held }` si un autre lanceur vivant le detient. Un refus ne laisse rien derriere lui.
  */
-export const acquire = (vault, { pid = process.pid, now = () => new Date().toISOString() } = {}) => {
-  const mine = JSON.stringify({ pid, started: now() }, null, 1);
+export const acquire = (vault, { pid = process.pid, now = () => new Date().toISOString(), owner } = {}) => {
+  const mine = JSON.stringify({ pid, started: now(), ...(owner ? { owner } : {}) }, null, 1);
   const main = acquireFile(lockPath(vault), mine, pid);
   if (!main.ok) return main;
   let legacy;
@@ -162,3 +162,17 @@ export const release = (vault, pid = process.pid) => {
   releaseFile(lockPath(vault), pid);
   releaseFile(legacyLockPath(vault), pid);
 };
+
+/**
+ * Qui tient le verrou, pour un message de refus. `owner` est pose par le lanceur : `circuit <nom>` pour un circuit de
+ * capture (Plaud, mail), sinon le nom de la commande (`kioku rotate-log`…). Un verrou sans `owner` vient d'une version
+ * anterieure du core, ou seul le circuit Plaud et les commandes de la gate le prenaient.
+ */
+export const holderText = (held) => {
+  const owner = typeof held?.owner === 'string' ? held.owner.replace(/[^\w :.-]/g, '').slice(0, 60) : '';
+  const pid = held?.pid ? `, PID ${held.pid}` : '';
+  if (owner.startsWith('circuit ')) return `un circuit de capture (${owner.slice(8)}${pid}) tourne`;
+  if (owner) return `${owner} tourne (verrou du coffre${pid})`;
+  return `un circuit de capture (Plaud ou version anterieure du core${pid}) tourne`;
+};
+

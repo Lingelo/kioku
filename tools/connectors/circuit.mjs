@@ -33,7 +33,7 @@ import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'nod
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { acquire, lockPath, release } from './lock.mjs';
+import { acquire, holderText, lockPath, release } from './lock.mjs';
 import { inboxDir, logReason, mdIn, park, parkedDir, parseEmptyLines, pruneReasons } from './parked.mjs';
 import { validState } from './pending.mjs';
 import { CORE_BIN, withCorePath } from '../core-path.mjs';
@@ -47,6 +47,7 @@ const PENDING = path.join(HERE, 'pending.mjs');
 /**
  * Ce qu'un connecteur fournit au circuit.
  * @typedef {object} Connector
+ * @property {string} [name] - nom affiche (verrou, messages) ; Plaud : Plaud. A defaut, le dossier d'etat
  * @property {string} state - dossier d'etat local, relatif au coffre (file d'ingestion) ; Plaud : tools/plaud-sync
  * @property {(ctx: {argv: string[], dryRun: boolean, node: Function, fail: Function, title: Function}) => void} fetch
  *   - depose dans inbox/ (sans domaine) ; appelle `fail` en cas d'echec
@@ -253,10 +254,10 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
   // et index.md / log.md (tenus en ajout) doubles. Un verrou dont le processus est mort est repris tout seul. Pas de
   // verrou en dry-run : il ne lance aucune session et n'ecrit rien.
   if (!flag('--dry-run')) {
-    const lock = acquire(VAULT);
+    const lock = acquire(VAULT, { owner: `circuit ${connector.name ?? connector.state}` });
     if (!lock.ok) {
       fail(
-        `un autre lancement est en cours sur ce coffre (PID ${lock.held.pid}${lock.held.started ? `, depuis ${lock.held.started}` : ''}).\n` +
+        `un autre lancement est en cours sur ce coffre : ${holderText(lock.held)}${lock.held.started ? `, depuis ${lock.held.started}` : ''}.\n` +
           `Attends qu'il finisse, ou arrete-le : kill ${lock.held.pid}. Le verrou se libere tout seul (${path.relative(VAULT, lockPath(VAULT)).split(path.sep).join('/')}).`,
       );
     }

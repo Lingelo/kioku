@@ -447,7 +447,7 @@ describe('add-domain', () => {
     const before = readFileSync(path.join(vault, 'kioku.config.json'), 'utf8');
     const r = kioku(['add-domain', 'asso', '--vault', vault]);
     assert.equal(r.status, EXIT.precondition);
-    assert.match(r.stdout, /circuit Plaud tourne/);
+    assert.match(r.stdout, /add-domain : un circuit de capture \(Plaud ou version anterieure du core, PID \d+\) tourne, relance apres/);
     assert.equal(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8'), before);
     assert.ok(!existsSync(path.join(vault, WIKI, 'asso')));
   });

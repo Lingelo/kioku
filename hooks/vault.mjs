@@ -685,9 +685,9 @@ const cmdRotateLog = async (args) => {
   if (dry) return 0;
 
   // Import a la demande : la gate (check, promote...) ne doit pas dependre de tools/ pour fonctionner.
-  const { acquire, release } = await import('../tools/connectors/lock.mjs');
-  const lock = acquire(VAULT);
-  if (!lock.ok) return console.log(`rotate-log : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`), 1;
+  const { acquire, holderText, release } = await import('../tools/connectors/lock.mjs');
+  const lock = acquire(VAULT, { owner: 'kioku rotate-log' });
+  if (!lock.ok) return console.log(`rotate-log : ${holderText(lock.held)}, relance apres`), 1;
   try {
     // Le journal a-t-il bouge depuis la lecture ? Une entree ajoutee entre-temps serait perdue.
     if (readFileSync(file, 'utf8') !== original) return console.log('rotate-log : log.md a change pendant la rotation, rien n\'est ecrit, relance'), 1;
@@ -875,9 +875,9 @@ const writeTagPlan = async (name, plan, dry, refused, refuse) => {
   console.log(`${dry ? '[dry-run] ' : ''}${name} : ${plan.length} page(s) a ecrire, ${refused} refusee(s)`);
   if (dry || !plan.length) return refused ? 1 : 0;
   // Import a la demande, comme rotate-log : la gate ne depend pas de tools/ hors de ces commandes.
-  const { acquire, release } = await import('../tools/connectors/lock.mjs');
-  const lock = acquire(VAULT);
-  if (!lock.ok) return console.log(`${name} : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`), 1;
+  const { acquire, holderText, release } = await import('../tools/connectors/lock.mjs');
+  const lock = acquire(VAULT, { owner: `kioku ${name}` });
+  if (!lock.ok) return console.log(`${name} : ${holderText(lock.held)}, relance apres`), 1;
   let failed = refused;
   try {
     for (const p of plan) {

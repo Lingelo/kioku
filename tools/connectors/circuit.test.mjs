@@ -121,7 +121,7 @@ describe('un connecteur factice branche sur le circuit', () => {
     writeFileSync(legacyLockPath(vault), JSON.stringify({ pid: process.pid, started: '2026-11-05T08:00:00.000Z' }));
     const r = run(['--skip-fetch']);
     assert.equal(r.status, 1);
-    assert.match(r.stderr, new RegExp(`un autre lancement est en cours sur ce coffre \\(PID ${process.pid}, depuis 2026-11-05T08:00:00\\.000Z\\)`));
+    assert.match(r.stderr, new RegExp(`un autre lancement est en cours sur ce coffre : un circuit de capture \\(Plaud ou version anterieure du core, PID ${process.pid}\\) tourne, depuis 2026-11-05T08:00:00\\.000Z`));
     assert.match(r.stderr, /tools\/connectors\/\.lock\.json/);
     assert.deepEqual(fetches(), []);
     assert.equal(existsSync(lockPath(vault)), false, 'le refus ne laisse pas de verrou canonique');

@@ -33,7 +33,9 @@ export const readLocalState = (vaultRoot, domain = null) => {
   const stateDir = path.join(vaultRoot, 'tools', 'plaud-sync');
   const queueFile = path.join(stateDir, '.queue.json');
   const snapshotFile = path.join(stateDir, '.snapshot.json');
-  const lockFile = path.join(stateDir, '.lock.json');
+  // Le verrou commun du coffre (tools/connectors/lock.mjs) ; l'ancien emplacement, tenu en miroir, en repli.
+  const canonicalLock = path.join(vaultRoot, 'tools', 'connectors', '.lock.json');
+  const lockFile = existsSync(canonicalLock) ? canonicalLock : path.join(stateDir, '.lock.json');
   const arbitrationDir = path.join(vaultRoot, 'inbox', 'a-trancher');
   const inboxDir = path.join(vaultRoot, 'inbox');
 
@@ -77,7 +79,7 @@ export const readLocalState = (vaultRoot, domain = null) => {
     snapshotState = { status: 'corrupt', counts: null, error: 'Format de snapshot invalide' };
   }
 
-  // 3. Verrou du circuit Plaud (.lock.json)
+  // 3. Verrou du coffre (circuits de capture, commandes de la gate) : qui le tient, s'il le dit
   const lockRead = safeReadJson(lockFile);
   let lockState;
   if (!lockRead.exists) {
@@ -88,9 +90,9 @@ export const readLocalState = (vaultRoot, domain = null) => {
     const held = lockRead.data;
     const pid = Number.isInteger(held?.pid) ? held.pid : null;
     if (pid && isAlive(pid)) {
-      lockState = { status: 'active', pid, started: held.started };
+      lockState = { status: 'active', pid, started: held.started, owner: typeof held.owner === 'string' ? held.owner : null };
     } else {
-      lockState = { status: 'stale', pid, started: held?.started };
+      lockState = { status: 'stale', pid, started: held?.started, owner: typeof held?.owner === 'string' ? held.owner : null };
     }
   }
 

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { pathToFileURL } from 'node:url';
-import { acquire, acquireFile, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
+import { acquire, acquireFile, holderText, isAlive, legacyLockPath, lockPath, readLock, release } from './lock.mjs';
 
 const LOCK = pathToFileURL(new URL('./lock.mjs', import.meta.url).pathname).href;
 
@@ -272,6 +272,21 @@ describe('reprise concurrente d un verrou perime', { skip: process.platform === 
     assert.equal(r.ok, false);
     assert.equal(r.held.pid, process.pid);
     assert.ok(existsSync(lockPath(vault)));
+  });
+});
+
+// m2 : le message de refus dit qui tient le verrou, au lieu de toujours accuser Plaud.
+describe('qui tient le verrou', () => {
+  test('owner ecrit seulement s il est donne ; le refus le rend', () => {
+    acquire(vault, { pid: process.pid, owner: 'circuit mail' });
+    assert.equal(readLock(lockPath(vault)).owner, 'circuit mail');
+    const r = acquire(vault, { pid: 4242 });
+    assert.equal(holderText(r.held), `un circuit de capture (mail, PID ${process.pid}) tourne`);
+  });
+  test('commande du coffre, verrou sans nom (version anterieure), nom piege', () => {
+    assert.equal(holderText({ pid: 7, owner: 'kioku rotate-log' }), 'kioku rotate-log tourne (verrou du coffre, PID 7)');
+    assert.equal(holderText({ pid: 7 }), 'un circuit de capture (Plaud ou version anterieure du core, PID 7) tourne');
+    assert.equal(holderText({ pid: 7, owner: 'circuit x\n<b>' }), 'un circuit de capture (xb, PID 7) tourne');
   });
 });
 

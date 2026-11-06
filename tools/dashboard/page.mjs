@@ -2336,10 +2336,10 @@ export const renderPage = (data) => {
               </td>
             </tr>
             <tr>
-              <td>Verrou du lanceur (.lock.json)</td>
+              <td>Verrou du coffre (tools/connectors/.lock.json)</td>
               <td class="cell-right">
                 <span class="status-badge ${localState?.lock?.status === 'active' ? 'status-ok' : 'status-local'}">
-                  ${localState?.lock?.status === 'active' ? `Actif (PID ${localState?.lock?.pid})` : localState?.lock?.status === 'stale' ? 'Obsolète' : 'Inactif'}
+                  ${localState?.lock?.status === 'active' ? `Actif (${localState?.lock?.owner ? `${escapeHtml(localState.lock.owner)}, ` : ''}PID ${localState?.lock?.pid})` : localState?.lock?.status === 'stale' ? 'Obsolète' : 'Inactif'}
                 </span>
               </td>
             </tr>

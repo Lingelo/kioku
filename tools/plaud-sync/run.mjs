@@ -56,6 +56,7 @@ const FETCH = path.join(HERE, 'fetch-notes.mjs');
 
 /** Le connecteur Plaud, tel que le circuit commun le consomme. */
 const plaudConnector = {
+  name: 'Plaud',
   state: 'tools/plaud-sync',
   // Depot dans l'entrant (sans domaine : rien n'est classe ici). L'authentification est celle du MCP, jamais lue ici.
   fetch: ({ argv, dryRun, node, fail, title }) => {

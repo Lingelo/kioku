@@ -35,7 +35,7 @@ import { fileURLToPath } from 'node:url';
 import { CONFIG_NAME, DOMAIN_ID, loadConfig, locateVault, vaultMarkers } from '../hooks/config.mjs';
 import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, managedScripts, mergeConfig, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
 import { formatRefusal } from './plugin-install.mjs';
-import { acquire, release } from './connectors/lock.mjs';
+import { acquire, holderText, release } from './connectors/lock.mjs';
 
 export { PLUGIN_ID };
 
@@ -615,8 +615,8 @@ export const upgrade = (vaultDir, { write = false } = {}) => {
       lines: [`upgrade : simulation, ${plan.changes.length} fichier(s) a modifier (relance avec --write pour appliquer)`, ...plan.changes.flatMap(showDiff), ...notes],
     };
   }
-  const lock = acquire(vault);
-  if (!lock.ok) return { code: EXIT.precondition, lines: [`upgrade : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`] };
+  const lock = acquire(vault, { owner: 'kioku upgrade' });
+  if (!lock.ok) return { code: EXIT.precondition, lines: [`upgrade : ${holderText(lock.held)}, relance apres`] };
   try {
     for (const c of plan.changes) writeAtomic(path.join(vault, c.rel), c.after);
   } finally {
@@ -645,8 +645,8 @@ export const addDomain = (vaultDir, name, { preset = 'minimal', description } = 
   const leftovers = ['wiki', 'raw', 'silver', 'quarantine', 'domains'].map((z) => path.join(z, name)).filter((rel) => existsSync(path.join(vault, rel)));
   if (leftovers.length) return { code: EXIT.precondition, lines: [`add-domain : deja present sur le disque, rien n'est ecrit : ${leftovers.join(', ')}`] };
 
-  const lock = acquire(vault);
-  if (!lock.ok) return { code: EXIT.precondition, lines: [`add-domain : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`] };
+  const lock = acquire(vault, { owner: 'kioku add-domain' });
+  if (!lock.ok) return { code: EXIT.precondition, lines: [`add-domain : ${holderText(lock.held)}, relance apres`] };
   try {
     skeleton(vault, name);
     domainJournals(vault, name);
