@@ -106,6 +106,13 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
           out.ignored.push({ thread: thread.id, filename: a.filename, reason: `PDF trop gros (${data.length} octets)` });
           continue;
         }
+        // Revue N7 : un PDF commence par `%PDF-`. Sinon (contenu encore encode en base64 de transfert, ou autre type
+        // annonce comme PDF), il n'est pas depose : une « source » illisible entrerait dans un bronze immuable.
+        if (!data.subarray(0, 5).equals(Buffer.from('%PDF-'))) {
+          list.push({ filename: a.filename, note: 'ignoree (pas un PDF lisible : en-tete %PDF- absent)' });
+          out.ignored.push({ thread: thread.id, filename: a.filename, reason: 'en-tete %PDF- absent (contenu encode, ou pas un PDF)' });
+          continue;
+        }
         const sha = sha256(data);
         if (knownAttachment(sha, known, registry) || pending.some((p) => p.sha === sha)) {
           list.push({ filename: a.filename, note: 'deja captee (meme contenu)' });

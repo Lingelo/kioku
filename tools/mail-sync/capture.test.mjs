@@ -126,6 +126,16 @@ describe('PDF joints', () => {
     assert.match(read(out.deposited[0]), /planning\.pdf : ignoree \(PDF de 0 Mo, maximum 0 Mo\)/);
   });
 
+  test('PDF dont les octets ne commencent pas par %PDF- (encore en base64, ou autre type) : ignore, raison au rapport (N7)', async () => {
+    const encoded = Buffer.from(PDF.toString('base64'));
+    const { provider } = gmail([m1], { attachments: { A1: encoded } });
+    const out = await capture(provider);
+    assert.equal(out.pdfs.length, 0);
+    assert.ok(out.ignored.some((i) => i.filename === 'planning.pdf' && /en-tete %PDF- absent/.test(i.reason)));
+    assert.match(read(out.deposited[0]), /planning\.pdf : ignoree \(pas un PDF lisible : en-tete %PDF- absent\)/);
+    assert.ok(logs.some((l) => /\[ignoree\] planning\.pdf .*%PDF-/.test(l)));
+  });
+
   test('meme PDF deja capte (empreinte) : pas redepose', async () => {
     await capture(gmail([m1]).provider);
     const again = gmailMessage({ id: 'z1', threadId: 'tz', internalDate: DAY + 5000, subject: 'Autre fil', text: 'meme piece', attachments: [{ filename: 'copie.pdf', size: PDF.length, attachmentId: 'A9' }] });
