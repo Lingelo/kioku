@@ -2,7 +2,7 @@
 /**
  * Depose les fils de mail des comptes declares dans inbox/ (lance par run.mjs, ou seul).
  *
- *   node tools/mail-sync/fetch-mail.mjs --since 2026-11-01 [--account <id>] [--dry-run] [--max-pdf-mb N]
+ *   node tools/mail-sync/fetch-mail.mjs --since 2026-11-01 [--account <id>] [--dry-run] [--max-pdf-mb N] [--max-threads N]
  *   node tools/mail-sync/fetch-mail.mjs --skip <thread_id>      ecarte un fil pour de bon (seen.json « thread: »), repetable
  *
  * Le coffre vise est CLAUDE_PROJECT_DIR (pose par run.mjs). Les comptes viennent de modules.mail.accounts. Un compte
@@ -11,7 +11,7 @@
  */
 
 import { loadConfig, vaultRoot } from '../vault-config.mjs';
-import { captureAccount, DEFAULT_MAX_PDF_MB } from './capture.mjs';
+import { captureAccount, DEFAULT_MAX_PDF_MB, DEFAULT_MAX_THREADS } from './capture.mjs';
 import { addToRegistry } from './dedup.mjs';
 import { accessToken } from './oauth.mjs';
 import { createGmail } from './providers/gmail.mjs';
@@ -54,6 +54,8 @@ if (!accounts.length) {
 }
 const maxMb = Number(opt('--max-pdf-mb') ?? mail.max_pdf_mb ?? DEFAULT_MAX_PDF_MB);
 if (!(maxMb > 0)) fail('--max-pdf-mb attend un nombre positif');
+const maxThreads = Number(opt('--max-threads') ?? DEFAULT_MAX_THREADS);
+if (!(Number.isInteger(maxThreads) && maxThreads > 0)) fail('--max-threads attend un entier positif');
 const since = opt('--since') ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
 
 // Tous les jetons d'abord : un jeton absent, revoque ou expire arrete tout AVANT le premier depot (aucun depot partiel
@@ -80,7 +82,7 @@ for (const account of accounts) {
   const make = PROVIDERS[account.provider];
   try {
     if (!make) throw new Error(`fournisseur inconnu : ${account.provider}`);
-    await captureAccount({ vault: VAULT, account, provider: make(account), since, dryRun: argv.includes('--dry-run'), maxPdfBytes: maxMb * 1024 * 1024 });
+    await captureAccount({ vault: VAULT, account, provider: make(account), since, dryRun: argv.includes('--dry-run'), maxPdfBytes: maxMb * 1024 * 1024, maxThreads });
   } catch (error) {
     failed++;
     console.error(`compte ${account.id} : ${error instanceof Error ? error.message : String(error)}`);

@@ -18,6 +18,9 @@ import { classifyThread, knownAttachment, loadRegistry, scanMail } from './dedup
 
 export const DEFAULT_LABEL = 'kb';
 export const DEFAULT_MAX_PDF_MB = 20;
+// Plafond de fils deposes (nouveaux ou suites) par compte et par lancement (revue m6) : un libelle trop large ne
+// deverse pas des centaines de sources d'un coup. Les plus anciens d'abord : les lancements suivants avancent.
+export const DEFAULT_MAX_THREADS = 100;
 
 const isPdf = (a) => a.mimeType === 'application/pdf' || (/\.pdf$/i.test(a.filename) && /octet-stream|pdf/i.test(a.mimeType));
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
@@ -51,18 +54,27 @@ const sameBytes = (file, data) => {
  * @param {number} [p.maxPdfBytes]
  * @param {(line: string) => void} [p.log]
  */
-export const captureAccount = async ({ vault, account, provider, since, dryRun = false, maxPdfBytes = DEFAULT_MAX_PDF_MB * 1024 * 1024, log = console.log, writeFile = writeFileSync }) => {
+export const captureAccount = async ({ vault, account, provider, since, dryRun = false, maxPdfBytes = DEFAULT_MAX_PDF_MB * 1024 * 1024, log = console.log, writeFile = writeFileSync, maxThreads = DEFAULT_MAX_THREADS }) => {
   const create = creator(writeFile);
   const label = account.label ?? DEFAULT_LABEL;
   const inbox = path.join(vault, 'inbox');
   const known = scanMail(vault);
   const registry = loadRegistry(vault);
-  const out = { deposited: [], pdfs: [], ignored: [], warnings: [], counts: { nouveau: 0, suite: 0, connu: 0, ecarte: 0, contenu: 0 } };
+  const out = { deposited: [], pdfs: [], ignored: [], warnings: [], capped: 0, counts: { nouveau: 0, suite: 0, connu: 0, ecarte: 0, contenu: 0 } };
   const threads = await provider.listThreads(label, since);
   log(`compte ${account.id} : ${threads.length} fil(s) du libelle "${label}" depuis ${since}`);
   if (!dryRun) mkdirSync(inbox, { recursive: true });
 
-  for (const { id } of threads) {
+  // Gmail rend les fils du plus recent au plus ancien : on part des plus anciens, pour qu'un plafond atteint laisse les
+  // plus recents au lancement suivant (et que l'ordre des suites soit celui du temps).
+  const ordered = [...threads].reverse();
+  for (let n = 0; n < ordered.length; n++) {
+    if (out.counts.nouveau + out.counts.suite >= maxThreads) {
+      out.capped = ordered.length - n;
+      log(`  [plafond] ${maxThreads} fil(s) depose(s) : ${out.capped} fil(s) non examine(s), pour le prochain lancement (ou --max-threads N)`);
+      break;
+    }
+    const { id } = ordered[n];
     const thread = await provider.getThread(id);
     if (!thread.messages.length) continue;
     const c = classifyThread(thread, known, registry);

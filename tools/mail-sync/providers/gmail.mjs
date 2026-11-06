@@ -64,6 +64,8 @@ export const createGmail = ({ token, fetch = globalThis.fetch, sleep } = {}) => 
     const wanted = String(name).toLowerCase();
     const found = labels.find((l) => String(l.name).toLowerCase() === wanted);
     if (!found) throw new Error(`libelle Gmail introuvable : "${name}" (cree-le dans Gmail et pose-le sur les fils a capter)`);
+    // Un libelle systeme (INBOX, SENT, IMPORTANT, CATEGORY_…) capterait toute la boite : l'opt-in exige un libelle a soi.
+    if (found.type === 'system') throw new Error(`libelle systeme refuse : "${name}" capterait toute la boite. Cree un libelle a toi (kb par defaut) et pose-le sur les fils a capter`);
     return found.id;
   };
 

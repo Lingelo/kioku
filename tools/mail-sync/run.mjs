@@ -11,6 +11,7 @@
  *   kioku mail --skip <thread_id>              ecarte un fil pour de bon (seen.json), repetable
  *   kioku mail --drop <fichier>...             ecarte une source parquee (fil ou PDF), et son PDF compagnon
  *   kioku mail --max-pdf-mb N                  taille maximale d'un PDF joint (defaut : modules.mail.max_pdf_mb, sinon 20)
+ *   kioku mail --max-threads N                 fils deposes au plus par compte et par lancement (defaut 100), les plus anciens d'abord
  *   kioku mail --login <compte>                connexion OAuth du compte (une fois, depuis un terminal) ; rien d'autre
  *
  * Lecture seule : scope gmail.readonly, rien n'est jamais ecrit dans la boite (le libelle reste pose). L'etat est dans
@@ -71,7 +72,7 @@ const mailConnector = {
     const since = (i >= 0 ? args[i + 1] : undefined) ?? new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
     title(`Mail -> inbox (depuis ${since})`);
     const skips = args.flatMap((a, j) => (a === '--skip' ? ['--skip', args[j + 1] ?? ''] : []));
-    const r = node(FETCH, ['--since', since, ...skips, ...passThrough('--account'), ...passThrough('--max-pdf-mb'), ...(dryRun ? ['--dry-run'] : [])]);
+    const r = node(FETCH, ['--since', since, ...skips, ...passThrough('--account'), ...passThrough('--max-pdf-mb'), ...passThrough('--max-threads'), ...(dryRun ? ['--dry-run'] : [])]);
     if (r.status !== 0) fail('fetch-mail a echoue (voir ci-dessus). Jeton absent ou refuse : npm run mail:login -- <compte>');
   },
   drop: (vault, file) =>

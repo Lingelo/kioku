@@ -136,6 +136,26 @@ describe('PDF joints', () => {
   });
 });
 
+describe('volume (m6)', () => {
+  test('plafond : les plus anciens d abord, le reste au lancement suivant, qui avance', async () => {
+    const threads = Array.from({ length: 5 }, (_, i) => ({ id: `fil${i}`, messages: [gmailMessage({ id: `msg${i}`, threadId: `fil${i}`, internalDate: DAY + i * 1000, subject: `Sujet ${i}`, text: `texte ${i}` })] }));
+    // Gmail rend le plus recent d'abord.
+    const g = () => fakeGmail({ threads: [...threads].reverse() });
+    const first = await capture(createGmail({ token: async () => 't', fetch: g().fetch }), { maxThreads: 2 });
+    assert.equal(first.deposited.length, 2);
+    assert.ok(first.deposited[0].includes('sujet-0') && first.deposited[1].includes('sujet-1'), 'les plus anciens d abord');
+    assert.equal(first.capped, 3);
+    assert.ok(logs.some((l) => /\[plafond\] 2 fil\(s\) depose\(s\) : 3 fil\(s\) non examine\(s\)/.test(l)));
+    const second = await capture(createGmail({ token: async () => 't', fetch: g().fetch }), { maxThreads: 2 });
+    assert.ok(second.deposited[0].includes('sujet-2') && second.deposited[1].includes('sujet-3'));
+  });
+
+  test('libelle systeme (INBOX) : refuse, il capterait toute la boite', async () => {
+    const g = fakeGmail({ labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }], threads: [] });
+    await assert.rejects(captureAccount({ vault, account: { ...ACCOUNT, label: 'inbox' }, provider: createGmail({ token: async () => 't', fetch: g.fetch }), since: '2026-11-01', log: () => {} }), /libelle systeme refuse : "inbox"/);
+  });
+});
+
 describe('ordre d ecriture (I4)', () => {
   test('le PDF puis sa fiche, et le fil en dernier : une panne sur le PDF ne laisse rien, la relance depose tout', async () => {
     const order = [];
