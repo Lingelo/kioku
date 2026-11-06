@@ -7,7 +7,7 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
@@ -489,5 +489,109 @@ describe('chantier 1 : la sortie hors coffre ne s ouvre pas depuis une session',
     writeFileSync(path.join(vault, '.claude', 'settings.json'), JSON.stringify({ permissions: { allow: ['Bash(ls)'] }, enabledPlugins: { 'autre@x': true } }));
     assert.equal(guard(nu, read('README.md')), OK);
     assert.equal(guard(nu, bash('mv build dist && rm -rf node_modules')), OK);
+  });
+});
+
+// Correctif de securite : la garde comparait les chemins au caractere pres, sans suivre les liens ni etendre `~`.
+// Sur un volume insensible a la casse (APFS par defaut, NTFS), `WIKI/perso/p.md` ouvrait l'autre domaine.
+const caseInsensitiveFs = (() => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'vault-guard-casse-'));
+  try {
+    writeFileSync(path.join(dir, 'sonde'), '');
+    return existsSync(path.join(dir, 'SONDE'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+})();
+const SANS_CASSE = caseInsensitiveFs ? false : 'volume temporaire sensible a la casse : cas sans objet ici (macOS/Windows seulement)';
+
+describe('volume insensible a la casse', { skip: SANS_CASSE }, () => {
+  const q = { mode: 'query', domain: 'pro' };
+  const grep = (p, glob) => ({ tool_name: 'Grep', tool_input: { pattern: 'x', path: p, ...(glob ? { glob } : {}) } });
+  beforeEach(() => {
+    for (const d of ['wiki/pro', 'wiki/perso', 'raw/pro', 'quarantine/pro', '.verdicts', '.candidats/wiki/pro', 'hooks']) mkdirSync(path.join(vault, d), { recursive: true });
+    writeFileSync(path.join(vault, 'wiki', 'perso', 'p.md'), 'secret');
+    writeFileSync(path.join(vault, 'wiki', 'pro', 'x.md'), 'ok');
+  });
+  test('Read de l autre domaine, du brut, de la quarantaine, des verdicts en casse modifiee : refuse', () => {
+    for (const p of ['WIKI/perso/p.md', 'wiki/PERSO/p.md', 'Wiki/Perso/absent.md', 'RAW/pro/x.md', 'Quarantine/pro/x.json', '.VERDICTS/x.json', 'SILVER/pro/x.md']) {
+      assert.equal(guard(q, read(p)), REFUS, p);
+    }
+    assert.equal(guard(q, read(path.join(vault.toUpperCase(), 'wiki', 'perso', 'p.md'))), REFUS, 'racine du coffre en majuscules');
+  });
+  test('Write dans l or d un autre domaine, dans le wiki direct, la garde, en casse modifiee : refuse', () => {
+    for (const p of ['WIKI/perso/x.md', 'wiki/PERSO/neuf/x.md', 'WIKI/pro/concepts/x.md', '.CANDIDATS/wiki/PERSO/x.md', 'KIOKU.CONFIG.JSON', 'Hooks/Orgs.json', 'RAW/pro/x.md']) {
+      assert.equal(guard(q, write(p)), REFUS, p);
+    }
+    assert.equal(guard({ mode: 'ingest', domain: 'pro' }, write('SILVER/perso/x.md')), REFUS);
+  });
+  test('Grep et Glob : path ou motif en casse modifiee : refuse', () => {
+    assert.equal(guard(q, grep('WIKI/perso')), REFUS);
+    assert.equal(guard(q, grep('RAW/pro')), REFUS);
+    assert.equal(guard(q, grep('wiki/pro', 'WIKI/PERSO/**')), REFUS);
+    assert.equal(guard(q, { tool_name: 'Glob', tool_input: { pattern: '../Wiki/Perso/*.md', path: 'wiki/pro' } }), REFUS);
+  });
+  test('Bash : zone ou commande en casse modifiee : refuse', () => {
+    for (const c of ['cat WIKI/perso/p.md', 'cat Raw/pro/x.md', 'ls .Verdicts', 'cat QUARANTINE/pro/x.json', 'echo x > WIKI/pro/y.md', 'MV Wiki w', 'RG secret', 'GIT show HEAD:x']) {
+      assert.equal(guard(q, bash(c)), REFUS, c);
+    }
+  });
+  test('operations legitimes : casse exacte, et casse modifiee sur son propre domaine, autorisees', () => {
+    assert.equal(guard(q, read('wiki/pro/x.md')), OK);
+    assert.equal(guard(q, read('WIKI/PRO/x.md')), OK, 'meme fichier sur ce volume : la garde ne ferme pas a tort');
+    assert.equal(guard(q, write('.candidats/wiki/pro/concepts/x.md')), OK);
+    assert.equal(guard(q, write('wiki/pro/index.md')), OK);
+    assert.equal(guard(q, grep('wiki/pro')), OK);
+    assert.equal(guard(q, bash('cat wiki/pro/x.md')), OK);
+    assert.equal(guard(q, bash('ls -lrt wiki/pro')), OK, 'ls -r (tri inverse) n est pas une recherche recursive');
+    assert.equal(guard(q, read('README.md')), OK);
+  });
+});
+
+describe('chemins canoniques : ~ et liens symboliques', () => {
+  const q = { mode: 'query', domain: 'pro' };
+  beforeEach(() => {
+    for (const d of ['wiki/pro', 'wiki/perso', '.candidats/wiki/pro']) mkdirSync(path.join(vault, d), { recursive: true });
+    writeFileSync(path.join(vault, 'wiki', 'perso', 'p.md'), 'secret');
+    writeFileSync(path.join(vault, 'wiki', 'pro', 'x.md'), 'ok');
+  });
+  // HOME = dossier parent du coffre : `~/<coffre>/...` designe le coffre.
+  const guardHome = (payload) => {
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: vault, HOME: path.dirname(vault), VAULT_MODE: 'query', VAULT_DOMAIN: 'pro' };
+    return spawnSync(process.execPath, [TARGET], { input: JSON.stringify({ ...payload, cwd: vault }), env, encoding: 'utf8' }).status;
+  };
+  test('~, $HOME, ${HOME} vers l autre domaine : refuse ; vers son domaine : autorise', () => {
+    const base = path.basename(vault);
+    for (const h of ['~', '$HOME', '${HOME}']) {
+      assert.equal(guardHome(read(`${h}/${base}/wiki/perso/p.md`)), REFUS, h);
+      assert.equal(guardHome(write(`${h}/${base}/wiki/perso/x.md`)), REFUS, h);
+      assert.equal(guardHome({ tool_name: 'Grep', tool_input: { pattern: 'x', path: `${h}/${base}/wiki/perso` } }), REFUS, h);
+    }
+    assert.equal(guardHome(read(`~/${base}/wiki/pro/x.md`)), OK);
+  });
+  test('lien symbolique sous son domaine vers l autre domaine : refuse', () => {
+    symlinkSync('../perso', path.join(vault, 'wiki', 'pro', 'lien'));
+    assert.equal(guard(q, read('wiki/pro/lien/p.md')), REFUS);
+    assert.equal(guard(q, write('wiki/pro/lien/index.md')), REFUS);
+    assert.equal(guard(q, { tool_name: 'Grep', tool_input: { pattern: 'x', path: 'wiki/pro/lien' } }), REFUS);
+    // `..` apres un lien : le systeme remonte depuis la cible (wiki/), pas depuis le lien (wiki/pro/).
+    assert.equal(guard(q, read('wiki/pro/lien/../perso/p.md')), REFUS);
+  });
+  test('lien pendant sous .candidats vers l or d un autre domaine : Write refuse', () => {
+    symlinkSync('../../../wiki/perso/neuf.md', path.join(vault, '.candidats', 'wiki', 'pro', 'piege.md'));
+    assert.equal(guard(q, write('.candidats/wiki/pro/piege.md')), REFUS);
+  });
+  test('lien hors du coffre vers l autre domaine : refuse', () => {
+    const out = realpathSync(mkdtempSync(path.join(tmpdir(), 'vault-guard-dehors-')));
+    try {
+      symlinkSync(path.join(vault, 'wiki', 'perso'), path.join(out, 'raccourci'));
+      assert.equal(guard(q, read(path.join(out, 'raccourci', 'p.md'))), REFUS);
+    } finally {
+      rmSync(out, { recursive: true, force: true });
+    }
+  });
+  test('boucle de liens : refuse (dans le doute)', () => {
+    symlinkSync('boucle', path.join(vault, 'wiki', 'pro', 'boucle'));
+    assert.equal(guard(q, read('wiki/pro/boucle/x.md')), REFUS);
   });
 });

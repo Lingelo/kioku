@@ -43,12 +43,68 @@
  * contre le comportement normal du modele, pas contre quelqu'un qui la contourne expres.
  */
 
-import { readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const HERE = path.dirname(fileURLToPath(import.meta.url));
-const VAULT = path.resolve(process.env.CLAUDE_PROJECT_DIR ?? path.join(HERE, '..', '..'));
+// Un chemin se compare dans sa forme canonique, celle que le systeme de fichiers ouvrira vraiment :
+// - `~`, `~/`, `$HOME`, `${HOME}` en tete : Claude Code etend `~` dans Read ; sans cela `~/<coffre>/wiki/<autre>/x.md`
+//   se resolvait sous le coffre en `<coffre>/~/...` (zone other, lisible) ;
+// - liens symboliques suivis segment par segment, y compris un lien pendant (Write le suit et cree sa cible) et un
+//   `..` apres un lien (le systeme remonte depuis la cible, pas depuis le lien, contrairement a path.resolve) ;
+// - casse du disque : realpathSync.native rend la casse reelle des segments existants (realpathSync, version JS,
+//   garde la casse fournie : `WIKI/perso` passait pour une zone inconnue sur un volume insensible a la casse).
+// Le reste, inexistant, est recolle tel quel ; sur un volume insensible a la casse, toute comparaison de zone passe
+// par fold() (voir FOLD). Une erreur inattendue (droits, boucle de liens) remonte : decide() refuse.
+const expandHome = (p) => p.replace(/^(?:~|\$HOME|\$\{HOME\})(?=$|[/\\])/, () => os.homedir());
+const MAX_LINKS = 40;
+const canonical = (abs) => {
+  let cur = path.parse(abs).root;
+  const todo = abs.slice(cur.length).split(/[/\\]+/).reverse();
+  let exists = true;
+  let links = 0;
+  while (todo.length) {
+    const seg = todo.pop();
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') {
+      cur = path.dirname(cur);
+      continue;
+    }
+    const next = path.join(cur, seg);
+    if (!exists) {
+      cur = next;
+      continue;
+    }
+    try {
+      cur = realpathSync.native(next);
+      continue;
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
+    }
+    let st = null;
+    try {
+      st = lstatSync(next);
+    } catch (error) {
+      if (error?.code !== 'ENOENT' && error?.code !== 'ENOTDIR') throw error;
+    }
+    if (st?.isSymbolicLink()) {
+      // Lien pendant : on suit sa cible (relative au dossier du lien, deja canonique), comme le ferait Write.
+      if (++links > MAX_LINKS) throw new Error(`trop de liens symboliques sous ${abs}`);
+      const link = readlinkSync(next);
+      const root = path.isAbsolute(link) ? path.parse(link).root : '';
+      if (root) cur = root;
+      todo.push(...link.slice(root.length).split(/[/\\]+/).reverse());
+      continue;
+    }
+    exists = false;
+    cur = next;
+  }
+  return cur;
+};
+
+const HERE = canonical(path.dirname(fileURLToPath(import.meta.url)));
+const VAULT = canonical(path.resolve(process.env.CLAUDE_PROJECT_DIR ?? path.join(HERE, '..', '..')));
 const MODES = ['query', 'ingest', 'triage', 'setup'];
 // Modes ou une session travaille dans UN domaine : seuls ceux-la ouvrent une zone de domaine.
 const DOMAIN_MODES = ['query', 'ingest'];
@@ -100,6 +156,13 @@ if (!MODES.includes(MODE)) refuse(`Garde du coffre : VAULT_MODE="${MODE ?? ''}" 
 if ((DOMAIN_MODES.includes(MODE) || D !== undefined) && !cfg.has(D)) {
   refuse(`Garde du coffre : VAULT_DOMAIN="${D ?? ''}" n'est pas un domaine declare (${cfg.domains.join('|')}). Dans le doute, je refuse.`);
 }
+// Volume du coffre insensible a la casse (APFS par defaut, NTFS) : `WIKI/perso` y ouvre `wiki/perso`. Sonde unique,
+// gardee pour tout l'appel (un processus par appel d'outil) : la configuration, chargee plus haut, existe forcement ;
+// si son nom en majuscules existe aussi, le volume ne distingue pas la casse, et chemins et commandes se comparent
+// plies (fold). Limite : un volume monte sous le coffre avec une autre sensibilite n'est pas sonde a part.
+const FOLD = existsSync(path.join(VAULT, 'kioku.config.json'.toUpperCase()));
+// Majuscules puis minuscules : le signe kelvin (U+212A) et le s long (U+017F) se plient comme sur le disque (k, s).
+const fold = (s) => (FOLD ? s.toUpperCase().toLowerCase() : s);
 const ALL = cfg.domains.join('|');
 // Un domaine se termine au premier caractere qui n'est ni lettre, ni chiffre, ni tiret : `pro` ne couvre pas `pro-old`.
 const END = '(?![\\w-])';
@@ -127,14 +190,15 @@ const CONSIGNE_ECRIRE =
   `- la configuration du coffre et les regles de domaine (domains/) ne s'ecrivent depuis aucune session.`;
 
 const inside = (abs, dir) => {
-  const rel = path.relative(dir, abs);
+  const rel = path.relative(fold(dir), fold(abs));
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel));
 };
-const PROTECTED = new Set(cfg.protectedPaths.map((p) => path.resolve(p)));
+const PROTECTED = new Set(cfg.protectedPaths.map((p) => canonical(path.resolve(p))));
+const PROTECTED_KEYS = new Set([...PROTECTED].map(fold));
 
 const classify = (abs) => {
-  if (inside(abs, HERE) || PROTECTED.has(abs)) return { zone: 'garde' };
-  const rel = path.relative(VAULT, abs);
+  if (inside(abs, HERE) || PROTECTED_KEYS.has(fold(abs))) return { zone: 'garde' };
+  const rel = path.relative(fold(VAULT), fold(abs));
   if (rel.startsWith('..') || path.isAbsolute(rel)) return { zone: 'outside' };
   const p = rel === '' ? [] : rel.split(path.sep);
   const [a, b] = p;
@@ -231,7 +295,7 @@ const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /plaud-sync[/\\]/, 
 // Une commande shell qui ecrit, et qui vise une zone fermee en ecriture.
 const WRITERS = [/(^|[\s;&|(])(sed|perl)\b[^\n;&|]*\s-\w*i/, /(^|[\s;&|(])tee\b/, /(^|[\s;&|(])(mv|cp|rm|touch|truncate|ln|install|dd)\b/];
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const PROTECTED_REL = [...PROTECTED].filter((p) => inside(p, VAULT)).map((p) => escapeRe(path.relative(VAULT, p)).replace(/\\\\|\//g, '[/\\\\]'));
+const PROTECTED_REL = [...PROTECTED].filter((p) => inside(p, VAULT)).map((p) => escapeRe(fold(path.relative(VAULT, p))).replace(/\\\\|\//g, '[/\\\\]'));
 const writeTargets = () => {
   const list = ['wiki[/\\\\]', 'domains[/\\\\]', '\\.claude[/\\\\](hooks|settings|agents)', `silver[/\\\\](${ALL})${END}[/\\\\]heritage`, ...PROTECTED_REL];
   if (MODE !== 'triage') list.push('raw[/\\\\]', 'inbox[/\\\\]', 'quarantine[/\\\\]', '\\.verdicts');
@@ -251,7 +315,7 @@ const globCovers = (pattern, name) => {
     return true; // glob illisible (crochet non ferme…) : dans le doute, il couvre
   }
 };
-const PROTECTED_NAMES = [...PROTECTED].filter((p) => inside(p, VAULT)).map((p) => path.relative(VAULT, p).split(path.sep).join('/'));
+const PROTECTED_NAMES = [...PROTECTED].filter((p) => inside(p, VAULT)).map((p) => fold(path.relative(VAULT, p)).split(path.sep).join('/'));
 const writerTouchesVaultShape = (cleaned) => {
   if (!WRITERS.some((w) => w.test(cleaned))) return false;
   if (MARKER_WORD.test(cleaned)) return true;
@@ -301,7 +365,12 @@ const decide = () => {
   const tool = input?.tool_name;
   const args = input?.tool_input ?? {};
   const cwd = typeof input?.cwd === 'string' ? input.cwd : process.cwd();
-  const target = (field) => (typeof args[field] === 'string' && args[field] !== '' ? path.resolve(cwd, args[field]) : null);
+  const target = (field) => {
+    if (typeof args[field] !== 'string' || args[field] === '') return null;
+    const p = expandHome(args[field]);
+    // Pas de path.resolve sur le chemin donne : il plierait `lien/..` avant que canonical() ne suive le lien.
+    return canonical(path.isAbsolute(p) ? p : `${path.resolve(cwd)}${path.sep}${p}`);
+  };
 
   if (EDIT_TOOLS.has(tool)) {
     const abs = target('file_path') ?? target('notebook_path');
@@ -328,7 +397,7 @@ const decide = () => {
     const scanned = [args.glob, tool === 'Glob' ? args.pattern : undefined].filter((v) => typeof v === 'string');
     for (const text of scanned) {
       const normalized = text.replace(/\\/g, '/');
-      if (forbiddenMentions().some((r) => r.test(normalized))) refuse(CONSIGNE_LIRE);
+      if (forbiddenMentions().some((r) => r.test(normalized) || r.test(fold(normalized)))) refuse(CONSIGNE_LIRE);
     }
     return;
   }
@@ -337,19 +406,24 @@ const decide = () => {
     const raw = args.command;
     if (typeof raw !== 'string') refuse('Garde du coffre : commande Bash illisible. Dans le doute, je refuse.');
     const command = stripMessages(raw);
-    if (shellWritesProtected(command)) refuse(`${CONSIGNE_ECRIRE}\n(Commande refusee : elle ecrit dans une zone fermee.)`);
+    // Volume insensible a la casse : `cat WIKI/perso/p.md` ou `MV wiki w` ouvrent les memes fichiers et lancent les
+    // memes commandes. Chaque regle se teste sur la commande telle quelle ET pliee (motifs en minuscules) ; la forme
+    // telle quelle garde les drapeaux dont la casse compte (`ls -R`).
+    if (shellWritesProtected(command) || (FOLD && shellWritesProtected(fold(command)))) refuse(`${CONSIGNE_ECRIRE}\n(Commande refusee : elle ecrit dans une zone fermee.)`);
     const normalized = command.replace(/\\/g, '/');
-    if (forbiddenMentions().some((r) => r.test(normalized))) refuse(`${CONSIGNE_LIRE}\n(Commande refusee : elle nomme une zone fermee.)`);
-    if (GIT_CONTENT.some((r) => r.test(normalized))) {
+    const forms = FOLD ? [normalized, fold(normalized)] : [normalized];
+    const hit = (r) => forms.some((f) => r.test(f));
+    if (forbiddenMentions().some(hit)) refuse(`${CONSIGNE_LIRE}\n(Commande refusee : elle nomme une zone fermee.)`);
+    if (GIT_CONTENT.some(hit)) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : l'historique git contient le brut et tous les domaines. Lis avec Read/Grep sur le dossier de ton domaine.)`);
     }
-    if (RECURSIVE.some((r) => r.test(normalized)) && !allowedMention().test(normalized)) {
+    if (RECURSIVE.some(hit) && !hit(allowedMention())) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : recherche recursive sans dossier autorise. Utilise Grep/Glob avec un path.)`);
     }
-    if (KIOKU_WRITE.test(normalized) && MODE !== 'setup') {
+    if (hit(KIOKU_WRITE) && MODE !== 'setup') {
       refuse(`Session ${MODE}/${D ?? '-'} : configurer le coffre (kioku init, add-domain, upgrade --write) se fait en session setup (npm run setup, ou kioku session --mode setup), ou depuis un terminal hors de Claude Code.`);
     }
-    if (MODE === 'setup' && SETUP_DENIED.some((r) => r.test(normalized))) {
+    if (MODE === 'setup' && SETUP_DENIED.some(hit)) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : en session setup, ni la gate, ni le circuit Plaud, ni le lanceur, ni le dashboard : ils lisent un domaine ou ouvrent une autre session.)`);
     }
   }

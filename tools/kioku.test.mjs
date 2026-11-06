@@ -82,6 +82,9 @@ describe('init', () => {
     assert.equal(kioku(['init', vault, '--domains', 'a,b', '--guard-hook']).status, EXIT.ok);
     const settings = readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8');
     assert.ok(settings.includes(GUARD), 'le hook vise la garde du core');
+    const command = JSON.parse(settings).hooks.PreToolUse[0].hooks[0].command;
+    assert.ok(command.startsWith(`"${process.execPath}" `), 'interpreteur par chemin absolu : pas de dependance au PATH de Claude Code');
+    assert.match(command, /\|\| exit 2$/, 'interpreteur disparu : refus, pas une session sans garde');
     assert.doesNotMatch(settings, /kioku-pin/);
     assert.doesNotMatch(readFileSync(path.join(vault, '.kioku', 'schema.md'), 'utf8'), /kioku:/);
   });
