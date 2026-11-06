@@ -18,7 +18,7 @@ Le socle commun aux **modules de capture** : ce qui ne dépend pas de la source 
 
 | Fichier | Rôle |
 |---|---|
-| `circuit.mjs` | `runCircuit(connector)` : la boucle tri → confirmation → ingestion → rapport, options communes (`--skip-fetch`, `--decide`, `--drop`, `--yes`, `--group-by-day`, `--retries`…) |
+| `circuit.mjs` | `runCircuit(connector)` : la boucle tri → confirmation → ingestion → rapport, options communes (`--skip-fetch`, `--decide <fichier>=<domaine>[:<org>]`, `--drop`, `--requeue <domaine> <chemin>`, `--yes`, `--group-by-day`, `--retries`…) et l'écart proposé des notes que le tri dit vides (`VIDE`). Les messages citent la forme du CLI (`kioku plaud`, `kioku mail`), jamais un chemin d'outil. |
 | `lock.mjs` | verrou du coffre, **un seul pour tous** les circuits de capture et pour `rotate-log`, `tag-org`, `tag-raw`, `upgrade --write`, `add-domain` |
 | `pending.mjs` | file d'ingestion (`--state <dossier>` : l'état local du connecteur) |
 | `parked.mjs` | `inbox/a-trancher/` : parquer, raisons, écart pour de bon via le registre du connecteur |
