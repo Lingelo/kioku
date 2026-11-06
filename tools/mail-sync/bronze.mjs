@@ -2,7 +2,7 @@
  * Le bronze d'un fil de mail : le fichier .md depose dans inbox/ (puis range par le tri dans raw/<D>/emails/), et la
  * fiche d'un PDF joint (raw/<D>/pdfs/, a cote du PDF lui-meme).
  *
- * Frontmatter d'un fil : mail_account, gmail_thread_id, last_message_id, message_ids, subject, participants, date,
+ * Frontmatter d'un fil : mail_account, gmail_thread_id, last_message_id, message_ids, rfc822_ids, subject, participants, date,
  * hint, body_sha256, mail_warnings (seulement s'il y a lieu : `qp-suspect`), et pour une suite suite_of +
  * previous_message_id. `message_ids` (en plus de la liste du plan) dit
  * quels messages ce fichier couvre : la deduplication s'appuie dessus, et un message supprime dans Gmail ne fait pas
@@ -31,6 +31,15 @@ const oneLine = (s, max = 300) => String(s ?? '').replace(/[\u0000-\u001f\u007f]
 const neutralize = (s) => String(s ?? '').split(UNTRUSTED_PREFIX).join('untrusted-mail-data_');
 const yamlString = (s) => JSON.stringify(oneLine(s));
 const safeId = (s) => (/^[A-Za-z0-9_-]+$/.test(String(s)) ? String(s) : JSON.stringify(String(s)));
+
+/**
+ * L'identifiant RFC 822 d'un message (`Message-ID`), normalise : le meme mail vu par deux comptes porte deux ids Gmail
+ * differents, mais le meme Message-ID (revue m7). Sans en-tete exploitable : null.
+ */
+export const rfc822Id = (m) => {
+  const id = String(m?.headers?.messageId ?? '').trim().replace(/^<|>$/g, '').toLowerCase();
+  return /^[^\s<>"]{3,250}$/.test(id) ? id : null;
+};
 
 export const slugify = (text, fallback = 'sans-sujet') =>
   String(text ?? '')
@@ -126,6 +135,7 @@ export const buildThread = ({ account, hint, thread, messages, previous, attachm
     `gmail_thread_id: ${safeId(thread.id)}`,
     `last_message_id: ${safeId(last.id)}`,
     `message_ids: ${JSON.stringify(messages.map((m) => String(m.id)))}`,
+    `rfc822_ids: ${JSON.stringify(messages.map((m) => rfc822Id(m)).filter(Boolean))}`,
     `subject: ${yamlString(subject)}`,
     `participants: ${JSON.stringify(participantsOf(messages))}`,
     `date: ${isoDay(last.internalDate)}`,

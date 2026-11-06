@@ -222,6 +222,24 @@ describe('deduplication', () => {
     assert.equal((await capture(gmail([m1, m2, m3]).provider)).deposited.length, 0);
   });
 
+  test('le meme echange vu par deux comptes (Message-ID RFC 822) : identique, rien ; un message de plus, une suite (m7)', async () => {
+    const withId = (m, rid) => ({ ...m, payload: { ...m.payload, headers: [...m.payload.headers, { name: 'Message-ID', value: `<${rid}@mail.example.com>` }] } });
+    const a1 = withId(m1, 'r1');
+    const a2 = withId(m2, 'r2');
+    const a3 = withId(m3, 'r3');
+    const first = await capture(createGmail({ token: async () => 't', fetch: fakeGmail({ threads: [{ id: '18c00000000000t1', messages: [a1, a2] }], attachments: { A1: PDF } }).fetch }));
+    assert.match(read(first.deposited[0]), /^rfc822_ids: \["r1@mail\.example\.com","r2@mail\.example\.com"\]$/m);
+    // Autre compte : autres ids Gmail, memes Message-ID, numerotation differente (un message en moins devant).
+    const other = (m, id) => ({ ...m, id, threadId: 'autrefil' });
+    const same = await capture(createGmail({ token: async () => 't', fetch: fakeGmail({ threads: [{ id: 'autrefil', messages: [other(a2, 'b2')] }] }).fetch }));
+    assert.equal(same.deposited.length, 0);
+    const more = await capture(createGmail({ token: async () => 't', fetch: fakeGmail({ threads: [{ id: 'autrefil', messages: [other(a2, 'b2'), other(a3, 'b3')] }] }).fetch }));
+    assert.equal(more.counts.suite, 1);
+    const md = read(more.deposited[0]);
+    assert.match(md, /^message_ids: \["b3"\]$/m);
+    assert.match(md, new RegExp(`^suite_of: "${first.deposited[0].replace(/\./g, '\\.')}"$`, 'm'));
+  });
+
   test('meme contenu sous un autre identifiant de fil (deux comptes) : pas redepose (empreinte)', async () => {
     await capture(gmail([m1]).provider);
     const twin = { ...m1, threadId: 'autre', id: '18c0000000000a01' };

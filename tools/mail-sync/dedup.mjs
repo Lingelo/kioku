@@ -7,6 +7,8 @@
  *   - tous ses messages deja couverts (`message_ids:` d'un fichier, ou d'un fichier ecarte par `--drop`) -> connu ;
  *   - une partie couverte, des messages nouveaux                    -> SUITE : seuls les nouveaux, lies au dernier
  *     fichier du fil. Le bronze n'est jamais reecrit ;
+ *   - un message est aussi couvert si son Message-ID RFC 822 (`rfc822_ids:`) est deja dans un depot, sous un autre
+ *     fil : le meme echange vu par deux comptes. Les messages restants deviennent une suite de ce depot ;
  *   - rien de couvert                                               -> nouveau ;
  * puis, pour un depot, l'empreinte du contenu (`body_sha256`) : un meme contenu deja present (meme mail capte sur deux
  * comptes) n'est pas redepose. Un PDF : par l'empreinte de ses octets (`attachment_sha256`, et `att:<sha>` au registre).
@@ -18,6 +20,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import { addToRegistryAt, frontmatterValue, loadRegistryAt, mdFiles, places } from '../connectors/dedup.mjs';
+import { rfc822Id } from './bronze.mjs';
 
 export const STATE = 'tools/mail-sync';
 export const registryPath = (vault) => path.join(vault, ...STATE.split('/'), 'seen.json');
@@ -41,6 +44,7 @@ const jsonField = (text, key) => {
 /** Photo de ce que le coffre contient deja, cote mail. */
 export const scanMail = (vault) => {
   const threads = new Map(); // id du fil -> [{ file, last, messages, date }]
+  const rfc = new Map(); // Message-ID RFC 822 -> { file, last } : le meme mail sur un autre compte
   const bodies = new Set();
   const attachments = new Set();
   for (const [rel, recursive] of places(vault)) {
@@ -59,9 +63,10 @@ export const scanMail = (vault) => {
       const ids = jsonField(text, 'message_ids').map(String);
       const entry = { file: path.basename(abs), path: posix(path.relative(vault, abs)), last, messages: ids.length ? ids : last ? [last] : [], date: frontmatterValue(text, 'date') ?? '' };
       threads.set(tid, [...(threads.get(tid) ?? []), entry]);
+      for (const id of jsonField(text, 'rfc822_ids').map(String)) if (!rfc.has(id)) rfc.set(id, { file: entry.file, last });
     }
   }
-  return { threads, bodies, attachments };
+  return { threads, bodies, attachments, rfc };
 };
 
 /** Identifiant de registre d'un fichier ecarte (--drop) : fil + messages couverts, ou empreinte du PDF. */
@@ -103,9 +108,19 @@ export const classifyThread = (thread, known, registry) => {
   if (reg.skipped.has(thread.id)) return { kind: 'ecarte', fresh: [], previous: null };
   const files = known.threads.get(thread.id) ?? [];
   const covered = new Set([...files.flatMap((f) => f.messages), ...(reg.covered.get(thread.id) ?? [])]);
-  const fresh = thread.messages.filter((m) => !covered.has(String(m.id)));
+  // Un message deja capte sous un autre fil (autre compte), reconnu a son Message-ID RFC 822 (revue m7).
+  const elsewhere = (m) => {
+    const id = rfc822Id(m);
+    return id ? (known.rfc?.get(id) ?? null) : null;
+  };
+  const fresh = thread.messages.filter((m) => !covered.has(String(m.id)) && !elsewhere(m));
   if (!fresh.length) return { kind: 'connu', fresh: [], previous: null };
-  if (!covered.size) return { kind: 'nouveau', fresh, previous: null };
+  if (!covered.size) {
+    const seen = thread.messages.filter((m) => !covered.has(String(m.id)) && elsewhere(m));
+    if (!seen.length) return { kind: 'nouveau', fresh, previous: null };
+    const last = elsewhere(seen[seen.length - 1]);
+    return { kind: 'suite', fresh, previous: { file: last.file, lastMessageId: last.last } };
+  }
   // Le fichier precedent : celui qui couvre le message le plus recent deja couvert (ordre du fil).
   const order = new Map(thread.messages.map((m, i) => [String(m.id), i]));
   const rank = (f) => Math.max(-1, ...f.messages.map((id) => order.get(id) ?? -1));
