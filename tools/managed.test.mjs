@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { BLOCK_END, BLOCK_START, gitignoreBlock, appendTopLevelKeys, legacyTranslation, managedScripts, mergeConfig, mergeGitignore, mergeScripts, mergeSettings, VAULT_FORMAT } from './managed.mjs';
+import { BLOCK_END, BLOCK_START, gitignoreBlock, appendTopLevelKeys, KIOKU_DENY, legacyTranslation, localDenyRules, managedScripts, mergeConfig, mergeDenyRules, mergeGitignore, mergeScripts, mergeSettings, VAULT_FORMAT } from './managed.mjs';
 
 describe('scripts', () => {
   test('tous geres (prefixe kioku), dashboard = premier domaine, plaud conditionnel', () => {
@@ -101,6 +101,36 @@ describe('settings', () => {
   test('idempotent', () => {
     const once = mergeSettings({ permissions: {} });
     assert.deepEqual(mergeSettings(once), once);
+  });
+});
+
+describe('(c) regles permissions.deny', () => {
+  test('contenu : dossier de config mail (macOS/Linux et Windows) et zones fermees, Read et Edit, syntaxe de la doc', () => {
+    assert.deepEqual(KIOKU_DENY, [
+      'Read(~/.config/kioku/**)',
+      'Edit(~/.config/kioku/**)',
+      'Read(~/AppData/Roaming/kioku/**)',
+      'Edit(~/AppData/Roaming/kioku/**)',
+      'Read(/quarantine/**)',
+      'Edit(/quarantine/**)',
+      'Read(/.verdicts/**)',
+      'Edit(/.verdicts/**)',
+    ]);
+  });
+  test('ajout seul : regles et autres reglages de l utilisateur conserves, aucun doublon, idempotent', () => {
+    const before = { enabledPlugins: { x: true }, permissions: { allow: ['Bash(ls)'], deny: ['Read(./.env)', 'Read(/quarantine/**)'], ask: ['Bash(git push:*)'] } };
+    const out = mergeDenyRules(before);
+    assert.deepEqual(out.permissions.allow, ['Bash(ls)']);
+    assert.deepEqual(out.permissions.ask, ['Bash(git push:*)']);
+    assert.deepEqual(out.enabledPlugins, { x: true });
+    assert.deepEqual(out.permissions.deny, ['Read(./.env)', 'Read(/quarantine/**)', ...KIOKU_DENY.filter((r) => r !== 'Read(/quarantine/**)')]);
+    assert.equal(mergeDenyRules(out), out, 'deja complet : le meme objet');
+    assert.deepEqual(mergeDenyRules({}).permissions.deny, KIOKU_DENY);
+  });
+  test('regles propres au poste : XDG absolu (//…), rien si XDG absent ou egal a ~/.config ; chemin Windows en /c/…', () => {
+    assert.deepEqual(localDenyRules({ XDG_CONFIG_HOME: '/opt/xdg' }, '/home/u'), ['Read(//opt/xdg/kioku/**)', 'Edit(//opt/xdg/kioku/**)']);
+    assert.deepEqual(localDenyRules({}, '/home/u'), []);
+    assert.deepEqual(localDenyRules({ XDG_CONFIG_HOME: '/home/u/.config' }, '/home/u'), []);
   });
 });
 

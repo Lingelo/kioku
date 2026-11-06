@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { EXIT } from './kioku.mjs';
+import { KIOKU_DENY } from './managed.mjs';
 import { HOOKS_DIR } from './test-vault.mjs';
 
 const KIOKU = path.join(path.dirname(fileURLToPath(import.meta.url)), 'kioku.mjs');
@@ -76,6 +77,12 @@ describe('init', () => {
     assert.ok(existsSync(path.join(vault, 'orgs.json')));
     const settings = JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'));
     assert.deepEqual(settings.enabledPlugins, { 'kioku@dojo': true }, 'la garde est le plugin de la marketplace dojo');
+  });
+
+  test('(c) --guard-hook : les regles de refus Kioku aussi, a cote du hook', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a', '--guard-hook']).status, EXIT.ok);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8')).permissions, { deny: KIOKU_DENY });
+    assert.ok(!existsSync(path.join(vault, '.claude', 'settings.local.json')), 'sans XDG particulier : pas de settings.local.json');
   });
 
   test('--guard-hook : repli de developpement, le hook vise la garde de ce core, schema aux noms nus', () => {
@@ -220,7 +227,8 @@ describe('init', () => {
     assert.equal(kioku(['init', vault, '--domains', 'a,b']).status, EXIT.ok);
     const s = JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'));
     assert.equal(s.hooks, undefined);
-    assert.deepEqual(s, { enabledPlugins: { 'kioku@dojo': true } }, 'le coffre declare seulement le plugin');
+    // Point (c) de la verification finale : le coffre declare le plugin ET les regles de refus de Kioku, rien d'autre.
+    assert.deepEqual(s, { enabledPlugins: { 'kioku@dojo': true }, permissions: { deny: KIOKU_DENY } }, 'le coffre declare le plugin et les regles de refus Kioku, rien d autre');
     assert.equal(JSON.parse(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8')).format, 1);
     assert.match(readFileSync(path.join(vault, '.kioku', 'schema.md'), 'utf8'), /\/kioku:ingest/, 'schema prefixe : le plugin porte les skills');
   });
@@ -394,10 +402,35 @@ describe('upgrade', () => {
     assert.deepEqual(out.default_session, { mode: 'setup' }, 'valeur posee : jamais ecrasee');
     assert.deepEqual(out.modules, { dashboard: {} });
     const s2 = JSON.parse(readFileSync(settingsFile, 'utf8'));
-    assert.deepEqual(s2.permissions, { allow: ['Bash(ls)'] });
+    // Point (c) : allow de l'utilisateur conserve a l'identique, deny Kioku ajoute.
+    assert.deepEqual(s2.permissions, { allow: ['Bash(ls)'], deny: KIOKU_DENY });
     assert.equal(s2.extraKnownMarketplaces, undefined);
     assert.deepEqual(s2.enabledPlugins, { 'kioku@dojo': true });
     assert.doesNotMatch(JSON.stringify(s2), /kioku-pin|sha/);
+  });
+
+  test('(c) un deny preexistant de l utilisateur est conserve, avant ceux de Kioku ; relance : aucun doublon', () => {
+    const settingsFile = path.join(vault, '.claude', 'settings.json');
+    writeFileSync(settingsFile, JSON.stringify({ enabledPlugins: { 'kioku@dojo': true }, permissions: { allow: ['Bash(ls)'], deny: ['Read(./secrets/**)', KIOKU_DENY[0]] } }));
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    const once = JSON.parse(readFileSync(settingsFile, 'utf8'));
+    assert.deepEqual(once.permissions.allow, ['Bash(ls)']);
+    assert.deepEqual(once.permissions.deny, ['Read(./secrets/**)', ...KIOKU_DENY]);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), once, 'idempotent');
+    assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
+  });
+
+  test('(c) XDG_CONFIG_HOME hors ~/.config : regle absolue dans settings.local.json (propre au poste), idempotente', () => {
+    const xdg = path.join(root, 'xdg');
+    const local = path.join(vault, '.claude', 'settings.local.json');
+    writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm *)'] } }));
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault], { XDG_CONFIG_HOME: xdg }).status, EXIT.ok);
+    const rule = `//${xdg.replace(/^\/+/, '')}/kioku/**`;
+    assert.deepEqual(JSON.parse(readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm *)', `Read(${rule})`, `Edit(${rule})`]);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault], { XDG_CONFIG_HOME: xdg }).status, EXIT.ok);
+    assert.equal(JSON.parse(readFileSync(local, 'utf8')).permissions.deny.length, 3);
+    assert.doesNotMatch(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'), /xdg/, 'rien de propre au poste dans le fichier versionne');
   });
 
   test('hook de garde du projet : plugin non active (double garde), signale', () => {

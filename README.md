@@ -100,6 +100,8 @@ Chacun appelle `kioku session|dashboard|plaud|…` ; la session porte `VAULT_MOD
 - Elle juge le texte des commandes shell, pas leurs effets : elle bloque des formes connues, elle ne sandboxe pas.
 - La gate vérifie la provenance, pas la vérité ; le relecteur est un autre appel de modèle dans la même session.
 
+**Seconde barrière : les règles `permissions.deny` de Claude Code.** `kioku init` et `kioku upgrade --write` ajoutent au `.claude/settings.json` du coffre, sans toucher aux règles existantes, des refus `Read`/`Edit` sur le dossier de configuration du module mail (`~/.config/kioku/**`, `~/AppData/Roaming/kioku/**`) et sur `quarantine/**` et `.verdicts/**`, que seule la gate lit, par `kioku`. Un `XDG_CONFIG_HOME` hors `~/.config` donne une règle absolue dans `.claude/settings.local.json`, propre au poste. Syntaxe : [documentation Claude Code, permissions](https://code.claude.com/docs/en/permissions). Ces règles valent pour les outils de fichiers et les commandes Bash que Claude Code reconnaît, pas pour un script qui ouvre les fichiers lui-même ; la casse des chemins n'y est pas documentée. La garde reste la barrière principale.
+
 ## Contribuer
 
 `npm install` branche un hook `pre-push` qui refuse tout push portant un terme d'une liste privée (`KIOKU_DENYLIST`, un fichier hors du dépôt). Les tests : `npm test`.

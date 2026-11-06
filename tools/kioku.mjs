@@ -33,7 +33,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { CONFIG_NAME, DOMAIN_ID, loadConfig, locateVault, vaultMarkers } from '../hooks/config.mjs';
-import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, managedScripts, mergeConfig, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
+import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, localDenyRules, managedScripts, mergeConfig, mergeDenyRules, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
 import { formatRefusal } from './plugin-install.mjs';
 import { acquire, holderText, release } from './connectors/lock.mjs';
 
@@ -474,7 +474,11 @@ export const init = (target, { domains = ['pro', 'perso'], org = null, plaud = f
   const settings = guardHook
     ? { hooks: { PreToolUse: [{ matcher: 'Write|Edit|MultiEdit|NotebookEdit|Read|Grep|Glob|NotebookRead|Bash', hooks: [{ type: 'command', command: GUARD_HOOK_COMMAND(CORE_GUARD) }] }] } }
     : mergeSettings({});
-  create(path.join(vault, '.claude', 'settings.json'), `${JSON.stringify(settings, null, 2)}\n`);
+  // Les regles permissions.deny de Kioku (managed.mjs, KIOKU_DENY), en plus de la garde ; celles propres a la machine
+  // (un XDG_CONFIG_HOME hors ~/.config) dans settings.local.json, qui ne se versionne pas.
+  create(path.join(vault, '.claude', 'settings.json'), `${JSON.stringify(mergeDenyRules(settings), null, 2)}\n`);
+  const localRules = localDenyRules();
+  if (localRules.length) create(path.join(vault, '.claude', 'settings.local.json'), `${JSON.stringify(mergeDenyRules({}, localRules), null, 2)}\n`);
   create(path.join(vault, SCHEMA_REL), schemaText(guardHook ? {} : { KIOKU_PLUGIN: 'kioku' }));
   create(path.join(vault, 'CLAUDE.md'), readFileSync(path.join(TEMPLATES, 'vault-CLAUDE.md'), 'utf8'));
   create(path.join(vault, '.gitignore'), mergeGitignore('', gitignoreBlock({ plaud })));
@@ -569,11 +573,25 @@ export const planUpgrade = (vault, { only } = {}) => {
     const r = readJson(path.join(vault, rel));
     const { guard, source: kind } = registeredGuard(vault, { home: null });
     if (r.error) notes.push(`${rel} ${r.error} : plugin non declare`);
-    else if (kind === 'projet' && guard) notes.push(`${rel} : hook de garde du projet present, plugin non active (sinon double garde) ; bascule vers le plugin a faire a la main`);
-    else {
-      // Deja a la forme voulue : fichier laisse tel quel, mise en forme comprise.
-      const merged = mergeSettings(r.data ?? {});
+    else if (kind === 'projet' && guard) {
+      notes.push(`${rel} : hook de garde du projet present, plugin non active (sinon double garde) ; bascule vers le plugin a faire a la main`);
+      // Les regles de refus valent aussi avec un hook du projet : seules elles sont ajoutees.
+      const merged = mergeDenyRules(r.data ?? {});
       if (JSON.stringify(merged) !== JSON.stringify(r.data)) put(rel, json(merged));
+    } else {
+      // Deja a la forme voulue : fichier laisse tel quel, mise en forme comprise.
+      const merged = mergeDenyRules(mergeSettings(r.data ?? {}));
+      if (JSON.stringify(merged) !== JSON.stringify(r.data)) put(rel, json(merged));
+    }
+  }
+  const localRel = path.join('.claude', 'settings.local.json');
+  const localRules = localDenyRules();
+  if (want(localRel) && localRules.length) {
+    const r = readJson(path.join(vault, localRel));
+    if (r.error) notes.push(`${localRel} ${r.error} : regles de refus propres a ce poste non ajoutees`);
+    else {
+      const merged = mergeDenyRules(r.data ?? {}, localRules);
+      if (JSON.stringify(merged) !== JSON.stringify(r.data)) put(localRel, json(merged));
     }
   }
   if (want(SCHEMA_REL)) {

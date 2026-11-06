@@ -16,6 +16,8 @@
  */
 
 import { readFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
 import { KIOKU_ID as PLUGIN_ID } from './plugin-install.mjs';
 
@@ -175,6 +177,50 @@ export const mergeSettings = (settings = {}) => {
   const plugins = Object.fromEntries(Object.entries(settings.enabledPlugins ?? {}).filter(([k]) => !LEGACY_PLUGINS.includes(k)));
   const { extraKnownMarketplaces: _m, ...rest } = settings;
   return { ...rest, ...(Object.keys(markets).length ? { extraKnownMarketplaces: markets } : {}), enabledPlugins: { ...plugins, [PLUGIN_ID]: true } };
+};
+
+/**
+ * Regles `permissions.deny` de Claude Code posees par le core (verification finale, point c) : une seconde barriere,
+ * tenue par Claude Code lui-meme, derriere la garde. Syntaxe de la documentation officielle
+ * (https://code.claude.com/docs/en/permissions, « Read and Edit ») : `~/chemin` part du dossier personnel, `//chemin`
+ * est absolu, `/chemin` est relatif au fichier de reglages (pour .claude/settings.json : la racine du coffre). Une
+ * regle Read en refus bloque aussi Edit et Write sur le meme chemin, pas NotebookEdit : d'ou les deux. Elles valent pour
+ * les outils de fichiers et pour les commandes Bash que Claude Code reconnait (cat, head, tee, redirections…), pas pour
+ * un sous-processus qui ouvre les fichiers lui-meme (la gate, le dashboard : c'est voulu). La casse des chemins dans
+ * ces regles n'est pas documentee : la garde reste la barriere principale.
+ *
+ * Portables (dans .claude/settings.json, versionne) : le dossier de configuration du module mail aux emplacements par
+ * defaut (macOS/Linux, Windows), et les zones qu'aucune session ne lit ni n'ecrit (la gate y passe par `kioku`).
+ */
+export const KIOKU_DENY = [
+  'Read(~/.config/kioku/**)',
+  'Edit(~/.config/kioku/**)',
+  'Read(~/AppData/Roaming/kioku/**)',
+  'Edit(~/AppData/Roaming/kioku/**)',
+  'Read(/quarantine/**)',
+  'Edit(/quarantine/**)',
+  'Read(/.verdicts/**)',
+  'Edit(/.verdicts/**)',
+];
+
+/**
+ * Regles propres a la machine (dans .claude/settings.local.json, non versionne) : un XDG_CONFIG_HOME qui n'est pas
+ * ~/.config, en chemin absolu (`//…`). Sans lui : aucune.
+ */
+export const localDenyRules = (env = process.env, home = os.homedir()) => {
+  const xdg = env.XDG_CONFIG_HOME;
+  if (!xdg || path.resolve(xdg) === path.join(home, '.config')) return [];
+  const posix = path.resolve(xdg).replace(/\\/g, '/').replace(/^([A-Za-z]):/, (_, d) => `/${d.toLowerCase()}`);
+  const anchor = `/${posix}/kioku/**`.replace(/^\/+/, '//');
+  return [`Read(${anchor})`, `Edit(${anchor})`];
+};
+
+/** Ajoute les regles voulues a permissions.deny : ajout seul, ordre et regles de l'utilisateur conserves, aucun doublon. */
+export const mergeDenyRules = (settings = {}, rules = KIOKU_DENY) => {
+  const deny = Array.isArray(settings.permissions?.deny) ? settings.permissions.deny : [];
+  const missing = rules.filter((r) => !deny.includes(r));
+  if (!missing.length) return settings;
+  return { ...settings, permissions: { ...(settings.permissions ?? {}), deny: [...deny, ...missing] } };
 };
 
 /** Ajout seul : une cle absente de la config est posee, une valeur presente n'est jamais remplacee. */
