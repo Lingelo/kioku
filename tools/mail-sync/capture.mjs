@@ -9,7 +9,7 @@
  * Le fournisseur est injecte (interface de providers/gmail.mjs) : ce module ne sait pas ce qu'est Gmail.
  */
 
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 
@@ -22,14 +22,21 @@ export const DEFAULT_MAX_PDF_MB = 20;
 const isPdf = (a) => a.mimeType === 'application/pdf' || (/\.pdf$/i.test(a.filename) && /octet-stream|pdf/i.test(a.mimeType));
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 
-/** Creation exclusive : true si ecrit, false si le nom existait deja. */
-const create = (file, data) => {
+/** Creation exclusive : true si ecrit, false si le nom existait deja. `write` : injecte par les tests (panne disque). */
+const creator = (write) => (file, data) => {
   try {
-    writeFileSync(file, data, { flag: 'wx' });
+    write(file, data, { flag: 'wx' });
     return true;
   } catch (error) {
     if (error.code === 'EEXIST') return false;
     throw error;
+  }
+};
+const sameBytes = (file, data) => {
+  try {
+    return readFileSync(file).equals(Buffer.isBuffer(data) ? data : Buffer.from(data));
+  } catch {
+    return false;
   }
 };
 
@@ -44,7 +51,8 @@ const create = (file, data) => {
  * @param {number} [p.maxPdfBytes]
  * @param {(line: string) => void} [p.log]
  */
-export const captureAccount = async ({ vault, account, provider, since, dryRun = false, maxPdfBytes = DEFAULT_MAX_PDF_MB * 1024 * 1024, log = console.log }) => {
+export const captureAccount = async ({ vault, account, provider, since, dryRun = false, maxPdfBytes = DEFAULT_MAX_PDF_MB * 1024 * 1024, log = console.log, writeFile = writeFileSync }) => {
+  const create = creator(writeFile);
   const label = account.label ?? DEFAULT_LABEL;
   const inbox = path.join(vault, 'inbox');
   const known = scanMail(vault);
@@ -108,9 +116,27 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
       out.counts[c.kind]++;
       continue;
     }
-    if (!create(path.join(inbox, built.fileName), built.markdown)) {
+    if (existsSync(path.join(inbox, built.fileName))) {
       log(`  [nom pris] ${built.fileName} existe deja dans inbox/ : rien n'est ecrase, fil ${thread.id} laisse pour le prochain lancement`);
       continue;
+    }
+    // Ordre (revue I4) : les PDF et leurs fiches AVANT le fil. C'est le fil qui marque ses messages « couverts » : ecrit
+    // en premier, un PDF perdu ensuite (disque plein, arret) ne serait plus jamais reexamine. Une panne en cours de
+    // route retire ce que ce fil a deja ecrit et remonte l'erreur : au lancement suivant, le fil est encore nouveau.
+    const written = [];
+    try {
+      for (const p of pending) {
+        const pdfPath = path.join(inbox, p.pdfFile);
+        const stubPath = path.join(inbox, `${p.pdfFile}.md`);
+        if (create(pdfPath, p.data)) written.push(pdfPath);
+        else if (!sameBytes(pdfPath, p.data)) throw new Error(`${p.pdfFile} existe deja dans inbox/ avec un autre contenu`);
+        // Le PDF d'abord, la fiche ensuite : une fiche sans son PDF serait une source vide.
+        if (create(stubPath, buildPdfStub({ account: account.id, hint: account.hint, threadId: thread.id, message: p.message, attachment: p.attachment, sha: p.sha, pdfFile: p.pdfFile, threadFile: built.fileName }))) written.push(stubPath);
+      }
+      if (!create(path.join(inbox, built.fileName), built.markdown)) throw new Error(`${built.fileName} cree entre-temps par un autre processus`);
+    } catch (error) {
+      for (const f of written.reverse()) rmSync(f, { force: true });
+      throw new Error(`fil ${thread.id} non depose (${error.message}) : rien n'en reste dans inbox/, il sera repris au prochain lancement`);
     }
     out.counts[c.kind]++;
     out.deposited.push(built.fileName);
@@ -121,9 +147,6 @@ export const captureAccount = async ({ vault, account, provider, since, dryRun =
     known.bodies.add(built.bodySha);
     log(`  ${tagLabel}`);
     for (const p of pending) {
-      // Le PDF d'abord, la fiche ensuite : une fiche sans son PDF serait une source vide.
-      if (!create(path.join(inbox, p.pdfFile), p.data)) continue;
-      create(path.join(inbox, `${p.pdfFile}.md`), buildPdfStub({ account: account.id, hint: account.hint, threadId: thread.id, message: p.message, attachment: p.attachment, sha: p.sha, pdfFile: p.pdfFile, threadFile: built.fileName }));
       known.attachments.add(p.sha);
       out.pdfs.push(p.pdfFile);
       log(`    [pdf] ${p.pdfFile}`);

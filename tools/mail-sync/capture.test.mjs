@@ -136,6 +136,42 @@ describe('PDF joints', () => {
   });
 });
 
+describe('ordre d ecriture (I4)', () => {
+  test('le PDF puis sa fiche, et le fil en dernier : une panne sur le PDF ne laisse rien, la relance depose tout', async () => {
+    const order = [];
+    const failing = (file, data, opts) => {
+      if (file.endsWith('.pdf')) throw Object.assign(new Error('disque plein (simule)'), { code: 'ENOSPC' });
+      return writeFileSync(file, data, opts);
+    };
+    await assert.rejects(capture(gmail([m1]).provider, { writeFile: failing }), /fil 18c00000000000t1 non depose \(disque plein \(simule\)\)/);
+    assert.deepEqual(inbox(), [], 'ni fil, ni fiche, ni PDF : le fil n est pas « couvert »');
+    const out = await capture(gmail([m1]).provider, { writeFile: (f, d, o) => (order.push(path.basename(f)), writeFileSync(f, d, o)) });
+    assert.equal(out.deposited.length, 1);
+    assert.equal(out.pdfs.length, 1);
+    assert.deepEqual(order, [out.pdfs[0], `${out.pdfs[0]}.md`, out.deposited[0]]);
+  });
+
+  test('panne sur l ecriture du fil apres les PDF : PDF et fiche retires', async () => {
+    const failing = (file, data, opts) => {
+      if (file.endsWith('-000000t1.md')) throw Object.assign(new Error('arret (simule)'), { code: 'EIO' });
+      return writeFileSync(file, data, opts);
+    };
+    await assert.rejects(capture(gmail([m1]).provider, { writeFile: failing }), /non depose/);
+    assert.deepEqual(inbox(), []);
+  });
+
+  test('un PDF de meme nom mais d un autre contenu deja dans l entrant : fil non depose, rien d ecrase', async () => {
+    const first = await capture(gmail([m1]).provider, { dryRun: false });
+    const pdf = first.pdfs[0];
+    rmSync(path.join(vault, 'inbox', first.deposited[0]));
+    rmSync(path.join(vault, 'inbox', `${pdf}.md`));
+    writeFileSync(path.join(vault, 'inbox', pdf), 'autre contenu');
+    await assert.rejects(capture(gmail([m1]).provider), /autre contenu/);
+    assert.equal(readFileSync(path.join(vault, 'inbox', pdf), 'utf8'), 'autre contenu');
+    assert.ok(!existsSync(path.join(vault, 'inbox', first.deposited[0])));
+  });
+});
+
 describe('deduplication', () => {
   test('deja vu (dans raw/, apres tri) : rien n est redepose', async () => {
     const first = await capture(gmail([m1, m2]).provider);
