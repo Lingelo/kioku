@@ -137,6 +137,8 @@ Patch de `hooks/guard.mjs`, sans relâcher de règle :
 
 ### Écarts de la PR 2 par rapport à ce plan, et pourquoi
 
+- **Le libellé choisit le fil, pas le message** (revue I5) : tout le fil est capté, y compris une réponse qui ne porte pas le libellé ; les brouillons, la corbeille et le spam ne le sont jamais.
+
 - **Répertoire du module** : `tools/mail-sync/` (comme `plaud-sync/`), fournisseur dans `providers/gmail.mjs`, interface `listThreads(label, since)`, `getThread(id)`, `getAttachment(msgId, attId)`.
 - **Libellé** : `label` facultatif, `kb` par défaut ; `max_pdf_mb` facultatif au niveau du module (défaut 20).
 - **`message_ids:` en plus du frontmatter prévu** : la dédup s'appuie sur les messages couverts par chaque fichier, pas seulement sur le dernier. Un message supprimé dans Gmail ne fait pas re-déposer le fil, et un fil écarté par `--drop` garde ses messages couverts (une réponse ultérieure arrive en suite).

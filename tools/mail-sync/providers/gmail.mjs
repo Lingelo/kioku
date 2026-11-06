@@ -3,7 +3,8 @@
  *
  * Interface commune des fournisseurs (un autre, IMAP par exemple, s'y branche sans toucher au reste) :
  *   listThreads(label, since)     -> [{ id }]   fils portant le libelle, avec un message depuis `since` (AAAA-MM-JJ)
- *   getThread(id)                 -> { id, messages: [message] }, messages dans l'ordre chronologique
+ *   getThread(id)                 -> { id, messages: [message] }, messages dans l'ordre chronologique, sans brouillon,
+ *                                    corbeille ni spam (EXCLUDED_LABELS)
  *   getAttachment(msgId, attId)   -> Buffer (le champ `data` de attachments.get, base64url decode)
  * message = { id, threadId, internalDate (ms), headers: { from, to, cc, date, subject }, text, attachments: [
  *             { filename, mimeType, size, attachmentId, data } ] }   (voir mime.mjs, messageFromTree)
@@ -34,7 +35,15 @@ export const treeFromPayload = (p) => ({
 });
 
 /** Un message de l'API (format=full) -> message neutre. */
-export const messageFromApi = (m) => ({ id: m.id, threadId: m.threadId, internalDate: Number(m.internalDate ?? 0), ...messageFromTree(treeFromPayload(m.payload ?? {})) });
+export const messageFromApi = (m) => ({ id: m.id, threadId: m.threadId, internalDate: Number(m.internalDate ?? 0), labelIds: Array.isArray(m.labelIds) ? m.labelIds : [], ...messageFromTree(treeFromPayload(m.payload ?? {})) });
+
+/**
+ * Les messages d'un fil qui ne sont pas captes (revue I5) : un brouillon (il deviendrait une source immuable, puis
+ * reviendrait en « suite » une fois envoye sous un autre id), un message a la corbeille ou en spam. Tout le reste du
+ * fil est capte, y compris une reponse qui ne porte pas elle-meme le libelle : le libelle choisit le FIL.
+ */
+export const EXCLUDED_LABELS = new Set(['DRAFT', 'TRASH', 'SPAM']);
+export const capturable = (m) => !m.labelIds.some((l) => EXCLUDED_LABELS.has(l));
 
 /**
  * @param {{ token: (opts?: {force?: boolean}) => Promise<string>, fetch?: Function, sleep?: Function }} deps
@@ -75,7 +84,7 @@ export const createGmail = ({ token, fetch = globalThis.fetch, sleep } = {}) => 
     },
     async getThread(id) {
       const r = await call(`${API}/threads/${encodeURIComponent(id)}?format=full`, 'threads.get');
-      const messages = (r.messages ?? []).map(messageFromApi).sort((a, b) => a.internalDate - b.internalDate);
+      const messages = (r.messages ?? []).map(messageFromApi).filter(capturable).sort((a, b) => a.internalDate - b.internalDate);
       return { id: r.id ?? id, messages };
     },
     async getAttachment(msgId, attId) {

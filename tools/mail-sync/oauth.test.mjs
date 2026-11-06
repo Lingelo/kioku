@@ -233,6 +233,24 @@ describe('fournisseur Gmail', () => {
     assert.deepEqual(forced.slice(0, 2), [false, true]);
     assert.equal(g.calls[1].init.headers.authorization, 'Bearer neuf');
   });
+  test('getThread : brouillon, corbeille et spam exclus ; une reponse sans le libelle est captee (I5)', async () => {
+    const lab = (m, labelIds) => ({ ...m, labelIds });
+    const t = {
+      id: 'tl',
+      messages: [
+        lab(msg('envoye', 1000), ['Label_1', 'SENT']),
+        lab(msg('reponse', 2000), ['INBOX']),
+        lab(msg('brouillon', 3000), ['DRAFT']),
+        lab(msg('jete', 4000), ['TRASH']),
+        lab(msg('spam', 5000), ['SPAM']),
+      ],
+    };
+    const gm = createGmail({ token: async () => 'tok', fetch: fakeGmail({ threads: [t] }).fetch, sleep: noSleep });
+    const got = await gm.getThread('tl');
+    assert.deepEqual(got.messages.map((m) => m.id), ['envoye', 'reponse']);
+    assert.deepEqual(got.messages[1].labelIds, ['INBOX']);
+  });
+
   test('getThread : messages normalises et tries ; getAttachment : octets', async () => {
     const pdf = Buffer.from('%PDF-1.4 invente');
     const t = { id: 'tx', messages: [msg('b', 2000), msg('a', 1000, { attachments: [{ filename: 'devis.pdf', size: pdf.length, attachmentId: 'A1' }] })] };

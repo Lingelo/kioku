@@ -66,7 +66,7 @@ Add its `of_…` id to `tools/plaud-sync/exclusions.txt`, with a comment: it wil
 
 `modules.mail` in `kioku.config.json`, set by `kioku init --mail` (or `kioku upgrade --write` once you declare it). Gmail only for now.
 
-- **Opt-in by label.** Only threads carrying the label you configure (`kb` by default) are read. Put the label on a thread in Gmail to capture it.
+- **Opt-in by label.** Only threads carrying the label you configure (`kb` by default) are read. Put the label on a thread in Gmail to capture it. The label selects the **thread**: every message of a labelled thread is captured, including a reply that does not carry the label itself. Drafts, messages in the trash and spam are never captured.
 - **One thread = one source.** Each **PDF attachment** becomes a separate source, linked to its thread. Other attachments are ignored and listed in the report.
 - **Read-only.** Scope `gmail.readonly`: Kioku never writes to your mailbox (the label stays). What was already captured is tracked in the vault (`tools/mail-sync/seen.json`).
 - **A late reply** to a captured thread becomes a new source, a **follow-up** holding only the new messages. Bronze is never rewritten.
