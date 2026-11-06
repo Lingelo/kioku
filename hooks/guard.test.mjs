@@ -713,3 +713,59 @@ describe('zone secrete : jetons du module mail', () => {
   });
 });
 
+// N3 et N8 : `~`, `$HOME` et les liens symboliques sont resolus avant de classer un chemin.
+describe('chemins : ~, $HOME, liens symboliques', () => {
+  let home;
+  beforeEach(() => {
+    home = realpathSync(mkdtempSync(path.join(tmpdir(), 'guard-home-')));
+  });
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+  const guardHome = (session, payload, extra = {}) => {
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: vault, HOME: home, USERPROFILE: home, ...extra };
+    delete env.VAULT_MODE;
+    delete env.VAULT_DOMAIN;
+    delete env.XDG_CONFIG_HOME;
+    if (session.mode !== undefined) env.VAULT_MODE = session.mode;
+    if (session.domain !== undefined) env.VAULT_DOMAIN = session.domain;
+    return spawnSync(process.execPath, [TARGET], { input: JSON.stringify({ ...payload, cwd: vault }), env, encoding: 'utf8' }).status;
+  };
+  const SESSIONS = [{ mode: 'query', domain: 'pro' }, { mode: 'ingest', domain: 'pro' }, { mode: 'triage' }, { mode: 'setup' }];
+
+  test('Read et Write `~/.config/kioku/mail/…` et `$HOME/…` : la zone secrete, refusee dans tous les modes', () => {
+    for (const sess of SESSIONS) {
+      for (const p of ['~/.config/kioku/mail/travail.json', '$HOME/.config/kioku/mail/client.json', '${HOME}/.config/kioku/mail/travail.json']) {
+        assert.equal(guardHome(sess, read(p)), REFUS, `${sess.mode} Read ${p}`);
+        assert.equal(guardHome(sess, write(p)), REFUS, `${sess.mode} Write ${p}`);
+      }
+    }
+  });
+
+  test('lien symbolique vers le dossier secret (dotfiles en lien) : refuse', () => {
+    const real = path.join(home, 'dotfiles', 'config');
+    mkdirSync(path.join(real, 'kioku', 'mail'), { recursive: true });
+    symlinkSync(real, path.join(home, '.config'));
+    writeFileSync(path.join(real, 'kioku', 'mail', 'travail.json'), '{}');
+    // Par le lien, et par la cible reelle.
+    assert.equal(guardHome({ mode: 'ingest', domain: 'pro' }, read(path.join(home, '.config', 'kioku', 'mail', 'travail.json'))), REFUS);
+    assert.equal(guardHome({ mode: 'ingest', domain: 'pro' }, read(path.join(real, 'kioku', 'mail', 'travail.json'))), REFUS);
+    // Un lien pose ailleurs, qui pointe sur le dossier des jetons.
+    symlinkSync(path.join(real, 'kioku', 'mail'), path.join(home, 'raccourci'));
+    assert.equal(guardHome({ mode: 'triage' }, read(path.join(home, 'raccourci', 'travail.json'))), REFUS);
+  });
+
+  test('lien symbolique dans le coffre vers wiki/<autre domaine> : classe comme sa cible, refuse', () => {
+    mkdirSync(path.join(vault, 'wiki', 'perso'), { recursive: true });
+    writeFileSync(path.join(vault, 'wiki', 'perso', 'x.md'), 'x');
+    symlinkSync(path.join(vault, 'wiki', 'perso'), path.join(vault, 'notes'));
+    assert.equal(guardHome({ mode: 'query', domain: 'pro' }, read('notes/x.md')), REFUS);
+    assert.equal(guardHome({ mode: 'query', domain: 'pro' }, write('notes/y.md')), REFUS, 'fichier a creer : le parent existant est resolu');
+  });
+
+  test('`~/<coffre>/wiki/<autre domaine>` (coffre sous le dossier personnel) : refuse ; son propre domaine : admis', () => {
+    const name = path.basename(vault);
+    const parent = path.dirname(vault);
+    assert.equal(guardHome({ mode: 'query', domain: 'pro' }, read(`~/${name}/wiki/perso/x.md`), { HOME: parent, USERPROFILE: parent }), REFUS);
+    assert.equal(guardHome({ mode: 'query', domain: 'pro' }, read(`~/${name}/wiki/pro/x.md`), { HOME: parent, USERPROFILE: parent }), OK);
+  });
+});
+

@@ -211,14 +211,16 @@ const PROTECTED_KEYS = new Set([...PROTECTED].map(fold));
 // recalcule ici : la garde ne depend pas de tools/). Une session lit du mail non fiable ; un jeton lu puis recopie dans
 // une fiche serait versionne avec le coffre. Ferme en lecture et en ecriture dans tous les modes. Les trois
 // emplacements possibles sont fermes ensemble : l'environnement de la garde peut differer de celui du lanceur.
-const HOME = os.homedir();
+// Limite, dite (revue N8) : un jeton cree sous un XDG_CONFIG_HOME DIFFERENT de celui que voit la garde (ni ~/.config,
+// ni le XDG courant, ni %APPDATA%) n'est pas reconnu. Les liens symboliques, eux, sont resolus (canonical).
+const HOME_DIR = os.homedir();
 const SECRET_DIRS = [
   ...new Set(
     [
-      path.join(HOME, '.config', 'kioku', 'mail'),
+      path.join(HOME_DIR, '.config', 'kioku', 'mail'),
       process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, 'kioku', 'mail') : null,
       process.env.APPDATA ? path.join(process.env.APPDATA, 'kioku', 'mail') : null,
-      path.join(HOME, 'AppData', 'Roaming', 'kioku', 'mail'),
+      path.join(HOME_DIR, 'AppData', 'Roaming', 'kioku', 'mail'),
     ]
       .filter(Boolean)
       .map((p) => canonical(path.resolve(p))),
