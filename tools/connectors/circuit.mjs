@@ -29,13 +29,13 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { acquire, holderText, lockPath, release } from './lock.mjs';
 import { inboxDir, logReason, mdIn, park, parkedDir, parseEmptyLines, pruneReasons } from './parked.mjs';
-import { ownsFile } from './owners.mjs';
+import { markerOf, ownsFile } from './owners.mjs';
 import { validState } from './pending.mjs';
 import { CORE_BIN, withCorePath } from '../core-path.mjs';
 import { skill } from '../names.mjs';
@@ -43,6 +43,13 @@ import { startupRefusal } from '../startup-guard.mjs';
 import { isVault, loadConfig, vaultRoot } from '../vault-config.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+const readText = (file) => {
+  try {
+    return readFileSync(file, 'utf8');
+  } catch {
+    return '';
+  }
+};
 const PENDING = path.join(HERE, 'pending.mjs');
 
 /**
@@ -567,9 +574,16 @@ export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
     console.log(`  ${commands.drop.padEnd(65)}(ecartee pour de bon, ne revient pas)`);
     for (const f of undecided) console.log(`  ${f}`);
   }
-  if (others.length) {
-    console.log(`\nLaissees dans l'entrant, d'un autre circuit de capture (${others.length}) : ce circuit ne les trie pas, lance celui qui les a deposees.`);
-    for (const f of others) console.log(`  ${f}`);
+  // Revue N6 : une source sans marque n'a ete deposee par aucun circuit (depot a la main) : le dire autrement.
+  const unmarked = others.filter((f) => !markerOf(readText(path.join(INBOX, f))));
+  const marked = others.filter((f) => !unmarked.includes(f));
+  if (marked.length) {
+    console.log(`\nLaissees dans l'entrant, d'un autre circuit de capture (${marked.length}) : ce circuit ne les trie pas, lance celui qui les a deposees.`);
+    for (const f of marked) console.log(`  ${f}`);
+  }
+  if (unmarked.length) {
+    console.log(`\nLaissees dans l'entrant, sans marque de circuit (${unmarked.length}, deposees a la main) : /triage, ou kioku plaud --skip-fetch.`);
+    for (const f of unmarked) console.log(`  ${f}`);
   }
   console.log('\nA decider (retenues par la gate, codes seulement) :');
   spawnSync(KIOKU, ['undecided'], { cwd: VAULT, env: baseEnv, stdio: ['ignore', 'inherit', 'inherit'] });
