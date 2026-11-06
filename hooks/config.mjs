@@ -29,6 +29,7 @@ const EXTENSIONS = new Set(['org']);
 const MODULES = new Set(['plaud', 'dashboard', 'mail']);
 // Fournisseurs du module mail (tools/mail-sync/providers/) : un compte d'un fournisseur inconnu est refuse ici.
 export const MAIL_PROVIDERS = new Set(['gmail']);
+export const MAIL_STATE = 'tools/mail-sync';
 
 export const configFile = (vaultDir) => path.join(vaultDir, CONFIG_NAME);
 
@@ -126,7 +127,9 @@ const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v)
 const mailProblems = (mail, byId, vaultDir) => {
   const problems = [];
   if (!isObject(mail)) return ['module mail : objet attendu'];
-  if (!vaultRelative(mail.state)) problems.push('module mail : "state" doit etre un chemin relatif au coffre');
+  // Le dossier d'etat est fixe, comme celui de Plaud (modules.plaud.state n'est pas lu non plus) : une autre valeur
+  // serait acceptee puis ignoree (revue m1). Refusee.
+  if (mail.state !== MAIL_STATE) problems.push(`module mail : "state" doit valoir "${MAIL_STATE}" (dossier d'etat fixe du module)`);
   if (mail.max_pdf_mb !== undefined && !(typeof mail.max_pdf_mb === 'number' && mail.max_pdf_mb > 0)) problems.push('module mail : "max_pdf_mb" doit etre un nombre positif');
   if (!Array.isArray(mail.accounts)) return [...problems, 'module mail : "accounts" doit etre une liste (vide pour commencer)'];
   const ids = new Set();

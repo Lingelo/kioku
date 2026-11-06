@@ -177,7 +177,12 @@ describe('module mail', () => {
 
   test('identifiant invalide ou en double, fournisseur inconnu, label vide, cle de hint inconnue, etat hors coffre', () => {
     put(base({ state: '../x', accounts: [account({ id: 'Travail' }), account(), account(), account({ id: 'b', provider: 'imap', label: ' ' }), account({ id: 'c', hint: { domaine: 'pro' } })], max_pdf_mb: 0 }));
-    fails(/"state" doit etre un chemin relatif.*max_pdf_mb.*identifiant de compte invalide "Travail".*compte en double travail.*compte b, fournisseur inconnu "imap".*compte b, "label".*cle de hint inconnue "domaine"/);
+    fails(/"state" doit valoir "tools\/mail-sync".*max_pdf_mb.*identifiant de compte invalide "Travail".*compte en double travail.*compte b, fournisseur inconnu "imap".*compte b, "label".*cle de hint inconnue "domaine"/);
+  });
+
+  test('state autre que tools/mail-sync : refuse (il serait ignore, m1)', () => {
+    put(base({ state: 'etat/mail', accounts: [] }));
+    fails(/"state" doit valoir "tools\/mail-sync"/);
   });
 
   test('accounts absent : refuse (liste vide pour commencer)', () => {
