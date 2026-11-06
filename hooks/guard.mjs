@@ -397,6 +397,166 @@ const GIT_CONTENT = [
   /(^|[\s;&|(])git\b[^|;&\n]*\blog\b[^|;&\n]*\s(-p|-u|--patch)\b/,
 ];
 
+// --- Invariants sur les commandes shell (revue N1) : verifies par le code, pas par des motifs. ---
+//
+// Une garde a motifs sur du shell perd toujours (glob, guillemets, $'…', \) : les regex ci-dessus restent un filet.
+// Ici, la commande est decoupee en mots comme le ferait le shell (guillemets, echappements, separateurs, redirections),
+// et chaque argument d'une commande qui ecrit ou deplace est juge sur sa forme et sur son chemin reel.
+
+/** Mots d'une commande : [{ raw, value }] par commande simple ; `redirects` : les cibles de > et >>. */
+const shellWords = (command) => {
+  const commands = [];
+  let words = [];
+  let redirects = [];
+  let raw = '';
+  let value = '';
+  let inWord = false;
+  let pendingRedirect = false;
+  const end = () => {
+    if (inWord) {
+      const w = { raw, value };
+      if (pendingRedirect) {
+        redirects.push(w);
+        pendingRedirect = false;
+      } else words.push(w);
+    }
+    raw = '';
+    value = '';
+    inWord = false;
+  };
+  const boundary = () => {
+    end();
+    if (words.length || redirects.length) commands.push({ words, redirects });
+    words = [];
+    redirects = [];
+  };
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (c === "'") {
+      const j = command.indexOf("'", i + 1);
+      const k = j < 0 ? command.length : j;
+      raw += command.slice(i, k + 1);
+      value += command.slice(i + 1, k);
+      inWord = true;
+      i = k;
+    } else if (c === '"') {
+      let j = i + 1;
+      let v = '';
+      while (j < command.length && command[j] !== '"') {
+        if (command[j] === '\\' && j + 1 < command.length) {
+          v += command[j + 1];
+          j += 2;
+        } else v += command[j++];
+      }
+      raw += command.slice(i, j + 1);
+      value += v;
+      inWord = true;
+      i = j;
+    } else if (c === '\\') {
+      raw += command.slice(i, i + 2);
+      value += command[i + 1] ?? '';
+      inWord = true;
+      i++;
+    } else if (c === ';' || c === '&' || c === '|' || c === '\n' || c === '(' || c === ')') {
+      boundary();
+    } else if (c === '>' || c === '<') {
+      // `2>`, `>>`, `>&2` : le descripteur colle avant est absorbe ; un `&<n>` apres est une duplication, pas un fichier.
+      if (inWord && /^\d+$/.test(raw)) {
+        raw = '';
+        value = '';
+        inWord = false;
+      } else end();
+      if (command[i + 1] === '>') i++;
+      if (command[i + 1] === '&') {
+        i++;
+        while (/\d/.test(command[i + 1] ?? '')) i++;
+        continue;
+      }
+      pendingRedirect = c === '>';
+    } else if (/\s/.test(c)) {
+      end();
+    } else {
+      raw += c;
+      value += c;
+      inWord = true;
+    }
+  }
+  boundary();
+  return commands;
+};
+
+// Commandes qui ecrivent ou deplacent des fichiers : chacun de leurs arguments doit rester dans le coffre.
+const MOVERS = new Set(['mv', 'cp', 'ln', 'rsync', 'install', 'tee', 'dd', 'scp', 'tar', 'unzip', 'cd', 'pushd']);
+const GLOB = /[*?[{]/;
+
+/** Un argument est-il un chemin relatif, sans expansion, qui reste dans le coffre ? Rend la raison du refus, ou null. */
+const unsafePath = (word, cwd) => {
+  const { raw, value } = word;
+  if (/[$`]/.test(raw)) return 'expansion shell ($, `)';
+  if (value.startsWith('/') || value.startsWith('~')) return 'chemin absolu ou dossier personnel';
+  if (/^[A-Za-z]:/.test(value) || value.includes('\\')) return 'chemin Windows ou echappement';
+  const segments = value.split('/');
+  if (segments.includes('..')) return 'remontee (..)';
+  const globAt = segments.findIndex((seg) => GLOB.test(seg));
+  if (globAt >= 0 && globAt < segments.length - 1) return 'motif de glob dans un dossier';
+  const literal = globAt >= 0 ? segments.slice(0, -1).join('/') || '.' : value;
+  const z = classify(canonical(path.resolve(cwd, literal)));
+  if (z.zone === 'outside' || z.zone === 'secret') return 'hors du coffre';
+  return null;
+};
+
+/**
+ * Invariant « rien ne sort du coffre » (modes triage et ingest, ceux des sessions du circuit) : tout argument d'une
+ * commande qui ecrit ou deplace (MOVERS), et toute cible de redirection, est un chemin relatif a l'interieur du coffre.
+ * Un mot de MOVERS n'importe ou dans la commande simple (apres `xargs`, `env`, `-exec`…) compte. Rend la raison, ou null.
+ */
+const escapesVault = (command, cwd) => {
+  for (const { words, redirects } of shellWords(command)) {
+    for (const r of redirects) {
+      if (r.value === '/dev/null') continue;
+      const why = unsafePath(r, cwd);
+      if (why) return `redirection vers « ${r.raw} » : ${why}`;
+    }
+    const at = words.findIndex((w) => MOVERS.has(path.basename(w.value)));
+    if (at < 0) continue;
+    for (const w of words.slice(at + 1)) {
+      let target = w;
+      if (w.value.startsWith('-')) {
+        const eq = w.value.indexOf('=');
+        if (eq < 0) continue;
+        target = { raw: w.raw.slice(w.raw.indexOf('=') + 1), value: w.value.slice(eq + 1) };
+      }
+      if (MOVERS.has(w.value)) continue;
+      const why = unsafePath(target, cwd);
+      if (why) return `${words[at].value} « ${w.raw} » : ${why}`;
+    }
+  }
+  return null;
+};
+
+/**
+ * Un mot qui, apres expansion de ~ et $HOME et sans guillemets, designe la zone secrete ou peut l'atteindre par un glob :
+ * chaque segment du motif doit pouvoir correspondre au segment du dossier secret, jusqu'au bout de celui-ci.
+ */
+const reachesSecret = (command) => {
+  for (const { words, redirects } of shellWords(command)) {
+    for (const w of [...words, ...redirects]) {
+      const v = w.value.replace(/^\$\{?HOME\}?(?=\/|$)/, '~');
+      const abs = v === '~' ? HOME_DIR : v.startsWith('~/') ? path.join(HOME_DIR, v.slice(2)) : v;
+      if (!abs.startsWith('/')) continue;
+      const pat = abs.split('/').filter(Boolean);
+      for (const dir of SECRET_DIRS) {
+        const seg = dir.split('/').filter(Boolean);
+        if (pat.length < seg.length) continue;
+        if (seg.every((s, i) => (GLOB.test(pat[i]) ? globCovers(pat[i], s) : pat[i] === s))) return true;
+      }
+      // Sans glob : le chemin reel (liens resolus) est-il dans la zone ?
+      if (!GLOB.test(abs) && classify(canonical(abs)).zone === 'secret') return true;
+    }
+  }
+  return false;
+};
+
 const RECURSIVE = [/(^|[\s;&|(])(rg|ag|find|tree|du)\b/, /\bgrep\b[^|;&\n]*\s-\w*[rR]/, /\bls\b[^|;&\n]*\s-\w*R/];
 
 const decide = () => {
@@ -455,7 +615,11 @@ const decide = () => {
     const raw = args.command;
     if (typeof raw !== 'string') refuse('Garde du coffre : commande Bash illisible. Dans le doute, je refuse.');
     const command = stripMessages(raw);
-    if (SECRET_MENTION.some((r) => r.test(command)) || SECRET_DIRS.some((d) => fold(command).includes(fold(d)))) refuse(SECRET_REFUS);
+    if (SECRET_MENTION.some((r) => r.test(command)) || SECRET_DIRS.some((d) => fold(command).includes(fold(d))) || reachesSecret(command)) refuse(SECRET_REFUS);
+    if (MODE === 'triage' || MODE === 'ingest') {
+      const why = escapesVault(command, canonical(path.resolve(cwd)));
+      if (why) refuse(`Session ${MODE}/${D ?? '-'} : rien ne sort du coffre. Une commande qui ecrit ou deplace n'accepte que des chemins relatifs a l'interieur du coffre (ex. mv inbox/x.md raw/<domaine>/meetings/).\n(Refuse : ${why}.)`);
+    }
     // Volume insensible a la casse : `cat WIKI/perso/p.md` ou `MV wiki w` ouvrent les memes fichiers et lancent les
     // memes commandes. Chaque regle se teste sur la commande telle quelle ET pliee (motifs en minuscules) ; la forme
     // telle quelle garde les drapeaux dont la casse compte (`ls -R`).

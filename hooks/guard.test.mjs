@@ -769,3 +769,94 @@ describe('chemins : ~, $HOME, liens symboliques', () => {
   });
 });
 
+// N1 : invariant « rien ne sort du coffre » en triage et en ingest, verifie mot par mot ; et aucune commande, dans aucun
+// mode, ne peut atteindre le dossier des jetons par un glob.
+describe('rien ne sort du coffre (N1)', () => {
+  let home;
+  beforeEach(() => {
+    home = realpathSync(mkdtempSync(path.join(tmpdir(), 'guard-home-')));
+    mkdirSync(path.join(home, '.config', 'kioku', 'mail'), { recursive: true });
+  });
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+  const g = (session, command) => {
+    const env = { ...process.env, CLAUDE_PROJECT_DIR: vault, HOME: home, USERPROFILE: home };
+    delete env.VAULT_MODE;
+    delete env.VAULT_DOMAIN;
+    delete env.XDG_CONFIG_HOME;
+    env.VAULT_MODE = session.mode;
+    if (session.domain) env.VAULT_DOMAIN = session.domain;
+    return spawnSync(process.execPath, [TARGET], { input: JSON.stringify({ ...bash(command), cwd: vault }), env, encoding: 'utf8' });
+  };
+  const TRIAGE = { mode: 'triage', domain: 'pro' };
+  const INGEST = { mode: 'ingest', domain: 'pro' };
+
+  test('les commandes de la contre-revue (§3 N1) : refusees', () => {
+    for (const [sess, cmd] of [
+      [TRIAGE, 'mv ~/.config/k*/mail/travail.json raw/pro/emails/x.md'],
+      [TRIAGE, 'mv ~/.config/k*/mail/travail.json inbox/x.md'],
+      [TRIAGE, 'mv ~/.conf?g/kioku/m?il/client.json raw/pro/x.md'],
+      [INGEST, 'mv ~/.config/k*/mail/travail.json silver/pro/x.md'],
+      [INGEST, 'mv "$HOME"/.config/"kio"ku/mail/travail.json silver/pro/x.md'],
+      [{ mode: 'query', domain: 'pro' }, 'cat ~/.config/k*/mail/travail.json'],
+      [{ mode: 'setup' }, 'cat ~/.config/k*/mail/travail.json'],
+      [TRIAGE, 'cat ~/.config/k*/mail/travail.json'],
+    ]) {
+      assert.equal(g(sess, cmd).status, REFUS, `${sess.mode} : ${cmd}`);
+    }
+  });
+
+  test('variantes : absolu, remontee, expansions, glob dans un dossier, options, redirections, autres commandes', () => {
+    for (const sess of [TRIAGE, INGEST]) {
+      for (const cmd of [
+        'cp /etc/hosts inbox/',
+        'mv ../x.md inbox/',
+        'mv inbox/x.md ../ailleurs/',
+        'cp $(echo ~)/.config/kioku/mail/t.json inbox/',
+        'cp `pwd`/../x inbox/',
+        "mv $'\\x7e'/.config/kioku/mail/t.json inbox/",
+        'mv raw/*/x.md inbox/',
+        'ln -s ~/.config inbox/lien',
+        'ln -s ../../.. inbox/lien',
+        'rsync -a ~/.config/ inbox/',
+        'install -m 600 /tmp/x inbox/',
+        'tee /tmp/sortie < inbox/x.md',
+        'cat inbox/x.md > /tmp/sortie',
+        'cat inbox/x.md >> ~/sortie',
+        'cp --target-directory=/tmp inbox/x.md',
+        'cp -t /tmp inbox/x.md',
+        'cd ~/.config/kioku/mail && cp travail.json inbox/',
+        'find inbox -name "*.md" -exec cp {} /tmp \;',
+        'ls inbox | xargs -I{} cp inbox/{} /tmp/',
+        'mv inbox/x.md C:/Users/x',
+        'mv inbox/x.md \\/tmp/x',
+      ]) {
+        assert.equal(g(sess, cmd).status, REFUS, `${sess.mode} : ${cmd}`);
+      }
+    }
+  });
+
+  test('le circuit reste possible : mv relatifs a l interieur du coffre, glob en fin de chemin, /dev/null', () => {
+    for (const cmd of [
+      'mv inbox/2026-11-03-fil-a1b2.md raw/pro/emails/2026-11-03-fil-a1b2.md',
+      'mv inbox/x.pdf inbox/x.pdf.md raw/pro/pdfs/',
+      'mv "inbox/note avec espace.md" raw/pro/meetings/note-avec-espace.md',
+      'mv inbox/x.md inbox/a-trancher/',
+      'mv inbox/a-trancher/x.md raw/perso/meetings/',
+      'mkdir -p raw/pro/emails && mv inbox/x.md raw/pro/emails/',
+      'mv inbox/*.md raw/pro/meetings/',
+      'mv inbox/x.md raw/pro/meetings/ 2>/dev/null',
+    ]) {
+      assert.equal(g(TRIAGE, cmd).status, OK, `triage : ${cmd}`);
+    }
+    for (const cmd of ['kioku check .candidats/wiki/pro/sources/x.md', 'kioku commit pro -m "mv et cp dans le message"', 'kioku promote .candidats/wiki/pro/sources/x.md']) {
+      assert.equal(g(INGEST, cmd).status, OK, `ingest : ${cmd}`);
+    }
+  });
+
+  test('un lien symbolique du coffre vers l exterieur ne sert pas de sortie', () => {
+    symlinkSync(home, path.join(vault, 'dehors'));
+    assert.equal(g(TRIAGE, 'mv inbox/x.md dehors/x.md').status, REFUS);
+    assert.equal(g(TRIAGE, 'cp dehors/.config/kioku/mail/t.json inbox/').status, REFUS);
+  });
+});
+
