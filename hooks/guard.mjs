@@ -29,7 +29,11 @@
  * garde, lisible partout) mais aucun contenu de domaine. La configuration ne s'y ecrit que par le CLI du coffre
  * (`kioku init|add-domain`), qui refuse lui-meme hors setup ; hors setup, la garde refuse aussi la commande. En
  * setup, la garde refuse ce qui lirait ou ferait lire un domaine par un autre chemin : la gate (vault.mjs affiche
- * des noms de pages), le circuit Plaud et le lanceur (ils ouvrent des sessions avec leurs propres droits), le dashboard.
+ * des noms de pages), le lanceur (il ouvre des sessions avec leurs propres droits), le dashboard.
+ *
+ * Les circuits de capture (kioku plaud, leurs scripts npm, leurs outils, tools/connectors/) sont refuses dans TOUS les
+ * modes : ils se lancent depuis le terminal de l'utilisateur, ouvrent eux-memes leurs sessions, et leur simple dry-run
+ * liste les sources de tous les domaines.
  *
  * Zone secrete, jamais lue ni ecrite, dans aucun mode : le dossier des jetons OAuth du module mail (~/.config/kioku/mail,
  * $XDG_CONFIG_HOME/kioku/mail, %APPDATA%\kioku\mail), hors coffre.
