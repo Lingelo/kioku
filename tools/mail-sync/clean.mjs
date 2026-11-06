@@ -7,9 +7,11 @@
  *
  * Ce qui est retire :
  *   - les lignes citees (`>` en tete, apres d'eventuels espaces) ;
- *   - a partir d'une ligne d'attribution (« Le … a écrit : », « On … wrote: », y compris repliee sur deux lignes, et
- *     les separateurs « -----Original Message----- », « De : … Envoyé : … » d'Outlook), tout le reste du message :
- *     c'est la reponse citee en bloc.
+ *   - a partir d'une ligne d'attribution (« Le … a écrit : », « On … wrote: », y compris repliee sur deux lignes),
+ *     tout le reste du message, mais SEULEMENT si rien de non cite ne la suit : une reponse ecrite sous la citation
+ *     ou entre ses lignes est gardee (seules les lignes `>` partent) ;
+ *   - a partir d'un separateur « -----Original Message----- » ou d'un bloc « De : … Envoyé : … » d'Outlook, tout le
+ *     reste : l'ancien message y suit sans marque de citation.
  * Ce qui est garde : un message transfere (« Forwarded message », « Message transféré ») est une information nouvelle
  * pour ce fil, il n'est pas coupe.
  *
@@ -39,8 +41,20 @@ export const stripQuotes = (text) => {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const t = line.trim();
-    if (ATTRIBUTION.some((re) => re.test(t))) break;
-    if (ATTRIBUTION_HEAD.test(t) && ATTRIBUTION_TAIL.test((lines[i + 1] ?? '').trim()) && /[<@,]/.test(t)) break;
+    if (ATTRIBUTION[1].test(t)) break; // separateur « Original Message » : tout ce qui suit est l'ancien message
+    // « Le … a écrit : » / « On … wrote: », sur une ligne ou repliee sur deux. On ne coupe que si rien de NON cite ne
+    // suit (revue m5) : une reponse ecrite sous la citation, ou entre ses lignes, est du contenu nouveau.
+    const folded = ATTRIBUTION_HEAD.test(t) && ATTRIBUTION_TAIL.test((lines[i + 1] ?? '').trim()) && /[<@,]/.test(t);
+    if (ATTRIBUTION[0].test(t) || folded) {
+      const after = lines.slice(i + (folded ? 2 : 1));
+      if (!after.some((l) => l.trim() && !/^\s*>/.test(l))) break;
+      // Du texte nouveau suit : la ligne d'attribution part si elle en est vraiment une (une adresse), sinon c'est une
+      // phrase du message (« On Monday, the team wrote: ») et elle reste.
+      if (/[<@]/.test(t)) {
+        if (folded) i++;
+        continue;
+      }
+    }
     // Un bloc De/Date juste sous un marqueur de transfert est l'en-tete du message transfere : il reste.
     const forwarding = kept.slice(-3).some((l) => FORWARD.test(l.trim()));
     if (OUTLOOK_FROM.test(t) && !forwarding && lines.slice(i + 1, i + 5).some((l) => OUTLOOK_SENT.test(l.trim())) && kept.length) break;

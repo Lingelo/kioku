@@ -116,6 +116,18 @@ describe('citations en cascade', () => {
     assert.equal(stripQuotes('Valide.\n-----Original Message-----\nFrom: x'), 'Valide.');
     assert.equal(stripQuotes('Valide.\n\nDe : Bruno Petit\nEnvoyé : lundi 3 novembre\nObjet : budget\n\nancien'), 'Valide.');
   });
+  test('reponse sous la citation, ou entre ses lignes : gardee (m5)', () => {
+    assert.equal(
+      stripQuotes('Le lun. 3 nov. 2026 à 10:00, Bruno <bruno@example.com> a écrit :\n> Livraison vendredi ?\nOui, confirme.\n> Et le budget ?\nValide aussi.'),
+      'Oui, confirme.\nValide aussi.',
+    );
+    assert.equal(stripQuotes('On Mon, Nov 3, 2026 at 10:00 AM Bruno <bruno@example.com>\nwrote:\n> Question ?\nReponse en dessous.'), 'Reponse en dessous.');
+  });
+  test('une phrase qui ressemble a une attribution, suivie d une liste : rien n est coupe', () => {
+    const t = 'Compte rendu.\nOn Monday, the team wrote:\n- module A livre\n- module B en retard';
+    assert.equal(stripQuotes(t), t);
+  });
+
   test('un transfert n est pas coupe', () => {
     const fwd = 'Pour info.\n\n---------- Forwarded message ---------\nFrom: Carla <carla@example.com>\nDate: lun. 3 nov. 2026\nSubject: Devis\n\nLe devis final est joint.';
     assert.equal(stripQuotes(fwd), fwd);
