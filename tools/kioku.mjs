@@ -36,6 +36,7 @@ import { CONFIG_NAME, DOMAIN_ID, loadConfig, locateVault, vaultMarkers } from '.
 import { appendTopLevelKeys, gitignoreBlock, INSTALL_HINT, localDenyRules, managedScripts, mergeConfig, mergeDenyRules, mergeGitignore, mergeScripts, mergeSettings, PLUGIN_ID, VAULT_FORMAT } from './managed.mjs';
 import { formatRefusal } from './plugin-install.mjs';
 import { acquire, holderText, release } from './connectors/lock.mjs';
+import { fileWarning, secretStore } from './mail-sync/secret-store.mjs';
 
 export { PLUGIN_ID };
 
@@ -381,6 +382,16 @@ export const doctor = (vault, { live = false, pluginDir, home } = {}) => {
   const expected = schemaText(source === 'plugin' || pluginDir ? { KIOKU_PLUGIN: 'kioku' } : {});
   if (!existsSync(schema)) problems.push(`${SCHEMA_REL} absent : les sessions n'ont pas le schema commun (CLAUDE.md l'importe)`);
   else if (readFileSync(schema, 'utf8') !== expected) notes.push(`${SCHEMA_REL} differe du schema de ce core : version differente, ou modifie a la main`);
+
+  // Module mail : ou sont ses secrets. En fichier (repli), on le dit a chaque doctor.
+  if (cfg.modules.mail) {
+    try {
+      const store = secretStore({ mode: cfg.modules.mail.secretStore ?? 'keychain' });
+      notes.push(store.file ? `mail : ${fileWarning(store)}` : `mail : secrets au ${store.kind} (service kioku-mail)`);
+    } catch (error) {
+      notes.push(`mail : magasin de secrets inutilisable (${error instanceof Error ? error.message : String(error)})`);
+    }
+  }
 
   if (!guard && !pluginDir) isolation.push(`garde non branchee : ${why}`);
   else {

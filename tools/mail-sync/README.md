@@ -26,11 +26,21 @@ npm run mail:sync -- --max-pdf-mb 10
 - **Corps non fiable** : entre `<untrusted-mail-data-NONCE>` et sa fermeture, NONCE aléatoire par fichier ; toute occurrence du préfixe dans le contenu est neutralisée. Sujet et participants : chaînes JSON en frontmatter. Le titre `#` est généré, sans rien du mail.
 - **Nettoyage** : citations en cascade retirées (lignes `>`, « Le … a écrit : », « On … wrote: », séparateurs Outlook), un transfert gardé ; signature au-delà de 4 lignes tronquée avec mention.
 
-## Jeton et client OAuth
+## Jeton et client OAuth : au trousseau
 
-Hors du coffre : `~/.config/kioku/mail/` (`$XDG_CONFIG_HOME`, `%APPDATA%` sous Windows). `client.json` = le client « Desktop » créé par l'utilisateur ; `<compte>.json` = son jeton, écrit en 0600 (fichier temporaire puis renommage, dossier 0700). Sous Windows, les modes POSIX sont sans effet : la protection est celle du profil utilisateur. Le jeton n'est jamais affiché, journalisé, ni passé à une session.
+Par défaut (`modules.mail.secretStore: "keychain"`), le jeton de chaque compte (`token:<compte>`) et le client OAuth (`client`) sont au **trousseau du système**, service `kioku-mail` (`secret-store.mjs`) : plus aucun fichier lisible par une session ne donne accès à la boîte.
 
-Connexion : PKCE S256, boucle locale `127.0.0.1` (port choisi par le système), `state` vérifié (un mauvais `state` reçoit 400, on continue d'attendre), délai 5 minutes. Rafraîchissement automatique ; `invalid_grant` → message « relance `mail:login` ».
+- macOS : `security`. Écriture par `security -i` (commandes lues sur l'entrée standard) avec `-X <hex>` : le secret ne passe jamais en argument d'un processus (`ps`). Lecture : `find-generic-password -w`.
+- Linux : `secret-tool` ; le secret passe sur l'entrée standard de `store`. Sans service de secrets (D-Bus), repli fichier.
+- Windows : `cmdkey` écrit mais ne relit pas le secret, et `CredRead` exigerait PowerShell + `Add-Type`, non testé ici : **repli fichier**, dit à chaque lancement.
+
+`client.json` (`~/.config/kioku/mail/`, `$XDG_CONFIG_HOME`, `%APPDATA%`) ne sert qu'à l'import : `kioku mail --login` le copie au trousseau, puis propose de le supprimer dans le terminal (jamais sans un « oui »). Un fichier de jeton laissé par une version antérieure est importé au trousseau au prochain lancement ou `--login`, relu, puis supprimé (c'est un fichier que le core avait écrit) ; la sortie le dit.
+
+Repli fichier (`secretStore: "file"`, ou aucun trousseau) : fichiers `0600` (temporaire puis renommage), dossier resserré en `0700` ; sous Windows, les modes POSIX sont sans effet. Avertissement à chaque lancement et dans `kioku doctor`. La garde ferme ce dossier à toute session (zone secrète).
+
+Connexion : PKCE S256, boucle locale `127.0.0.1` (port choisi par le système), `state` vérifié (un mauvais `state` reçoit 400, on continue d'attendre), délai 5 minutes. Rafraîchissement automatique ; `invalid_grant` → message « relance `mail:login` ». Une entrée absente du trousseau → « relance `kioku mail --login <compte>` ».
+
+**Non vérifié** : l'écriture par `security -i … -X` sur un vrai trousseau macOS (les tests simulent `security` ; je n'ai pas voulu écrire dans le trousseau de session pour un essai), et `secret-tool` sur une vraie session Linux.
 
 ## Fichiers
 
@@ -44,6 +54,7 @@ Connexion : PKCE S256, boucle locale `127.0.0.1` (port choisi par le système), 
 | `clean.mjs` | citations et signatures |
 | `mime.mjs` | MIME sans dépendance : multipart, base64url, quoted-printable, charsets, RFC 2047 / 2231, HTML → texte |
 | `oauth.mjs`, `paths.mjs`, `http.mjs` | OAuth, emplacements hors coffre, requêtes avec relances bornées (429, 5xx) |
+| `secret-store.mjs` | trousseau du système (macOS, Linux), repli fichier 0600 |
 | `providers/gmail.mjs` | fournisseur Gmail : `listThreads(label, since)`, `getThread(id)`, `getAttachment(msgId, attId)` |
 | `fixtures.mjs` | faux Gmail des tests |
 

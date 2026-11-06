@@ -51,8 +51,28 @@ if (argv.includes('--login')) {
     const accounts = loadConfig(vault).modules.mail?.accounts ?? [];
     if (!accounts.some((a) => a.id === id)) throw new Error(`compte inconnu : ${id ?? '(aucun)'} (declares dans modules.mail.accounts : ${accounts.map((a) => a.id).join(', ') || 'aucun'})`);
     const { login } = await import('./oauth.mjs');
-    const file = await login(id);
-    console.log(`Compte ${id} connecte. Jeton ecrit hors du coffre : ${file}`);
+    const { fileWarning, secretStore } = await import('./secret-store.mjs');
+    const store = secretStore({ mode: loadConfig(vault).modules.mail?.secretStore ?? 'keychain' });
+    const warning = fileWarning(store);
+    if (warning) console.warn(warning);
+    const where = await login(id, { store });
+    console.log(`Compte ${id} connecte. Jeton range hors du coffre : ${where}`);
+    // client.json n'a servi qu'a l'import : le proposer a la suppression, sans jamais le supprimer sans un « oui ».
+    const clientFile = (await import('./paths.mjs')).clientPath();
+    const { existsSync, rmSync } = await import('node:fs');
+    if (!store.file && existsSync(clientFile) && store.get('client')) {
+      let yes = false;
+      if (process.stdin.isTTY) {
+        const { createInterface } = await import('node:readline/promises');
+        const rl = createInterface({ input: process.stdin, output: process.stdout });
+        yes = ['o', 'oui', 'y', 'yes'].includes((await rl.question(`Le client OAuth est au trousseau. Supprimer ${clientFile} ? [o/N] `)).trim().toLowerCase());
+        rl.close();
+      }
+      if (yes) {
+        rmSync(clientFile, { force: true });
+        console.log(`Supprime : ${clientFile}`);
+      } else console.log(`Laisse en place : ${clientFile} (le client est au trousseau ; ce fichier ne sert plus, tu peux le supprimer)`);
+    }
     process.exit(0);
   } catch (error) {
     console.error(`Erreur : ${error instanceof Error ? error.message : String(error)}`);

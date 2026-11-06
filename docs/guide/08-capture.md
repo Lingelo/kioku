@@ -78,7 +78,7 @@ There is no shared Kioku app. **Each user creates their own OAuth client** in th
 ### Once per user
 
 1. In the [Google Cloud console](https://console.cloud.google.com/): create a project, enable the **Gmail API**, configure the consent screen (type *External*, your address as test user; scope `.../auth/gmail.readonly`), then create an **OAuth client ID** of type **Desktop app**.
-2. Download its JSON and save it as `~/.config/kioku/mail/client.json` (`$XDG_CONFIG_HOME/kioku/mail/` if set; `%APPDATA%\kioku\mail\` on Windows). Never inside the vault.
+2. Download its JSON and save it as `~/.config/kioku/mail/client.json` (`$XDG_CONFIG_HOME/kioku/mail/` if set; `%APPDATA%\kioku\mail\` on Windows). Never inside the vault. This file is only read once: `mail:login` imports it into your system keychain and offers to delete it (it never deletes it without your yes).
 
 In *Testing* mode, Google expires the refresh token after 7 days: you will need to log in again. Publishing the consent screen (still unverified, for your own use) avoids that.
 
@@ -102,10 +102,22 @@ Declare the account in `kioku.config.json` (by hand, outside a session):
 Then, **from a terminal** (not in a Claude session):
 
 ```bash
-npm run mail:login -- work      # opens the browser; the token is saved in ~/.config/kioku/mail/work.json (mode 0600)
+npm run mail:login -- work      # opens the browser; the token goes to your system keychain
 ```
 
 The token is refreshed automatically. If Google refuses the refresh (revoked, password changed, 7-day test expiry), the circuit says so: run `mail:login` again.
+
+### Where the secrets live
+
+The OAuth token of each account and the client id/secret are kept in the **system keychain** (service `kioku-mail`), not in files: no file readable by a session gives access to your mailbox.
+
+| System | Keychain | Notes |
+|---|---|---|
+| macOS | Keychain, through `security` | the secret goes through standard input, never on a command line |
+| Linux | Secret Service (GNOME Keyring, KeePassXC…), through `secret-tool` | needs a running secret service; the secret goes through standard input |
+| Windows | none yet | file fallback, see below |
+
+**File fallback**: when no keychain is available (Windows, a Linux box without a secret service), or with `"secretStore": "file"` in `modules.mail`, the secrets stay in `~/.config/kioku/mail/` as files with mode `0600`. Every run and `kioku doctor` print a warning. A token file left by an earlier version is imported into the keychain at the next run or `mail:login`, read back, then deleted (the run says so).
 
 ### Commands
 

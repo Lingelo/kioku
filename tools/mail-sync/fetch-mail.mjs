@@ -14,9 +14,12 @@ import { loadConfig, vaultRoot } from '../vault-config.mjs';
 import { captureAccount, DEFAULT_MAX_PDF_MB, DEFAULT_MAX_THREADS } from './capture.mjs';
 import { addToRegistry } from './dedup.mjs';
 import { accessToken } from './oauth.mjs';
+import { fileWarning, secretStore } from './secret-store.mjs';
 import { createGmail } from './providers/gmail.mjs';
 
-const PROVIDERS = { gmail: (account) => createGmail({ token: ({ force } = {}) => accessToken(account.id, { force }) }) };
+// Le magasin des secrets (trousseau par defaut, repli fichier) : fixe plus bas, une fois la configuration lue.
+let store;
+const PROVIDERS = { gmail: (account) => createGmail({ token: ({ force } = {}) => accessToken(account.id, { force, store }) }) };
 
 const argv = process.argv.slice(2);
 const opt = (n) => {
@@ -57,6 +60,13 @@ if (!accounts.length) {
   console.log('Aucun compte mail declare (modules.mail.accounts) : rien a capter.');
   process.exit(0);
 }
+try {
+  store = secretStore({ mode: mail.secretStore ?? 'keychain' });
+} catch (error) {
+  fail(error instanceof Error ? error.message : String(error));
+}
+const warning = fileWarning(store);
+if (warning) console.warn(warning);
 const maxMb = Number(opt('--max-pdf-mb') ?? mail.max_pdf_mb ?? DEFAULT_MAX_PDF_MB);
 if (!(maxMb > 0)) fail('--max-pdf-mb attend un nombre positif');
 const maxThreads = Number(opt('--max-threads') ?? DEFAULT_MAX_THREADS);
@@ -71,7 +81,7 @@ const since = opt('--since') ?? new Date(Date.now() - 7 * 86_400_000).toISOStrin
   for (const account of accounts) {
     if (!PROVIDERS[account.provider]) continue;
     try {
-      await accessToken(account.id);
+      await accessToken(account.id, { store });
     } catch (error) {
       refused.push(`compte ${account.id} : ${error instanceof Error ? error.message : String(error)}`);
     }

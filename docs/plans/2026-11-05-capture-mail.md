@@ -9,7 +9,7 @@ Le core capte aujourd'hui une seule source : les notes d'un enregistreur Plaud. 
 - libellé **opt-in** (rien n'est lu hors du libellé choisi par l'utilisateur) ;
 - le **fil** est l'unité de source ; les **PDF joints** sont des sources à part entière ;
 - scope OAuth `gmail.readonly` seulement ; client OAuth **maison, sans dépendance** ;
-- jeton **hors coffre**, dans `~/.config/kioku/mail/` (jamais versionné, jamais lu par une session).
+- jeton **au trousseau du système** (repli : fichier `0600` hors coffre, `~/.config/kioku/mail/`), jamais versionné, jamais lisible par une session.
 
 Le mail réutilise le circuit de Plaud tel quel : dépôt dans `inbox/` → tri `claude -p` en mode triage (qui peut s'abstenir) → confirmation « oui » par domaine → une session ingest par source → rapport calculé sur les fichiers.
 
@@ -136,6 +136,8 @@ Patch de `hooks/guard.mjs`, sans relâcher de règle :
 - Jeton absent, révoqué ou expiré : tous les jetons sont vérifiés (et rafraîchis) avant le premier dépôt ; un seul refusé arrête tout, sans dépôt. Une panne en cours de route (réseau, quota) peut laisser dans l'entrant les fils des comptes déjà captés : ils n'y sont triés que par le circuit mail (chaque circuit ne trie que ses propres sources, `tools/connectors/owners.mjs`).
 
 ### Écarts de la PR 2 par rapport à ce plan, et pourquoi
+
+- **Secrets au trousseau du système** (vérification finale, classe B1) : le jeton et le client OAuth ne sont plus des fichiers mais des entrées du trousseau (`security` sous macOS, `secret-tool` sous Linux, sans dépendance). `client.json` ne sert qu'à l'import par `--login`. Repli fichier `0600` seulement sans trousseau (Windows, Linux sans service de secrets) ou avec `secretStore: "file"`, signalé à chaque lancement et par `doctor`. La friction d'adoption change : plus de fichier de jeton à protéger ; il reste le client OAuth à créer.
 
 - **Le libellé choisit le fil, pas le message** (revue I5) : tout le fil est capté, y compris une réponse qui ne porte pas le libellé ; les brouillons, la corbeille et le spam ne le sont jamais.
 

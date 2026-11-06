@@ -351,7 +351,7 @@ describe('circuit : compagnons et ecart', () => {
       assert.equal(none.status, 0, none.stderr);
       assert.match(none.stdout, /== Mail -> inbox/);
       assert.match(none.stdout, /Aucun compte mail declare/);
-      writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', accounts: [{ id: 'travail', provider: 'gmail' }] } } });
+      writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', secretStore: 'file', accounts: [{ id: 'travail', provider: 'gmail' }] } } });
       const noToken = spawnSync(process.execPath, [RUN, '--vault', vault, '--dry-run'], { encoding: 'utf8', env });
       assert.equal(noToken.status, 1);
       assert.match(noToken.stderr, /compte travail : pas de jeton pour le compte travail : lance une fois `npm run mail:login -- travail`/);
@@ -367,7 +367,7 @@ describe('circuit : compagnons et ecart', () => {
     try {
       const { saveToken } = await import('./oauth.mjs');
       saveToken('a', { access_token: 'x', refresh_token: 'r', expires_at: Date.now() + 3_600_000 }, path.join(cfgHome, 'kioku', 'mail'));
-      writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', accounts: [{ id: 'a', provider: 'gmail' }, { id: 'b', provider: 'gmail' }] } } });
+      writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', secretStore: 'file', accounts: [{ id: 'a', provider: 'gmail' }, { id: 'b', provider: 'gmail' }] } } });
       const r = spawnSync(process.execPath, [path.join(HERE, 'fetch-mail.mjs'), '--since', '2026-11-01'], { encoding: 'utf8', env: terminalEnv({ CLAUDE_PROJECT_DIR: vault, XDG_CONFIG_HOME: cfgHome }) });
       assert.equal(r.status, 1);
       assert.match(r.stderr, /compte b : pas de jeton/);

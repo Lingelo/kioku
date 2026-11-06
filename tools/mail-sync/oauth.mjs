@@ -21,12 +21,13 @@
  */
 
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { createServer } from 'node:http';
 import path from 'node:path';
 
 import { HttpError, requestJson } from './http.mjs';
 import { clientPath, configDir, tokenPath } from './paths.mjs';
+import { writeSecretFile } from './secret-store.mjs';
 
 export const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 export const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
@@ -42,19 +43,40 @@ export const pkce = (bytes = randomBytes(32)) => {
   return { verifier, challenge: b64url(createHash('sha256').update(verifier).digest()) };
 };
 
-/** Le client OAuth de l'utilisateur. Absent ou incomplet : une erreur qui dit ou le poser. */
-export const loadClient = (dir = configDir()) => {
-  const file = clientPath(dir);
-  if (!existsSync(file)) throw new Error(`client OAuth absent : ${file}. Cree un client « Desktop » dans ta console Google Cloud, telecharge son JSON et pose-le a cet emplacement (voir le guide, Capture modules).`);
+const parseClient = (text, where) => {
   let data;
   try {
-    data = JSON.parse(readFileSync(file, 'utf8'));
+    data = JSON.parse(text);
   } catch {
-    throw new Error(`client OAuth illisible : ${file} (JSON attendu)`);
+    throw new Error(`client OAuth illisible : ${where} (JSON attendu)`);
   }
   const c = data.installed ?? data;
-  if (!c?.client_id || !c?.client_secret) throw new Error(`client OAuth incomplet : ${file} (client_id et client_secret attendus)`);
+  if (!c?.client_id || !c?.client_secret) throw new Error(`client OAuth incomplet : ${where} (client_id et client_secret attendus)`);
   return { clientId: c.client_id, clientSecret: c.client_secret };
+};
+
+const atKeychain = (store) => Boolean(store && !store.file);
+
+/**
+ * Le client OAuth de l'utilisateur. Absent ou incomplet : une erreur qui dit ou le poser.
+ * Avec un trousseau (`store`, voir secret-store.mjs) : lu au trousseau ; a defaut, depuis `client.json`, que
+ * `importFile` (kioku mail --login) copie au trousseau. Rend aussi `file` quand client.json existe encore.
+ */
+export const loadClient = (dir = configDir(), { store, importFile = false, log = console.log } = {}) => {
+  const file = clientPath(dir);
+  if (atKeychain(store)) {
+    const kept = store.get('client');
+    if (kept) return { ...parseClient(kept, `trousseau (${store.kind})`), file: existsSync(file) ? file : null };
+    if (!existsSync(file)) throw new Error(`client OAuth absent du trousseau, et ${file} absent. Cree un client « Desktop » dans ta console Google Cloud, pose son JSON a cet emplacement, puis lance \`kioku mail --login <compte>\` depuis un terminal : il l'importe au trousseau.`);
+    const client = parseClient(readFileSync(file, 'utf8'), file);
+    if (importFile) {
+      store.set('client', JSON.stringify({ client_id: client.clientId, client_secret: client.clientSecret }));
+      log(`Client OAuth importe au trousseau (${store.kind}).`);
+    }
+    return { ...client, file, fromFile: !importFile };
+  }
+  if (!existsSync(file)) throw new Error(`client OAuth absent : ${file}. Cree un client « Desktop » dans ta console Google Cloud, telecharge son JSON et pose-le a cet emplacement (voir le guide, Capture modules).`);
+  return parseClient(readFileSync(file, 'utf8'), file);
 };
 
 /** L'URL d'autorisation. */
@@ -124,35 +146,57 @@ export const waitForCode = ({ state, onListening, timeoutMs = LOGIN_TIMEOUT_MS, 
     });
   });
 
-/** Ecrit un jeton : dossier 0700, fichier temporaire 0600, renommage (jamais de fichier a moitie ecrit). */
-export const saveToken = (account, token, dir = configDir()) => {
+/**
+ * Ecrit un jeton. Au trousseau (`store`) : l'entree `token:<compte>`. En fichier : dossier 0700, fichier temporaire
+ * 0600, renommage (jamais de fichier a moitie ecrit). Rend ou il est, jamais le jeton.
+ */
+export const saveToken = (account, token, dir = configDir(), { store } = {}) => {
   const file = tokenPath(account, dir);
-  mkdirSync(dir, { recursive: true, mode: 0o700 });
-  // mkdir ne resserre pas un dossier qui existait deja (en 0755, par exemple) : on le fait (revue m8). Sans effet sous
-  // Windows, ou les modes POSIX ne s'appliquent pas.
-  if (process.platform !== 'win32') chmodSync(dir, 0o700);
-  const tmp = `${file}.${process.pid}.tmp`;
-  try {
-    writeFileSync(tmp, `${JSON.stringify(token, null, 1)}\n`, { mode: 0o600 });
-    chmodSync(tmp, 0o600); // umask : le mode de creation peut avoir ete restreint autrement
-    renameSync(tmp, file);
-  } catch (error) {
-    rmSync(tmp, { force: true });
-    throw error;
+  if (atKeychain(store)) {
+    store.set(`token:${account}`, JSON.stringify(token));
+    return `${store.kind} (service kioku-mail, entree token:${account})`;
   }
+  writeSecretFile(file, `${JSON.stringify(token, null, 1)}\n`);
   return file;
 };
 
-export const loadToken = (account, dir = configDir()) => {
-  const file = tokenPath(account, dir);
-  if (!existsSync(file)) throw new Error(`pas de jeton pour le compte ${account} : lance une fois \`npm run mail:login -- ${account}\` depuis un terminal`);
+const parseToken = (text, account, where) => {
   try {
-    const t = JSON.parse(readFileSync(file, 'utf8'));
+    const t = JSON.parse(text);
     if (!t?.refresh_token) throw new Error('refresh_token absent');
     return t;
   } catch {
-    throw new Error(`jeton illisible pour le compte ${account} (${path.basename(file)}) : relance \`npm run mail:login -- ${account}\``);
+    throw new Error(`jeton illisible pour le compte ${account} (${where}) : relance \`kioku mail --login ${account}\` (npm run mail:login -- ${account})`);
   }
+};
+
+/**
+ * Le jeton d'un compte. Au trousseau : lu a l'entree `token:<compte>`. Un fichier de jeton laisse par une version
+ * anterieure (le core l'avait ecrit lui-meme) est importe au trousseau, relu, puis supprime, et la sortie le dit.
+ */
+export const loadToken = (account, dir = configDir(), { store, log = console.log } = {}) => {
+  const file = tokenPath(account, dir);
+  if (atKeychain(store)) {
+    const key = `token:${account}`;
+    const kept = store.get(key);
+    if (kept) {
+      if (existsSync(file)) {
+        rmSync(file, { force: true });
+        log(`Ancien fichier de jeton supprime (le trousseau fait foi) : ${file}`);
+      }
+      return parseToken(kept, account, store.kind);
+    }
+    if (!existsSync(file)) throw new Error(`pas de jeton pour le compte ${account} au trousseau : relance \`kioku mail --login ${account}\` depuis un terminal (npm run mail:login -- ${account})`);
+    const text = readFileSync(file, 'utf8');
+    const token = parseToken(text, account, path.basename(file));
+    store.set(key, JSON.stringify(token));
+    if (store.get(key) !== JSON.stringify(token)) throw new Error(`migration du jeton de ${account} au trousseau : relecture differente, fichier laisse en place`);
+    rmSync(file, { force: true });
+    log(`Jeton du compte ${account} importe au trousseau (${store.kind}) ; fichier supprime : ${file}`);
+    return token;
+  }
+  if (!existsSync(file)) throw new Error(`pas de jeton pour le compte ${account} : lance une fois \`npm run mail:login -- ${account}\` depuis un terminal`);
+  return parseToken(readFileSync(file, 'utf8'), account, path.basename(file));
 };
 
 const tokenRequest = (params, deps, what) =>
@@ -170,9 +214,9 @@ const fromResponse = (r, now, previous = {}) => ({
  * Connexion complete d'un compte. `openUrl(url)` ouvre le navigateur (injecte ; par defaut, l'URL est affichee).
  * Rend le chemin du jeton ecrit, jamais le jeton.
  */
-export const login = async (account, { dir = configDir(), fetch, sleep, now = Date.now, openUrl, timeoutMs, verifierBytes } = {}) => {
+export const login = async (account, { dir = configDir(), fetch, sleep, now = Date.now, openUrl, timeoutMs, verifierBytes, store, log } = {}) => {
   tokenPath(account, dir); // valide l'identifiant avant d'ouvrir quoi que ce soit
-  const client = loadClient(dir);
+  const client = loadClient(dir, { store, importFile: true, log });
   const state = b64url(randomBytes(24));
   const { verifier, challenge } = pkce(verifierBytes);
   const { code, redirectUri } = await waitForCode({
@@ -186,27 +230,27 @@ export const login = async (account, { dir = configDir(), fetch, sleep, now = Da
     'oauth echange du code',
   );
   if (!r.refresh_token) throw new Error('Google n\'a pas rendu de refresh_token : retire l\'acces de Kioku dans ton compte Google, puis relance mail:login');
-  return saveToken(account, fromResponse(r, now), dir);
+  return saveToken(account, fromResponse(r, now), dir, { store });
 };
 
 /**
  * Un jeton d'acces valide pour le compte, rafraichi au besoin (et reecrit). `force` : rafraichir meme s'il semble
  * valide (une 401 de l'API : jeton revoque cote serveur).
  */
-export const accessToken = async (account, { dir = configDir(), fetch, sleep, now = Date.now, force = false } = {}) => {
-  const token = loadToken(account, dir);
+export const accessToken = async (account, { dir = configDir(), fetch, sleep, now = Date.now, force = false, store, log } = {}) => {
+  const token = loadToken(account, dir, { store, log });
   if (!force && token.access_token && Number(token.expires_at) - EARLY_REFRESH_MS > now()) return token.access_token;
-  const client = loadClient(dir);
+  const client = loadClient(dir, { store, log });
   let r;
   try {
     r = await tokenRequest({ grant_type: 'refresh_token', refresh_token: token.refresh_token, client_id: client.clientId, client_secret: client.clientSecret }, { fetch, sleep }, 'oauth rafraichissement');
   } catch (error) {
     if (error instanceof HttpError && (error.code === 'invalid_grant' || error.status === 400 || error.status === 401)) {
-      throw new Error(`rafraichissement du jeton refuse pour le compte ${account} (${error.code || `HTTP ${error.status}`}) : relance \`npm run mail:login -- ${account}\``);
+      throw new Error(`rafraichissement du jeton refuse pour le compte ${account} (${error.code || `HTTP ${error.status}`}) : relance \`npm run mail:login -- ${account}\` (kioku mail --login ${account})`);
     }
     throw error;
   }
   const next = fromResponse(r, now, token);
-  saveToken(account, next, dir);
+  saveToken(account, next, dir, { store });
   return next.access_token;
 };
