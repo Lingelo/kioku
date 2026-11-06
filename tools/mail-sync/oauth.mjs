@@ -160,6 +160,10 @@ export const saveToken = (account, token, dir = configDir(), { store } = {}) => 
   return file;
 };
 
+/** Deux jetons egaux, cle a cle (JSON normalise : l'ordre des cles et la mise en forme ne comptent pas). */
+const normalized = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, normalized(v[k])])) : v);
+const sameToken = (a, b) => JSON.stringify(normalized(a)) === JSON.stringify(normalized(b));
+
 const parseToken = (text, account, where) => {
   try {
     const t = JSON.parse(text);
@@ -180,11 +184,46 @@ export const loadToken = (account, dir = configDir(), { store, log = console.log
     const key = `token:${account}`;
     const kept = store.get(key);
     if (kept) {
-      if (existsSync(file)) {
-        rmSync(file, { force: true });
-        log(`Ancien fichier de jeton supprime (le trousseau fait foi) : ${file}`);
+      // Revue N1 : une entree au trousseau ET un fichier. Le fichier n'est supprime que si l'entree se relit, se parse et
+      // vaut le contenu du fichier (JSON normalise), ou si le fichier, plus recent, a ete reecrit au trousseau et relu.
+      let fromStore;
+      try {
+        fromStore = parseToken(kept, account, store.kind);
+      } catch {
+        if (existsSync(file)) {
+          throw new Error(`entree du trousseau illisible pour le compte ${account} ; le fichier de jeton est laisse en place (${file}). Relance \`kioku mail --login ${account}\` (npm run mail:login -- ${account})`);
+        }
+        throw new Error(`entree du trousseau illisible pour le compte ${account} : relance \`kioku mail --login ${account}\` (npm run mail:login -- ${account})`);
       }
-      return parseToken(kept, account, store.kind);
+      if (!existsSync(file)) return fromStore;
+      let fromFile = null;
+      try {
+        fromFile = parseToken(readFileSync(file, 'utf8'), account, path.basename(file));
+      } catch {
+        log(`Attention : fichier de jeton illisible pour le compte ${account}, laisse en place (${file}) ; le trousseau fait foi.`);
+        return fromStore;
+      }
+      if (sameToken(fromStore, fromFile)) {
+        rmSync(file, { force: true });
+        log(`Ancien fichier de jeton supprime (identique a l'entree du trousseau) : ${file}`);
+        return fromStore;
+      }
+      // Deux jetons differents : le plus recent l'emporte (expiration la plus lointaine).
+      if (Number(fromFile.expires_at ?? 0) > Number(fromStore.expires_at ?? 0)) {
+        store.set(key, JSON.stringify(fromFile));
+        let reread = null;
+        try {
+          reread = JSON.parse(store.get(key));
+        } catch {
+          reread = null;
+        }
+        if (!reread || !sameToken(reread, fromFile)) throw new Error(`deux jetons differents pour le compte ${account} : la reecriture au trousseau du plus recent (le fichier) ne se relit pas ; fichier laisse en place (${file})`);
+        rmSync(file, { force: true });
+        log(`Deux jetons differents pour le compte ${account} : le fichier, plus recent, a ete reecrit au trousseau puis supprime (${file}).`);
+        return fromFile;
+      }
+      log(`Attention : deux jetons differents pour le compte ${account} ; le trousseau, plus recent, fait foi. Fichier laisse en place : ${file} (a supprimer a la main s'il ne sert plus).`);
+      return fromStore;
     }
     if (!existsSync(file)) throw new Error(`pas de jeton pour le compte ${account} au trousseau : relance \`kioku mail --login ${account}\` depuis un terminal (npm run mail:login -- ${account})`);
     const text = readFileSync(file, 'utf8');

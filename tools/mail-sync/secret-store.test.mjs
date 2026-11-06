@@ -182,6 +182,49 @@ describe('jeton et client au trousseau (oauth.mjs)', () => {
     assert.ok(existsSync(path.join(dir, 'travail.json')));
   });
 
+  test('N1 : entree corrompue + fichier valide : rien n est supprime, erreur claire', () => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'travail.json'), JSON.stringify(token));
+    const s = store();
+    s.set('token:travail', '{pas du json');
+    assert.throws(() => loadToken('travail', dir, { store: s }), /entree du trousseau illisible pour le compte travail ; le fichier de jeton est laisse en place.*kioku mail --login travail/s);
+    assert.ok(existsSync(path.join(dir, 'travail.json')), 'le fichier valide est garde');
+  });
+
+  test('N1 : entree perimee + fichier plus recent : le fichier est reecrit au trousseau, relu, puis supprime', () => {
+    mkdirSync(dir, { recursive: true });
+    const recent = { access_token: 'a-neuf', refresh_token: 'NEUF-VALIDE', expires_at: 9_000_000 };
+    writeFileSync(path.join(dir, 'travail.json'), JSON.stringify(recent));
+    const s = store();
+    s.set('token:travail', JSON.stringify({ access_token: 'a-vieux', refresh_token: 'VIEUX', expires_at: 1_000 }));
+    const logs = [];
+    assert.deepEqual(loadToken('travail', dir, { store: s, log: (l) => logs.push(l) }), recent);
+    assert.equal(JSON.parse(s.get('token:travail')).refresh_token, 'NEUF-VALIDE');
+    assert.ok(!existsSync(path.join(dir, 'travail.json')));
+    assert.match(logs.join('\n'), /deux jetons differents.*plus recent.*reecrit au trousseau puis supprime/is);
+  });
+
+  test('N1 : deux jetons differents, le trousseau plus recent : il fait foi, le fichier reste, signale', () => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'travail.json'), JSON.stringify({ access_token: 'a', refresh_token: 'VIEUX-FICHIER', expires_at: 1_000 }));
+    const s = store();
+    const inStore = { access_token: 'b', refresh_token: 'RECENT', expires_at: 9_000_000 };
+    s.set('token:travail', JSON.stringify(inStore));
+    const logs = [];
+    assert.deepEqual(loadToken('travail', dir, { store: s, log: (l) => logs.push(l) }), inStore);
+    assert.ok(existsSync(path.join(dir, 'travail.json')), 'fichier garde');
+    assert.match(logs.join('\n'), /deux jetons differents pour le compte travail ; le trousseau, plus recent, fait foi/);
+  });
+
+  test('N1 : entree identique au fichier (autre ordre des cles) : fichier supprime', () => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(path.join(dir, 'travail.json'), JSON.stringify({ refresh_token: SECRET, expires_at: 1, access_token: 'a1' }));
+    const s = store();
+    s.set('token:travail', JSON.stringify(token));
+    assert.deepEqual(loadToken('travail', dir, { store: s, log: () => {} }), token);
+    assert.ok(!existsSync(path.join(dir, 'travail.json')));
+  });
+
   test('entree absente du trousseau : « relance kioku mail --login »', () => {
     assert.throws(() => loadToken('perso', dir, { store: store() }), /pas de jeton pour le compte perso au trousseau : relance `kioku mail --login perso`/);
   });
