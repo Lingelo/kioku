@@ -73,20 +73,23 @@ export const parseEmptyLines = (out, parkedFiles) => {
  * Un fichier dont la fiche est introuvable reste ou il est, sans bruit (un depot manuel). Rend les lignes a afficher.
  */
 export const followStubs = (vault, placed = []) => {
-  const inbox = inboxDir(vault);
-  if (!existsSync(inbox)) return [];
   const lines = [];
-  for (const f of readdirSync(inbox, { withFileTypes: true })) {
-    if (!f.isFile() || f.name.endsWith('.md') || f.name.startsWith('.')) continue;
-    const stub = `${f.name}.md`;
-    if (existsSync(path.join(inbox, stub))) continue; // fiche encore dans l'entrant : elle sera parquee avec lui
-    const target = placed.find((p) => path.basename(p) === stub);
-    const dir = target ? path.dirname(path.join(vault, target)) : existsSync(path.join(parkedDir(vault), stub)) ? parkedDir(vault) : null;
-    // Sans fiche connue : un fichier depose a la main (un PDF a trier par /triage), pas un compagnon. On n'y touche pas.
-    if (!dir) continue;
-    if (existsSync(path.join(dir, f.name))) continue;
-    renameSync(path.join(inbox, f.name), path.join(dir, f.name));
-    lines.push(`  compagnon ${f.name} -> ${path.relative(vault, dir).split(path.sep).join('/')}/`);
+  // L'entrant, puis inbox/a-trancher/ : une fiche parquee tranchee par --decide quitte a-trancher/ par le tri, et
+  // son PDF doit la suivre aussi (revue m4).
+  for (const [from, parked] of [[inboxDir(vault), false], [parkedDir(vault), true]]) {
+    if (!existsSync(from)) continue;
+    for (const f of readdirSync(from, { withFileTypes: true })) {
+      if (!f.isFile() || f.name.endsWith('.md') || f.name.startsWith('.')) continue;
+      const stub = `${f.name}.md`;
+      if (existsSync(path.join(from, stub))) continue; // fiche encore la : elle sera parquee (ou tranchee) avec lui
+      const target = placed.find((p) => path.basename(p) === stub);
+      const dir = target ? path.dirname(path.join(vault, target)) : !parked && existsSync(path.join(parkedDir(vault), stub)) ? parkedDir(vault) : null;
+      // Sans fiche connue : un fichier depose a la main (un PDF a trier par /triage), pas un compagnon. On n'y touche pas.
+      if (!dir) continue;
+      if (existsSync(path.join(dir, f.name))) continue;
+      renameSync(path.join(from, f.name), path.join(dir, f.name));
+      lines.push(`  compagnon ${f.name} -> ${path.relative(vault, dir).split(path.sep).join('/')}/`);
+    }
   }
   return lines;
 };

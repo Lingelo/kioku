@@ -256,6 +256,30 @@ describe('circuit : compagnons et ecart', () => {
     assert.ok(existsSync(path.join(vault, 'inbox', 'depose-a-la-main.pdf')));
   });
 
+  test('--decide sur une fiche PDF parquee : son PDF quitte a-trancher/ avec elle (m4)', async () => {
+    const out = await capture(gmail([m1]).provider);
+    const stub = `${out.pdfs[0]}.md`;
+    const parked = path.join(vault, 'inbox', 'a-trancher');
+    mkdirSync(parked, { recursive: true });
+    for (const f of [stub, out.pdfs[0]]) renameSync(path.join(vault, 'inbox', f), path.join(parked, f));
+    // Le tri tranche : il ne deplace que la fiche.
+    mkdirSync(path.join(vault, RAW, 'pro', 'pdfs'), { recursive: true });
+    renameSync(path.join(parked, stub), path.join(vault, RAW, 'pro', 'pdfs', stub));
+    const lines = followStubs(vault, [path.join(RAW, 'pro', 'pdfs', stub)]);
+    assert.equal(lines.length, 1);
+    assert.ok(existsSync(path.join(vault, RAW, 'pro', 'pdfs', out.pdfs[0])), 'le PDF a suivi sa fiche');
+    assert.ok(!existsSync(path.join(parked, out.pdfs[0])));
+  });
+
+  test('un PDF parque dont la fiche reste parquee : non touche', async () => {
+    const parked = path.join(vault, 'inbox', 'a-trancher');
+    mkdirSync(parked, { recursive: true });
+    writeFileSync(path.join(parked, 'x.pdf'), '%PDF');
+    writeFileSync(path.join(parked, 'x.pdf.md'), '---\ngmail_thread_id: t\n---\n');
+    assert.deepEqual(followStubs(vault, []), []);
+    assert.ok(existsSync(path.join(parked, 'x.pdf')));
+  });
+
   test('run.mjs --drop : fil et fiche PDF ecartes (seen.json), le PDF compagnon supprime ; sans id : refus', async () => {
     const out = await capture(gmail([m1]).provider);
     const parked = path.join(vault, 'inbox', 'a-trancher');
