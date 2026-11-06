@@ -16,6 +16,7 @@ kioku plaud --skip <id Plaud>      # écarte un enregistrement pour de bon (rép
 kioku plaud --skip-fetch           # tri + ingestion de ce qui est déjà dans l'entrant / la file
 kioku plaud --group-by-day         # une session par journée et par domaine, au lieu d'une par source
 kioku plaud --skip-fetch --decide <fichier>=<domaine>   # tranche une source parquée (répétable)
+kioku plaud --skip-fetch --decide <fichier>=pro:acme    # idem, et impose l'organisation (registre ; domaine à extension org)
 kioku plaud --drop <fichier> [<fichier>...]             # écarte une source parquée (seen.json « ecarte », fichier supprimé)
 kioku plaud --requeue <domaine> <chemin>                # remet en file une source déplacée à la main vers un autre domaine
 kioku plaud --yes                  # ingère sans demander confirmation (requis sans terminal)
@@ -37,6 +38,7 @@ Le rapport de fin liste ce que le tri n'a pas tranché. Lire `inbox/a-trancher/_
 | **Laisser** | rien | reste parqué, relisté à chaque rapport, jamais ingéré sans `--decide` |
 
 - **Ne jamais supprimer un parqué à la main** : sans trace dans `seen.json`, le fetch suivant le redépose. `plaud:drop` refuse un fichier sans `plaud_id:` et le laisse en place.
+- `--decide <fichier>=pro:<org>[,<org>]` impose l'organisation : elle remplace la proposition du tri à la confirmation et dans le prompt d'ingestion (qui garde le dernier mot sur le contenu). Refus avant toute session si l'organisation est hors registre ou si le domaine ne porte pas l'extension `org`. Si le tri renomme la source, l'organisation n'est pas appliquée (avertissement) et l'ingestion décide.
 - `--decide` se lance dans un vrai terminal : la confirmation avant l'ingestion y attend un « oui ». Ne pas ajouter `--yes` pour la contourner.
 - Ranger une source sensible en `pro` (rémunération, RH) ne fait pas entrer le sensible : l'ingestion et le relecteur le retiennent (CLAUDE.md §9), à voir ensuite dans `npm run undecided`.
 - Après un `plaud:drop` : commiter `tools/plaud-sync/seen.json`.

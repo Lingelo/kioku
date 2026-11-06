@@ -60,7 +60,10 @@ export const triagePrompt = (reg, paths, decisions, scope) => {
       ? `Pour chaque source rangee en ${orgDomain}, ecris une ligne ORG <chemin relatif a raw/${orgDomain}/> : <identifiants du registre separes par des virgules>. `
       : '') +
     `Ne range que dans raw/<${ids.join('|')}>/. Ne pose aucune question.` +
-    (decisions?.length ? ` Decisions explicites de l'utilisateur, a appliquer sans t'abstenir : ${decisions.map((d) => `${d.file} -> ${d.domain}`).join(' ; ')}.` : '')
+    (decisions?.length
+      ? ` Decisions explicites de l'utilisateur, a appliquer sans t'abstenir et sans renommer le fichier : ` +
+        `${decisions.map((d) => `${d.file} -> ${d.domain}${d.orgIds?.length ? ` (organisation ${d.orgIds.join(',')}, a reprendre telle quelle dans sa ligne ORG)` : ''}`).join(' ; ')}.`
+      : '')
   );
 };
 
