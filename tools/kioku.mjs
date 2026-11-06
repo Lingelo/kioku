@@ -367,7 +367,7 @@ export const doctor = (vault, { live = false, pluginDir, home } = {}) => {
   const tooOld = formatRefusal(CORE, vault);
   if (tooOld) return { code: EXIT.precondition, lines: [`ECHEC  ${tooOld}`] };
   for (const d of cfg.domains) {
-    if (!existsSync(path.join(vault, 'wiki', d))) problems.push(`wiki/${d}/ absent (squelette : node tools/plaud-sync/run.mjs --init-structure, ou add-domain)`);
+    if (!existsSync(path.join(vault, 'wiki', d))) problems.push(`wiki/${d}/ absent (squelette : kioku plaud --init-structure, ou add-domain)`);
     const rules = cfg.rulesPath(d);
     if (!existsSync(rules)) problems.push(`domains/${d}/rules.md absent : le relecteur ne juge rien dans ce domaine`);
     else if (!/^## Relecture$/m.test(readFileSync(rules, 'utf8'))) problems.push(`domains/${d}/rules.md sans section ## Relecture`);

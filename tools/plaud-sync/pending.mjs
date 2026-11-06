@@ -7,6 +7,8 @@
  *   node tools/plaud-sync/pending.mjs list        sources a ingerer, une par ligne : <domaine><TAB><chemin relatif a raw/<domaine>/><TAB><etat>
  *   node tools/plaud-sync/pending.mjs add <domaine> <chemin relatif>   ajoute a la main (source rangee par un /triage manuel)
  *
+ * Outil interne du circuit : le CLI ne le relaie pas. Cote utilisateur, `add` passe par `kioku plaud --requeue`.
+ *
  * Pourquoi une file et pas « tout raw/ sans page or » : les reunions heritees (raw/pro/meetings) ont ete traitees
  * en raccourci bronze -> or (CLAUDE.md §3, amorcage) ; elles ne sont pas a ingerer. Seul ce que CE circuit vient
  * de ranger l'est.

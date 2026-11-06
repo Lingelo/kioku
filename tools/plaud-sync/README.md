@@ -6,20 +6,23 @@ Circuit **Plaud → coffre** : les notes de réunion captées par Plaud arrivent
 
 ## Lancer
 
+Depuis le checkout principal du coffre. `kioku plaud` relaie `node <core>/tools/plaud-sync/run.mjs --vault .` : `run.mjs` n'existe pas dans le coffre.
+
 ```
-node tools/plaud-sync/run.mjs                        # 7 derniers jours
-node tools/plaud-sync/run.mjs --since 2026-09-14
-node tools/plaud-sync/run.mjs --dry-run              # montre ce qui serait déposé, aucune session lancée
-node tools/plaud-sync/run.mjs --skip <id Plaud>      # écarte un enregistrement pour de bon (répétable)
-node tools/plaud-sync/run.mjs --skip-fetch           # tri + ingestion de ce qui est déjà dans l'entrant / la file
-node tools/plaud-sync/run.mjs --group-by-day         # une session par journée et par domaine, au lieu d'une par source
-node tools/plaud-sync/run.mjs --skip-fetch --decide <fichier>=<pro|perso>   # tranche une source parquée
-npm run plaud:drop -- <fichier> [<fichier>...]                              # écarte une source parquée (seen.json « ecarte », fichier supprimé)
-node tools/plaud-sync/run.mjs --yes                  # ingère sans demander confirmation (requis sans terminal)
-node tools/plaud-sync/run.mjs --retries 2 --retry-delay 60   # relances d'une ingestion qui échoue (défaut : 1, après 30 s)
+kioku plaud                        # 7 derniers jours
+kioku plaud --since 2026-09-14
+kioku plaud --dry-run              # montre ce qui serait déposé, aucune session lancée
+kioku plaud --skip <id Plaud>      # écarte un enregistrement pour de bon (répétable)
+kioku plaud --skip-fetch           # tri + ingestion de ce qui est déjà dans l'entrant / la file
+kioku plaud --group-by-day         # une session par journée et par domaine, au lieu d'une par source
+kioku plaud --skip-fetch --decide <fichier>=<domaine>   # tranche une source parquée (répétable)
+kioku plaud --drop <fichier> [<fichier>...]             # écarte une source parquée (seen.json « ecarte », fichier supprimé)
+kioku plaud --requeue <domaine> <chemin>                # remet en file une source déplacée à la main vers un autre domaine
+kioku plaud --yes                  # ingère sans demander confirmation (requis sans terminal)
+kioku plaud --retries 2 --retry-delay 60   # relances d'une ingestion qui échoue (défaut : 1, après 30 s)
 ```
 
-Raccourcis npm : `npm run plaud:sync` (= `run.mjs`), `plaud:dry-run`, `plaud:pending` (= `--skip-fetch`), `plaud:drop`. Une option s'ajoute après `--` : `npm run plaud:sync -- --since 2026-10-01`.
+Raccourcis npm posés par `kioku init` : `npm run plaud:sync` (= `kioku plaud`), `plaud:dry-run`, `plaud:pending` (= `--skip-fetch`), `plaud:drop`. Une option s'ajoute après `--` : `npm run plaud:sync -- --since 2026-10-01`.
 
 Première connexion : `npx -y @plaud-ai/mcp@latest` une fois, pour l'OAuth.
 
@@ -29,8 +32,8 @@ Le rapport de fin liste ce que le tri n'a pas tranché. Lire `inbox/a-trancher/_
 
 | Issue | Commande | Effet |
 |---|---|---|
-| **Ingérer** | `node tools/plaud-sync/run.mjs --skip-fetch --decide <fichier>=pro --decide <autre>=perso` | tri forcé dans ce domaine, confirmation, puis ingestion |
-| **Écarter** | `npm run plaud:drop -- <fichier> [<fichier>...]` | `plaud_id` consigné `ecarte` dans `seen.json`, fichier et ligne de `_raisons.md` supprimés ; ni fetch, ni session |
+| **Ingérer** | `kioku plaud --skip-fetch --decide <fichier>=pro --decide <autre>=perso` | tri forcé dans ce domaine, confirmation, puis ingestion |
+| **Écarter** | `kioku plaud --drop <fichier> [<fichier>...]` | `plaud_id` consigné `ecarte` dans `seen.json`, fichier et ligne de `_raisons.md` supprimés ; ni fetch, ni session |
 | **Laisser** | rien | reste parqué, relisté à chaque rapport, jamais ingéré sans `--decide` |
 
 - **Ne jamais supprimer un parqué à la main** : sans trace dans `seen.json`, le fetch suivant le redépose. `plaud:drop` refuse un fichier sans `plaud_id:` et le laisse en place.
@@ -46,7 +49,7 @@ Code de sortie : `0` tout est rangé et ingéré ; `2` il reste des sources à r
 
 1. **Dépôt** (`fetch-notes.mjs`) : liste les enregistrements Plaud, écarte ceux déjà connus (voir *Déduplication*), dépose le reste dans `inbox/`, sans domaine.
 2. **Tri** : une session `claude -p` en mode `triage` range chaque source dans `raw/pro/` ou `raw/perso/` **sur le contenu**, car le MCP n'expose pas les dossiers Plaud. Au moindre doute (autre organisation, source mixte, donnée sensible), elle s'abstient : la source est parquée dans `inbox/a-trancher/`, raison dans `_raisons.md`, sans bloquer les lancements suivants.
-3. **Confirmation** : avant toute ingestion, le script affiche ce qui va entrer dans l'or, **par domaine**, et demande `Ingerer cette liste ? [o]ui / [N]on` (Entrée = non). C'est le dernier moment où une erreur de domaine du tri se corrige sans effort ; après, la source est dans le mauvais wiki et seul le relecteur peut encore la retenir. Sur un refus, rien n'est écrit et les sources restent dans la file. Pour corriger le domaine d'une source `neuf` : `mv raw/<de>/<chemin> raw/<vers>/<chemin>`, puis `node tools/plaud-sync/pending.mjs add <vers> <chemin>`, puis `--skip-fetch`. Sans terminal, rien n'est ingéré sans `--yes`.
+3. **Confirmation** : avant toute ingestion, le script affiche ce qui va entrer dans l'or, **par domaine**, et demande `Ingerer cette liste ? [o]ui / [N]on` (Entrée = non). C'est le dernier moment où une erreur de domaine du tri se corrige sans effort ; après, la source est dans le mauvais wiki et seul le relecteur peut encore la retenir. Sur un refus, rien n'est écrit et les sources restent dans la file. Pour corriger le domaine d'une source `neuf` : `mv raw/<de>/<chemin> raw/<vers>/<chemin>`, puis `kioku plaud --requeue <vers> <chemin>` (sous le verrou ; le chemin reste sous `raw/<vers>/`), puis `kioku plaud --skip-fetch`. Sans terminal, rien n'est ingéré sans `--yes`.
 4. **Ingestion** : une session `ingest` par source, dans le domaine où le tri l'a rangée. La gate et le relecteur s'appliquent comme pour une ingestion manuelle. Avec `--group-by-day`, les sources d'une **même journée et d'un même domaine** partagent un **fil de conversation** (voir ci-dessous). Les deux domaines ne sont **jamais** dans le même fil, une source sans date dans son nom reste seule, et l'ordre chronologique est conservé.
    Une session qui rend un code non nul est **relancée**, à froid, après une attente (`--retries`, défaut 1 ; `--retry-delay`, défaut 30 s). L'état est relu sur les fichiers avant chaque relance : une source entrée dans l'or malgré le code n'est pas relancée, une source déjà rédigée repart en reprise. Le code de sortie de `claude` ne dit pas si l'erreur est passagère (le 05/11, une erreur API 422 après la rédaction) : on relance sur tout échec, et le plafond borne le coût d'un échec qui se reproduit.
 5. **Rapport** : calculé sur les fichiers, jamais sur ce qu'une session déclare (ingérées / pas entrées dans l'or / à trancher / retenues par la gate).
