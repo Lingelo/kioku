@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
 import { withPlaudId } from './dedup.mjs';
-import { declareFakeGuard, testHome, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, terminalEnv, testHome, writeTestConfig } from '../test-vault.mjs';
 
 const RUN = path.join(path.dirname(new URL(import.meta.url).pathname), 'run.mjs');
 let fakeBin;
@@ -64,7 +64,7 @@ beforeEach(() => {
 const run = (args = [], env = {}) =>
   spawnSync(process.execPath, [RUN, '--vault', vault, '--skip-fetch', ...args], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_VIDES: '', FAUX_ABST: '', ...env },
+    env: { ...terminalEnv(), HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_VIDES: '', FAUX_ABST: '', ...env },
   });
 
 test('sans terminal : la note vide est listee avec sa raison et reste parquee, seen.json intact', () => {

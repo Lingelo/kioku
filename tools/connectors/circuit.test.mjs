@@ -10,12 +10,12 @@
 
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { declareFakeGuard, nodeOnlyPath, testHome, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, nodeOnlyPath, terminalEnv, testHome, writeTestConfig } from '../test-vault.mjs';
 import { assertConnector, byDay, dropArgs, parseQueue } from './circuit.mjs';
 import { legacyLockPath, lockPath } from './lock.mjs';
 
@@ -91,7 +91,7 @@ describe('un connecteur factice branche sur le circuit', () => {
   const run = (args) =>
     spawnSync(process.execPath, [entry, '--vault', vault, ...args], {
       encoding: 'utf8',
-      env: { ...process.env, HOME: testHome(vault), FAUX_LOG: log(), PATH: nodeOnlyPath(vault) },
+      env: terminalEnv({ HOME: testHome(vault), FAUX_LOG: log(), PATH: nodeOnlyPath(vault) }),
     });
   const fetches = () => (existsSync(log()) ? readFileSync(log(), 'utf8').trim().split('\n').map((l) => JSON.parse(l).fetch) : []);
 
@@ -132,6 +132,39 @@ describe('un connecteur factice branche sur le circuit', () => {
     assert.equal(r.status, 1);
     assert.match(r.stderr, /--decide attend <fichier>=<pro\|perso>/);
     assert.equal(existsSync(lockPath(vault)), false);
+  });
+
+  test('N4 : lance depuis une session (CLAUDECODE ou VAULT_MODE), le circuit refuse de demarrer, dry-run compris', () => {
+    for (const extra of [{ CLAUDECODE: '1' }, { VAULT_MODE: 'triage' }, { VAULT_MODE: 'ingest', VAULT_DOMAIN: 'pro' }]) {
+      for (const args of [['--dry-run'], ['--skip-fetch'], ['--init-structure']]) {
+        const r = spawnSync(process.execPath, [entry, '--vault', vault, ...args], { encoding: 'utf8', env: terminalEnv({ HOME: testHome(vault), FAUX_LOG: log(), PATH: nodeOnlyPath(vault), ...extra }) });
+        assert.equal(r.status, 1, `${JSON.stringify(extra)} ${args}`);
+        assert.match(r.stderr, /se lance depuis le terminal de l'utilisateur, jamais depuis une session Claude Code/);
+      }
+    }
+    assert.deepEqual(fetches(), [], 'rien n a ete depose');
+    assert.equal(existsSync(path.join(vault, 'wiki')), false, 'ni squelette');
+  });
+
+  test('N4 : le circuit parent tourne ; la session de tri qu il lance ne peut pas relancer un circuit', () => {
+    const bin = mkdtempSync(path.join(tmpdir(), 'faux-claude-relance-'));
+    try {
+      const relance = path.join(vault, 'relance.txt');
+      writeFileSync(
+        path.join(bin, 'claude'),
+        `#!/bin/bash\n"${process.execPath}" "${entry}" --vault . --dry-run > /dev/null 2> "${relance}.err"; echo "$? VAULT_MODE=$VAULT_MODE" > "${relance}"\nexit 0\n`,
+      );
+      chmodSync(path.join(bin, 'claude'), 0o755);
+      mkdirSync(path.join(vault, 'inbox'), { recursive: true });
+      writeFileSync(path.join(vault, 'inbox', '2026-11-06-note.md'), '# note inventee\n');
+      const r = spawnSync(process.execPath, [entry, '--vault', vault, '--skip-fetch'], { encoding: 'utf8', env: terminalEnv({ HOME: testHome(vault), FAUX_LOG: log(), PATH: `${bin}${path.delimiter}${process.env.PATH}` }) });
+      assert.match(r.stdout, /Tri de 1 source/, `le parent, lance du terminal, demarre : ${r.stderr}`);
+      assert.equal(readFileSync(relance, 'utf8').trim(), '1 VAULT_MODE=triage', 'la session de tri a VAULT_MODE et sa relance est refusee');
+      assert.match(readFileSync(`${relance}.err`, 'utf8'), /jamais depuis une session Claude Code/);
+      assert.deepEqual(fetches(), [], 'la relance n a rien depose');
+    } finally {
+      rmSync(bin, { recursive: true, force: true });
+    }
   });
 
   test('hors coffre : refus, rien n est cree', () => {

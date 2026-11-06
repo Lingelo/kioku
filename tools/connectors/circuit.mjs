@@ -104,7 +104,23 @@ export const dropArgs = (argv) =>
   });
 
 /** Lance le circuit pour un connecteur. Termine le processus (process.exit) avec le code du circuit. */
+/**
+ * Invariant (revue N4) : un circuit ne se lance jamais depuis une session du coffre. Il ouvre lui-meme ses sessions
+ * (tri, ingestion) et leur passe VAULT_MODE : une de ces sessions qui tenterait de relancer un circuit (meme en
+ * --dry-run, qui liste les sources de tous les domaines) est refusee ici, quelle que soit la forme de la commande. Le
+ * circuit parent, lance depuis le terminal de l'utilisateur, n'a ni VAULT_MODE ni CLAUDECODE. Rend la raison, ou null.
+ */
+export const sessionRefusal = (env = process.env) =>
+  env.VAULT_MODE !== undefined || env.CLAUDECODE
+    ? `un circuit de capture se lance depuis le terminal de l'utilisateur, jamais depuis une session Claude Code (VAULT_MODE=${env.VAULT_MODE ?? '-'}, CLAUDECODE=${env.CLAUDECODE ?? '-'}).`
+    : null;
+
 export const runCircuit = async (connector, argv = process.argv.slice(2)) => {
+  const refusal = sessionRefusal();
+  if (refusal) {
+    console.error(`Erreur : ${refusal}`);
+    process.exit(1);
+  }
   const { commands } = assertConnector(connector);
   const flag = (n) => argv.includes(n);
   const opt = (n) => {

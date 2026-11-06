@@ -860,3 +860,29 @@ describe('rien ne sort du coffre (N1)', () => {
   });
 });
 
+// N4 (filet) : le sous-mot reconstitue par le shell, et les options npm avant `run`.
+describe('filet : concatenations shell et options npm (N4)', () => {
+  beforeEach(() => config(THREE));
+  const SESSIONS = [{ mode: 'query', domain: 'a' }, { mode: 'ingest', domain: 'a' }, { mode: 'triage' }, { mode: 'setup' }];
+  test('kioku pl""aud, p\'\'laud, pla\\ud, $\'plaud\', npm --silent run, npm -s run : refuses partout', () => {
+    for (const sess of SESSIONS) {
+      for (const cmd of ['kioku pl""aud --dry-run', "kioku p''laud", 'kioku pla\\ud', "kioku $'plaud' --dry-run", 'kioku "p"laud', 'npm --silent run plaud:dry-run', 'npm -s run plaud:dry-run', 'npm --prefix . run-script plaud:sync', "npm run -s 'plaud:pending'"]) {
+        assert.equal(guard(sess, bash(cmd)), REFUS, `${sess.mode} : ${cmd}`);
+      }
+    }
+  });
+  test('setup : les memes formes pour session et dashboard', () => {
+    for (const cmd of ["kioku s''ession a", 'kioku "dash"board', 'npm -s run a', 'npm --silent run dashboard:serve:b']) {
+      assert.equal(guard({ mode: 'setup' }, bash(cmd)), REFUS, cmd);
+    }
+  });
+  test('se faire passer pour un terminal : VAULT_MODE=, CLAUDECODE=, env -u, env -i, unset refuses', () => {
+    for (const sess of SESSIONS) {
+      for (const cmd of ['VAULT_MODE= kioku doctor', 'CLAUDECODE= node x.mjs', 'env -u VAULT_MODE node x.mjs', 'env -i PATH=/usr/bin node x.mjs', 'unset VAULT_MODE; node x.mjs']) {
+        assert.equal(guard(sess, bash(cmd)), REFUS, `${sess.mode} : ${cmd}`);
+      }
+    }
+    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('kioku doctor')), OK);
+  });
+});
+

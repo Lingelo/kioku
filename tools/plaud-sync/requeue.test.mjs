@@ -15,7 +15,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, beforeEach, describe, test } from 'node:test';
-import { testHome, writeTestConfig } from '../test-vault.mjs';
+import { terminalEnv, testHome, writeTestConfig } from '../test-vault.mjs';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const RUN = path.join(HERE, 'run.mjs');
@@ -40,7 +40,7 @@ const log = () => path.join(vault, 'appels.txt');
 const run = (args) =>
   spawnSync(process.execPath, [RUN, '--vault', vault, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log() },
+    env: { ...terminalEnv(), HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log() },
   });
 
 beforeEach(() => {

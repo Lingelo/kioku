@@ -322,8 +322,9 @@ const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(commit|check|verdict|pr
 // Les domaines viennent de la configuration : une liste figee laisserait `npm run travail` ouvrir une session de domaine
 // depuis setup. `pro` et `perso` restent, pour les coffres anterieurs a la configuration.
 const NPM_SCRIPTS = [...new Set([...cfg.domains, 'pro', 'perso', 'vault', 'ingest', 'triage', 'lint', 'dashboard', 'plaud', 'audit', 'undecided'])];
-// `npm run`, et ses alias (`run-script`, `rum`, `urn`) ; le nom du script, entre guillemets ou non.
-const npmScripts = (names) => new RegExp(`(^|[\\s;&|(])npm\\s+((run|run-script|rum|urn)\\s+)?["']?(${names.join('|')})(?![\\w-])`);
+// `npm run`, et ses alias (`run-script`, `rum`, `urn`), options (et leur valeur) avant ou apres ; le nom du script,
+// entre guillemets ou non.
+const npmScripts = (names) => new RegExp(`(^|[\\s;&|(])npm\\s+(-\\S+(\\s+(?!(run|run-script|rum|urn)\\b)[^-\\s]\\S*)?\\s+)*((run|run-script|rum|urn)\\s+)?(-\\S+\\s+)*["']?(${names.join('|')})(?![\\w-])`);
 const NPM_DENIED = npmScripts(NPM_SCRIPTS);
 // Un relais du CLI (`kioku <sous-commande>`), le sous-mot entre guillemets ou non (`kioku 'plaud'`).
 const kiokuSub = (names) => new RegExp(`(^|[\\s;&|(/\\\\])kioku(\\.mjs)?["']?\\s+["']?(${names.join('|')})["']?(?![\\w-])`);
@@ -637,10 +638,20 @@ const decide = () => {
     if (hit(KIOKU_WRITE) && MODE !== 'setup') {
       refuse(`Session ${MODE}/${D ?? '-'} : configurer le coffre (kioku init, add-domain, upgrade --write) se fait en session setup (npm run setup, ou kioku session --mode setup), ou depuis un terminal hors de Claude Code.`);
     }
-    if (CIRCUIT_DENIED.some(hit)) {
+    // Filet (revue N4) : la meme commande sans guillemets ni echappements, $'…' reduit a son contenu. `kioku m''ail`,
+    // `kioku "m"ail`, `kioku ma\\il` et `kioku $'mail'` y redeviennent `kioku mail`. L'invariant, lui, est dans le
+    // circuit : il refuse de demarrer depuis une session (tools/connectors/circuit.mjs, sessionRefusal).
+    const squashed = command.replace(/\$'([^']*)'/g, '$1').replace(/['"\\]/g, '');
+    const squashedForms = FOLD ? [squashed, fold(squashed)] : [squashed];
+    const hitAll = (r) => hit(r) || squashedForms.some((f) => r.test(f));
+    // Se faire passer pour un terminal (vider VAULT_MODE ou CLAUDECODE) pour lancer un circuit : refuse partout.
+    if (hitAll(/(^|[\s;&|(])(unset\s|env\s+(-\S+\s+)*-(i|u)\b|env\s+--(ignore-environment|unset))|\b(VAULT_MODE|VAULT_DOMAIN|CLAUDECODE)\s*=/)) {
+      refuse(`Session ${MODE}/${D ?? '-'} : modifier l'environnement de la session (VAULT_MODE, CLAUDECODE, env -i/-u, unset) est refuse : c'est ce qui la fait reconnaitre.`);
+    }
+    if (CIRCUIT_DENIED.some(hitAll)) {
       refuse(`Session ${MODE}/${D ?? '-'} : un circuit de capture (kioku plaud, npm run plaud:*, ses outils, tools/connectors/) se lance depuis le terminal de l'utilisateur, jamais depuis une session du coffre. Donne-lui la commande.`);
     }
-    if (MODE === 'setup' && SETUP_DENIED.some(hit)) {
+    if (MODE === 'setup' && SETUP_DENIED.some(hitAll)) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : en session setup, ni la gate, ni le circuit Plaud, ni le lanceur, ni le dashboard : ils lisent un domaine ou ouvrent une autre session.)`);
     }
   }

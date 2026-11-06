@@ -59,6 +59,16 @@ export const isolateHome = (dir) => {
 };
 
 /**
+ * L'environnement d'un terminal, pour lancer un circuit depuis un test : sans VAULT_MODE, VAULT_DOMAIN ni CLAUDECODE.
+ * Un circuit refuse de demarrer depuis une session (revue N4) ; la suite, elle, peut tourner dans une session Claude Code.
+ */
+export const terminalEnv = (extra = {}) => {
+  const env = { ...process.env, ...extra };
+  for (const k of ['VAULT_MODE', 'VAULT_DOMAIN', 'CLAUDECODE']) if (!(k in extra)) delete env[k];
+  return env;
+};
+
+/**
  * Un PATH ou ne se trouve que `node` (lien vers l'interpreteur de la suite) : la garde exige que l'interpreteur de son
  * hook soit trouvable (startupRefusal), et un test du circuit ne doit pouvoir lancer aucun `claude` reel.
  */
@@ -69,3 +79,4 @@ export const nodeOnlyPath = (dir) => {
   if (!existsSync(link)) symlinkSync(process.execPath, link);
   return bin;
 };
+
