@@ -1005,3 +1005,28 @@ describe('verification finale : constats 2, 3, 4, 5, 7', () => {
   });
 });
 
+// m9 et I6 pour le circuit mail : refuse dans toutes les sessions, sous toutes ses formes.
+describe('circuit mail refuse dans toutes les sessions', () => {
+  beforeEach(() => config(THREE));
+  const CMDS = [
+    'kioku mail --dry-run',
+    "kioku 'mail' --skip-fetch",
+    'kioku "mail" --login travail',
+    'node tools/kioku.mjs mail',
+    'npm run mail:sync',
+    'npm run-script mail:login -- travail',
+    'npm rum mail:pending',
+    "npm run 'mail:drop' -- x.md",
+    'node tools/mail-sync/run.mjs --dry-run',
+    'cat tools/mail-sync/seen.json',
+  ];
+  for (const sess of [{ mode: 'query', domain: 'a' }, { mode: 'ingest', domain: 'a' }, { mode: 'triage' }, { mode: 'setup' }]) {
+    test(`${sess.mode} : kioku mail, mail:* et mail-sync/ refuses`, () => {
+      for (const cmd of CMDS) assert.equal(guard(sess, bash(cmd)), REFUS, `${sess.mode} : ${cmd}`);
+    });
+  }
+  test('un mot voisin ne declenche rien', () => {
+    assert.equal(guard({ mode: 'query', domain: 'a' }, bash('npm run mailing')), OK);
+  });
+});
+
