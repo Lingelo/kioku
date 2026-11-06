@@ -29,7 +29,14 @@
  * garde, lisible partout) mais aucun contenu de domaine. La configuration ne s'y ecrit que par le CLI du coffre
  * (`kioku init|add-domain`), qui refuse lui-meme hors setup ; hors setup, la garde refuse aussi la commande. En
  * setup, la garde refuse ce qui lirait ou ferait lire un domaine par un autre chemin : la gate (vault.mjs affiche
- * des noms de pages), le circuit Plaud et le lanceur (ils ouvrent des sessions avec leurs propres droits), le dashboard.
+ * des noms de pages), le lanceur (il ouvre des sessions avec leurs propres droits), le dashboard.
+ *
+ * Les circuits de capture (kioku plaud, leurs scripts npm, leurs outils, tools/connectors/) sont refuses dans TOUS les
+ * modes : ils se lancent depuis le terminal de l'utilisateur, ouvrent eux-memes leurs sessions, et leur simple dry-run
+ * liste les sources de tous les domaines.
+ *
+ * Zone secrete, jamais lue ni ecrite, dans aucun mode : le dossier des jetons OAuth du module mail (~/.config/kioku/mail,
+ * $XDG_CONFIG_HOME/kioku/mail, %APPDATA%\kioku\mail), hors coffre.
  *
  * Zone de la garde, jamais ecrite depuis une session : hooks du plugin, settings, agents, le dossier de ce script,
  * la configuration du coffre et les registres qu'elle declare.
@@ -181,6 +188,10 @@ const CONSIGNE_LIRE =
         : `Tri : on lit inbox/ et on deplace vers raw/<${ALL}>/. Ni le wiki, ni l'argent, ni la quarantaine.`) +
   (DOMAIN_MODES.includes(MODE) ? `\nPour Grep/Glob, donne toujours un path precis (ex. wiki/${D}), jamais la racine.` : '');
 
+const SECRET_REFUS =
+  'Le dossier des jetons et du client OAuth du module mail (~/.config/kioku/mail, ou son equivalent) est ferme a toute session, ' +
+  "en lecture comme en ecriture : un mail est une donnee non fiable, et un jeton recopie dans une page donnerait acces a la boite. Rien a y lire pour travailler.";
+
 const CONSIGNE_ECRIRE =
   `Ecriture directe interdite ici (session ${MODE}/${D ?? '-'}).\n` +
   `- wiki/ : ecris la page sous .candidats/wiki/${D ?? '<domaine>'}/<dossier>/<slug>.md, puis\n` +
@@ -196,7 +207,31 @@ const inside = (abs, dir) => {
 const PROTECTED = new Set(cfg.protectedPaths.map((p) => canonical(path.resolve(p))));
 const PROTECTED_KEYS = new Set([...PROTECTED].map(fold));
 
+// Zone secrete : le dossier hors coffre ou le module mail range le client OAuth et les jetons (tools/mail-sync/paths.mjs,
+// recalcule ici : la garde ne depend pas de tools/). Une session lit du mail non fiable ; un jeton lu puis recopie dans
+// une fiche serait versionne avec le coffre. Ferme en lecture et en ecriture dans tous les modes. Les trois
+// emplacements possibles sont fermes ensemble : l'environnement de la garde peut differer de celui du lanceur.
+// Limite, dite (revue N8) : un jeton cree sous un XDG_CONFIG_HOME DIFFERENT de celui que voit la garde (ni ~/.config,
+// ni le XDG courant, ni %APPDATA%) n'est pas reconnu. Les liens symboliques, eux, sont resolus (canonical).
+const HOME_DIR = os.homedir();
+const SECRET_DIRS = [
+  ...new Set(
+    [
+      path.join(HOME_DIR, '.config', 'kioku', 'mail'),
+      process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, 'kioku', 'mail') : null,
+      process.env.APPDATA ? path.join(process.env.APPDATA, 'kioku', 'mail') : null,
+      path.join(HOME_DIR, 'AppData', 'Roaming', 'kioku', 'mail'),
+    ]
+      .filter(Boolean)
+      .map((p) => canonical(path.resolve(p))),
+  ),
+];
+// Une mention de ce dossier dans une commande ou un motif de recherche : `kioku/mail`, `kioku\mail`, un glob juste
+// apres `kioku/`, ou le dossier de configuration `.config/kioku`. Limite, dite : un `cd` en plusieurs temps y echappe.
+const SECRET_MENTION = [/kioku[/\\]+["']?(mail|[*?[{])/i, /\.config[/\\]+kioku\b/i];
+
 const classify = (abs) => {
+  if (SECRET_DIRS.some((d) => inside(abs, d))) return { zone: 'secret' };
   if (inside(abs, HERE) || PROTECTED_KEYS.has(fold(abs))) return { zone: 'garde' };
   const rel = path.relative(fold(VAULT), fold(abs));
   if (rel.startsWith('..') || path.isAbsolute(rel)) return { zone: 'outside' };
@@ -279,7 +314,7 @@ const allowedMention = () =>
 // Le CLI du coffre : `kioku init|add-domain|upgrade --write` ecrit la configuration, donc seulement en setup. `doctor`
 // et `upgrade` sans --write (simulation) lisent : partout.
 const KIOKU_WRITE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(init|add-domain|upgrade\b[^;&|\n]*\s--write)\b/;
-// En setup, ce qui lirait un domaine ou ouvrirait une session d'un autre mode : la gate, le circuit Plaud, le lanceur,
+// En setup, ce qui lirait un domaine ou ouvrirait une session d'un autre mode : la gate, les circuits de capture, le lanceur,
 // le dashboard. Ni lecture de nom de page, ni escalade par processus enfant.
 // La gate s'appelle `kioku <commande>` : ses sous-commandes (pas init, add-domain, doctor) lisent ou ecrivent un domaine.
 const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(commit|check|verdict|promote|stage|rotate-log|propose-org|tag-org|propose-raw|tag-raw|quarantine|undecided|audit|flag|decide|seed)\b/;
@@ -287,10 +322,20 @@ const KIOKU_GATE = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(commit|check|verdict|pr
 // Les domaines viennent de la configuration : une liste figee laisserait `npm run travail` ouvrir une session de domaine
 // depuis setup. `pro` et `perso` restent, pour les coffres anterieurs a la configuration.
 const NPM_SCRIPTS = [...new Set([...cfg.domains, 'pro', 'perso', 'vault', 'ingest', 'triage', 'lint', 'dashboard', 'plaud', 'audit', 'undecided'])];
-const NPM_DENIED = new RegExp(`(^|[\\s;&|(])npm\\s+(run\\s+)?(${NPM_SCRIPTS.join('|')})(?![\\w-])`);
-// Les relais du CLI vers le lanceur, le dashboard et Plaud : sans chemin d'outil dans la commande, refuses par leur nom.
-const KIOKU_TOOLS = /(^|[\s;&|(/\\])kioku(\.mjs)?["']?\s+(session|dashboard|plaud)\b/;
-const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /plaud-sync[/\\]/, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
+// `npm run`, et ses alias (`run-script`, `rum`, `urn`), options (et leur valeur) avant ou apres ; le nom du script,
+// entre guillemets ou non.
+const npmScripts = (names) => new RegExp(`(^|[\\s;&|(])npm\\s+(-\\S+(\\s+(?!(run|run-script|rum|urn)\\b)[^-\\s]\\S*)?\\s+)*((run|run-script|rum|urn)\\s+)?(-\\S+\\s+)*["']?(${names.join('|')})(?![\\w-])`);
+const NPM_DENIED = npmScripts(NPM_SCRIPTS);
+// Un relais du CLI (`kioku <sous-commande>`), le sous-mot entre guillemets ou non (`kioku 'plaud'`).
+const kiokuSub = (names) => new RegExp(`(^|[\\s;&|(/\\\\])kioku(\\.mjs)?["']?\\s+["']?(${names.join('|')})["']?(?![\\w-])`);
+// Les relais du CLI vers le lanceur, le dashboard et les circuits : sans chemin d'outil dans la commande, refuses par leur nom.
+const KIOKU_TOOLS = kiokuSub(['session', 'dashboard', 'plaud']);
+// Les circuits de capture se lancent depuis le terminal de l'utilisateur, jamais depuis une session du coffre : ils
+// ouvrent eux-memes des sessions (tri, ingestion) avec leurs propres droits, et leur simple dry-run liste les sources
+// de tous les domaines. Refuses dans TOUS les modes : le relais, les scripts npm, leurs outils et le socle des
+// connecteurs (circuit, file d'ingestion, verrou). Le circuit, lui, n'a jamais besoin de se relancer depuis une session.
+const CIRCUIT_DENIED = [kiokuSub(['plaud']), npmScripts(['plaud']), /plaud-sync[/\\]/, /tools[/\\]connectors[/\\]/];
+const SETUP_DENIED = [/vault\.mjs/, KIOKU_GATE, KIOKU_TOOLS, /tools[/\\]dashboard[/\\]/, NPM_DENIED];
 
 // Une commande shell qui ecrit, et qui vise une zone fermee en ecriture.
 const WRITERS = [/(^|[\s;&|(])(sed|perl)\b[^\n;&|]*\s-\w*i/, /(^|[\s;&|(])tee\b/, /(^|[\s;&|(])(mv|cp|rm|touch|truncate|ln|install|dd)\b/];
@@ -353,6 +398,213 @@ const GIT_CONTENT = [
   /(^|[\s;&|(])git\b[^|;&\n]*\blog\b[^|;&\n]*\s(-p|-u|--patch)\b/,
 ];
 
+// --- Invariants sur les commandes shell (revue N1) : verifies par le code, pas par des motifs. ---
+//
+// Une garde a motifs sur du shell perd toujours (glob, guillemets, $'…', \) : les regex ci-dessus restent un filet.
+// Ici, la commande est decoupee en mots comme le ferait le shell (guillemets, echappements, separateurs, redirections),
+// et chaque argument d'une commande qui ecrit ou deplace est juge sur sa forme et sur son chemin reel.
+
+/** Mots d'une commande : [{ raw, value }] par commande simple ; `redirects` : les cibles de > et >>. */
+const shellWords = (command) => {
+  const commands = [];
+  let words = [];
+  let redirects = [];
+  let raw = '';
+  let value = '';
+  let inWord = false;
+  let pendingRedirect = false;
+  const end = () => {
+    if (inWord) {
+      const w = { raw, value };
+      if (pendingRedirect) {
+        redirects.push(w);
+        pendingRedirect = false;
+      } else words.push(w);
+    }
+    raw = '';
+    value = '';
+    inWord = false;
+  };
+  const boundary = () => {
+    end();
+    if (words.length || redirects.length) commands.push({ words, redirects });
+    words = [];
+    redirects = [];
+  };
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i];
+    if (c === "'") {
+      const j = command.indexOf("'", i + 1);
+      const k = j < 0 ? command.length : j;
+      raw += command.slice(i, k + 1);
+      value += command.slice(i + 1, k);
+      inWord = true;
+      i = k;
+    } else if (c === '"') {
+      let j = i + 1;
+      let v = '';
+      while (j < command.length && command[j] !== '"') {
+        if (command[j] === '\\' && j + 1 < command.length) {
+          v += command[j + 1];
+          j += 2;
+        } else v += command[j++];
+      }
+      raw += command.slice(i, j + 1);
+      value += v;
+      inWord = true;
+      i = j;
+    } else if (c === '\\') {
+      raw += command.slice(i, i + 2);
+      value += command[i + 1] ?? '';
+      inWord = true;
+      i++;
+    } else if (c === ';' || c === '&' || c === '|' || c === '\n' || c === '(' || c === ')') {
+      boundary();
+    } else if (c === '>' || c === '<') {
+      // `2>`, `>>`, `>&2` : le descripteur colle avant est absorbe ; un `&<n>` apres est une duplication, pas un fichier.
+      if (inWord && /^\d+$/.test(raw)) {
+        raw = '';
+        value = '';
+        inWord = false;
+      } else end();
+      if (command[i + 1] === '>') i++;
+      if (command[i + 1] === '&') {
+        i++;
+        while (/\d/.test(command[i + 1] ?? '')) i++;
+        continue;
+      }
+      pendingRedirect = c === '>';
+    } else if (/\s/.test(c)) {
+      end();
+    } else {
+      raw += c;
+      value += c;
+      inWord = true;
+    }
+  }
+  boundary();
+  return commands;
+};
+
+// Commandes qui ecrivent, deplacent ou telechargent des fichiers : chacun de leurs arguments doit rester dans le coffre
+// (verification finale, constat 2 : ditto, zip, cpio, curl, wget, sort, split, patch en plus).
+const MOVERS = new Set(['mv', 'cp', 'ln', 'rsync', 'install', 'tee', 'dd', 'scp', 'tar', 'unzip', 'cd', 'pushd', 'ditto', 'zip', 'cpio', 'curl', 'wget', 'sort', 'split', 'patch']);
+const REMOTE = new Set(['scp', 'rsync']);
+const GLOB = /[*?[{]/;
+
+/**
+ * Les valeurs qu'un mot porte en plus de lui-meme : apres `=` (`if=/x` de dd, `--target-directory=/x`) et, pour une
+ * option courte collee, apres la lettre (`-C/abs` de tar, `-t/tmp` de cp GNU). Constat 2.
+ */
+const carried = (word) => {
+  const out = [];
+  const eq = word.value.indexOf('=');
+  if (eq >= 0) out.push({ raw: word.raw.slice(word.raw.indexOf('=') + 1), value: word.value.slice(eq + 1) });
+  if (/^-[A-Za-z][^=\s]/.test(word.value)) out.push({ raw: word.raw.replace(/^(['"]?)-[A-Za-z]/, '$1'), value: word.value.slice(2) });
+  return out;
+};
+
+/**
+ * Un argument reste-t-il dans le coffre ? Rend la raison du refus, ou null. Relatif : il ne doit ni remonter (..), ni
+ * porter d'expansion, ni de glob dans un dossier. Absolu (ou ~) : admis seulement si son chemin canonique est dans le
+ * coffre (constat 7 : `cd <coffre> && mv inbox/x.md raw/…` ne doit pas etre refuse), puis juge comme un relatif.
+ */
+const unsafePath = (word, cwd) => {
+  const { raw, value } = word;
+  if (/[$`]/.test(raw)) return 'expansion shell ($, `)';
+  if (/^[A-Za-z]:/.test(value) || value.includes('\\')) return 'chemin Windows ou echappement';
+  const expanded = expandHome(value);
+  const segments = expanded.split('/');
+  if (segments.includes('..')) return 'remontee (..)';
+  const globAt = segments.findIndex((seg) => GLOB.test(seg));
+  if (globAt >= 0 && globAt < segments.length - 1) return 'motif de glob dans un dossier';
+  const literal = globAt >= 0 ? segments.slice(0, -1).join('/') || (path.isAbsolute(expanded) ? '/' : '.') : expanded;
+  const z = classify(canonical(path.isAbsolute(literal) ? literal : path.resolve(cwd, literal)));
+  if (z.zone === 'secret') return 'zone secrete';
+  if (z.zone === 'outside') return path.isAbsolute(expanded) ? 'chemin absolu hors du coffre' : 'hors du coffre';
+  return null;
+};
+
+const moverName = (w) => fold(path.basename(w.value));
+
+/**
+ * Invariant « rien ne sort du coffre » (modes triage et ingest, ceux des sessions du circuit) : tout argument d'une
+ * commande qui ecrit ou deplace (MOVERS), toute valeur qu'il porte (`=`, option collee), et toute cible de
+ * redirection, reste dans le coffre. Un mot de MOVERS n'importe ou dans la commande simple (apres `xargs`, `env`,
+ * `-exec`…) compte. scp et rsync : aucune destination distante (`hote:chemin`). Rend la raison, ou null.
+ */
+const escapesVault = (command, cwd) => {
+  for (const { words, redirects } of shellWords(command)) {
+    for (const r of redirects) {
+      if (r.value === '/dev/null') continue;
+      const why = unsafePath(r, cwd);
+      if (why) return `redirection vers « ${r.raw} » : ${why}`;
+    }
+    const at = words.findIndex((w) => MOVERS.has(moverName(w)));
+    if (at < 0) continue;
+    const mover = moverName(words[at]);
+    for (const w of words.slice(at + 1)) {
+      if (MOVERS.has(moverName(w))) continue;
+      if (REMOTE.has(mover) && /^[^/\s=]+:/.test(w.value) && !w.value.startsWith('-')) return `${mover} « ${w.raw} » : destination distante`;
+      const targets = [...(w.value.startsWith('-') ? [] : [w]), ...carried(w)];
+      for (const t of targets) {
+        const why = unsafePath(t, cwd);
+        if (why) return `${words[at].value} « ${w.raw} » : ${why}`;
+      }
+    }
+  }
+  return null;
+};
+
+// Les dossiers secrets sous leurs deux formes : canonique (liens resolus, casse reelle) ET telle que tapee (un chemin
+// `/tmp/…` qui passe par un lien). Constat 3.
+const SECRET_FORMS = [
+  ...new Set(
+    [
+      path.join(HOME_DIR, '.config', 'kioku', 'mail'),
+      process.env.XDG_CONFIG_HOME ? path.join(process.env.XDG_CONFIG_HOME, 'kioku', 'mail') : null,
+      process.env.APPDATA ? path.join(process.env.APPDATA, 'kioku', 'mail') : null,
+      path.join(HOME_DIR, 'AppData', 'Roaming', 'kioku', 'mail'),
+    ]
+      .filter(Boolean)
+      .flatMap((p) => [path.resolve(p), ...SECRET_DIRS]),
+  ),
+];
+
+/**
+ * Un mot (motif de glob compris), apres ~ et $HOME, designe-t-il la zone secrete, ou peut-il l'atteindre ? Le motif
+ * est normalise (`.`, `//`), sa partie litterale (avant le premier glob) passe par la canonisation (liens, casse), et il
+ * est compare, plie sur un volume insensible a la casse, aux formes canonique et brute de chaque dossier secret.
+ */
+const wordReachesSecret = (value) => {
+  const expanded = expandHome(value.replace(/^\$\{HOME\}/, '$HOME'));
+  if (!path.isAbsolute(expanded)) return false;
+  const norm = path.normalize(expanded);
+  const parts = norm.split(path.sep).filter(Boolean);
+  const globAt = parts.findIndex((seg) => GLOB.test(seg));
+  const literal = path.join(path.parse(norm).root, ...(globAt < 0 ? parts : parts.slice(0, globAt)));
+  const candidates = [norm, globAt < 0 ? canonical(norm) : path.join(canonical(literal), ...parts.slice(globAt))];
+  for (const cand of candidates) {
+    const pat = fold(cand).split(path.sep).filter(Boolean);
+    for (const dir of SECRET_FORMS) {
+      const seg = fold(dir).split(path.sep).filter(Boolean);
+      if (pat.length < seg.length) continue;
+      if (seg.every((s, i) => (GLOB.test(pat[i]) ? globCovers(pat[i], s) : pat[i] === s))) return true;
+    }
+  }
+  return globAt < 0 && classify(canonical(norm)).zone === 'secret';
+};
+
+/** Un mot de la commande, ou une valeur qu'il porte (`if=…`, `-C…`), atteint-il la zone secrete ? */
+const reachesSecret = (command) => {
+  for (const { words, redirects } of shellWords(command)) {
+    for (const w of [...words, ...redirects]) {
+      if ([w, ...carried(w)].some((t) => wordReachesSecret(t.value))) return true;
+    }
+  }
+  return false;
+};
+
 const RECURSIVE = [/(^|[\s;&|(])(rg|ag|find|tree|du)\b/, /\bgrep\b[^|;&\n]*\s-\w*[rR]/, /\bls\b[^|;&\n]*\s-\w*R/];
 
 const decide = () => {
@@ -376,6 +628,7 @@ const decide = () => {
     const abs = target('file_path') ?? target('notebook_path');
     if (abs === null) refuse(`Garde du coffre : ${tool} sans chemin lisible. Dans le doute, je refuse.`);
     const z = classify(abs);
+    if (z.zone === 'secret') refuse(SECRET_REFUS);
     if (z.zone === 'garde') refuse("La garde du coffre (hooks du plugin, settings, agents, configuration du coffre et registres) ne se modifie pas depuis une session : c'est ce qui la fait tenir. Demande a l'utilisateur.");
     if (!canWrite(z)) refuse(CONSIGNE_ECRIRE);
     return;
@@ -383,6 +636,7 @@ const decide = () => {
 
   if (READ_TOOLS.has(tool)) {
     const abs = target('file_path') ?? target('notebook_path');
+    if (abs !== null && classify(abs).zone === 'secret') refuse(SECRET_REFUS);
     if (abs !== null && !canRead(classify(abs))) refuse(CONSIGNE_LIRE);
     return;
   }
@@ -391,11 +645,15 @@ const decide = () => {
     const abs = target('path');
     if (abs === null) refuse(`Grep/Glob sans path : cela balayerait tout le coffre. Donne un path precis.\n${CONSIGNE_LIRE}`);
     const zone = classify(abs);
+    // Une recherche dans le dossier secret, ou depuis un de ses parents (~, ~/.config…), le traverserait.
+    if (zone.zone === 'secret' || SECRET_DIRS.some((d) => inside(d, abs))) refuse(SECRET_REFUS);
     if (!canRead(zone)) refuse(CONSIGNE_LIRE);
     // Grep/Glob sur silver/<D> tout entier traverserait heritage/ : les fiches se lisent une a une (Read).
     if (zone.zone === 'silver' && !zone.sub) refuse(`Grep/Glob sur silver/${D} refuse : l'instantane heritage/ (ferme) s'y trouve. Lis les fiches une a une avec Read.\n${CONSIGNE_LIRE}`);
     const scanned = [args.glob, tool === 'Glob' ? args.pattern : undefined].filter((v) => typeof v === 'string');
     for (const text of scanned) {
+      // Constat 4 : un motif absolu (ou ~) ne se cantonne pas au `path` donne ; il ne doit pas atteindre la zone secrete.
+      if (SECRET_MENTION.some((r) => r.test(text)) || wordReachesSecret(text)) refuse(SECRET_REFUS);
       const normalized = text.replace(/\\/g, '/');
       if (forbiddenMentions().some((r) => r.test(normalized) || r.test(fold(normalized)))) refuse(CONSIGNE_LIRE);
     }
@@ -406,6 +664,11 @@ const decide = () => {
     const raw = args.command;
     if (typeof raw !== 'string') refuse('Garde du coffre : commande Bash illisible. Dans le doute, je refuse.');
     const command = stripMessages(raw);
+    if (SECRET_MENTION.some((r) => r.test(command)) || SECRET_DIRS.some((d) => fold(command).includes(fold(d))) || reachesSecret(command)) refuse(SECRET_REFUS);
+    if (MODE === 'triage' || MODE === 'ingest') {
+      const why = escapesVault(command, canonical(path.resolve(cwd)));
+      if (why) refuse(`Session ${MODE}/${D ?? '-'} : rien ne sort du coffre. Une commande qui ecrit ou deplace n'accepte que des chemins relatifs a l'interieur du coffre (ex. mv inbox/x.md raw/<domaine>/meetings/).\n(Refuse : ${why}.)`);
+    }
     // Volume insensible a la casse : `cat WIKI/perso/p.md` ou `MV wiki w` ouvrent les memes fichiers et lancent les
     // memes commandes. Chaque regle se teste sur la commande telle quelle ET pliee (motifs en minuscules) ; la forme
     // telle quelle garde les drapeaux dont la casse compte (`ls -R`).
@@ -423,7 +686,21 @@ const decide = () => {
     if (hit(KIOKU_WRITE) && MODE !== 'setup') {
       refuse(`Session ${MODE}/${D ?? '-'} : configurer le coffre (kioku init, add-domain, upgrade --write) se fait en session setup (npm run setup, ou kioku session --mode setup), ou depuis un terminal hors de Claude Code.`);
     }
-    if (MODE === 'setup' && SETUP_DENIED.some(hit)) {
+    // Filet (revue N4) : la meme commande sans guillemets ni echappements, $'…' reduit a son contenu. `kioku m''ail`,
+    // `kioku "m"ail`, `kioku ma\\il` et `kioku $'mail'` y redeviennent `kioku mail`. L'invariant, lui, est dans le
+    // circuit : il refuse de demarrer depuis une session (tools/connectors/circuit.mjs, sessionRefusal).
+    const squashed = command.replace(/\$'([^']*)'/g, '$1').replace(/['"\\]/g, '');
+    const squashedForms = FOLD ? [squashed, fold(squashed)] : [squashed];
+    const hitAll = (r) => hit(r) || squashedForms.some((f) => r.test(f));
+    // Se faire passer pour un terminal (vider VAULT_MODE ou CLAUDECODE) pour lancer un circuit : refuse partout.
+    // Constat 5 : option collee (`env -uVAULT_MODE`), `env -` seul, chemin de l'outil (`/usr/bin/env`), `exec -c`.
+    if (hitAll(/(^|[\s;&|(/])(unset\s|env\s+((-\S+\s+)*-\w*[iu]|-(\s|$)|--(ignore-environment|unset))|exec\s+(-\S+\s+)*-\w*c)|\b(VAULT_MODE|VAULT_DOMAIN|CLAUDECODE)\s*=/)) {
+      refuse(`Session ${MODE}/${D ?? '-'} : modifier l'environnement de la session (VAULT_MODE, CLAUDECODE, env -i/-u, unset) est refuse : c'est ce qui la fait reconnaitre.`);
+    }
+    if (CIRCUIT_DENIED.some(hitAll)) {
+      refuse(`Session ${MODE}/${D ?? '-'} : un circuit de capture (kioku plaud, npm run plaud:*, ses outils, tools/connectors/) se lance depuis le terminal de l'utilisateur, jamais depuis une session du coffre. Donne-lui la commande.`);
+    }
+    if (MODE === 'setup' && SETUP_DENIED.some(hitAll)) {
       refuse(`${CONSIGNE_LIRE}\n(Commande refusee : en session setup, ni la gate, ni le circuit Plaud, ni le lanceur, ni le dashboard : ils lisent un domaine ou ouvrent une autre session.)`);
     }
   }

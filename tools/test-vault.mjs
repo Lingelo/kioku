@@ -8,7 +8,7 @@
  * registre l'y ecrivent deja. La configuration ne cree pas le registre : un test sans organisations n'en a pas besoin.
  */
 
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -57,3 +57,26 @@ export const isolateHome = (dir) => {
     else process.env.HOME = previous;
   };
 };
+
+/**
+ * L'environnement d'un terminal, pour lancer un circuit depuis un test : sans VAULT_MODE, VAULT_DOMAIN ni CLAUDECODE.
+ * Un circuit refuse de demarrer depuis une session (revue N4) ; la suite, elle, peut tourner dans une session Claude Code.
+ */
+export const terminalEnv = (extra = {}) => {
+  const env = { ...process.env, ...extra };
+  for (const k of ['VAULT_MODE', 'VAULT_DOMAIN', 'CLAUDECODE']) if (!(k in extra)) delete env[k];
+  return env;
+};
+
+/**
+ * Un PATH ou ne se trouve que `node` (lien vers l'interpreteur de la suite) : la garde exige que l'interpreteur de son
+ * hook soit trouvable (startupRefusal), et un test du circuit ne doit pouvoir lancer aucun `claude` reel.
+ */
+export const nodeOnlyPath = (dir) => {
+  const bin = path.join(dir, '.bin-node-seul');
+  mkdirSync(bin, { recursive: true });
+  const link = path.join(bin, process.platform === 'win32' ? 'node.exe' : 'node');
+  if (!existsSync(link)) symlinkSync(process.execPath, link);
+  return bin;
+};
+

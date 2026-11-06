@@ -14,86 +14,29 @@
  * que le tri lui donnerait.
  */
 
-import { createHash } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { domainsOf } from '../vault-config.mjs';
+import { addToRegistryAt, loadRegistryAt, frontmatterValue, normalize, scanKnown as scanKnownBy, sha, withFrontmatterId } from '../connectors/dedup.mjs';
 
-const FRONTMATTER = /^---\n([\s\S]*?)\n---\n?/;
-const PLAUD_ID = /^plaud_id:\s*["']?(\S+?)["']?\s*$/m;
+// Les primitives (empreinte, dossiers parcourus, registre JSON) sont communes aux connecteurs : tools/connectors/dedup.mjs.
+// Ici, ce qui est propre a Plaud : l'identifiant `plaud_id:`, le registre seen.json, l'ordre id -> nom -> contenu.
+export { normalize, sha };
 
-export const normalize = (text) => text.replace(/\r\n/g, '\n').replace(FRONTMATTER, '').trim();
-export const sha = (text) => createHash('sha256').update(normalize(text)).digest('hex');
-
-export const plaudIdOf = (text) => text.replace(/\r\n/g, '\n').match(FRONTMATTER)?.[1].match(PLAUD_ID)?.[1] ?? null;
-export const withPlaudId = (markdown, id) => `---\nplaud_id: ${id}\n---\n\n${markdown}`;
-
-// Coffre sans configuration lisible (anterieur au plan core/data, ou test) : les deux domaines d'origine.
-const LEGACY_DOMAINS = ['pro', 'perso'];
-const domainsOrLegacy = (vault) => {
-  try {
-    return domainsOf(vault);
-  } catch {
-    return LEGACY_DOMAINS;
-  }
-};
-
-/** Les dossiers ou une note peut deja se trouver : [chemin relatif au coffre, recursif ?]. Un raw/<D> par domaine declare. */
-const places = (vault) => [
-  ['inbox', false],
-  [path.join('inbox', 'a-trancher'), false],
-  ...domainsOrLegacy(vault).map((d) => [path.join('raw', d), true]),
-];
-
-const mdFiles = (dir, recursive) => {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const abs = path.join(dir, e.name);
-    if (e.isDirectory()) return recursive ? mdFiles(abs, true) : [];
-    return e.name.endsWith('.md') && !e.name.startsWith('_') ? [abs] : [];
-  });
-};
-
-const posix = (p) => p.split(path.sep).join('/');
+export const plaudIdOf = (text) => frontmatterValue(text, 'plaud_id');
+export const withPlaudId = (markdown, id) => withFrontmatterId(markdown, 'plaud_id', id);
 
 /** Photo de ce que le coffre contient deja : id, nom, empreinte -> dossier (`raw/pro`, `inbox`...). */
-export const scanKnown = (vault) => {
-  const ids = new Map();
-  const names = new Map();
-  const hashes = new Map();
-  for (const [rel, recursive] of places(vault)) {
-    const place = posix(rel);
-    for (const file of mdFiles(path.join(vault, rel), recursive)) {
-      const text = readFileSync(file, 'utf8');
-      const id = plaudIdOf(text);
-      if (id && !ids.has(id)) ids.set(id, place);
-      const name = path.basename(file);
-      if (!names.has(name)) names.set(name, place);
-      const h = sha(text);
-      if (!hashes.has(h)) hashes.set(h, place);
-    }
-  }
-  return { ids, names, hashes };
-};
+export const scanKnown = (vault) => scanKnownBy(vault, plaudIdOf);
 
 // --- Registre : {id, domaine | "ecarte", date}, sans titre ni contenu. Versionne. ---
 
 export const registryPath = (vault) => path.join(vault, 'tools', 'plaud-sync', 'seen.json');
 
-export const loadRegistry = (vault) => {
-  const file = registryPath(vault);
-  return existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : [];
-};
+export const loadRegistry = (vault) => loadRegistryAt(registryPath(vault));
 
 /** Ajoute une entree si l'id n'y est pas deja. Rend true si le registre a change. */
-export const addToRegistry = (vault, id, domaine, date = new Date().toISOString().slice(0, 10)) => {
-  const entries = loadRegistry(vault);
-  if (entries.some((e) => e.id === id)) return false;
-  entries.push({ id, domaine, date });
-  writeFileSync(registryPath(vault), `${JSON.stringify(entries, null, 1)}\n`);
-  return true;
-};
+export const addToRegistry = (vault, id, domaine, date = new Date().toISOString().slice(0, 10)) =>
+  addToRegistryAt(registryPath(vault), { id, domaine, date });
 
 /**
  * Classe une note candidate. `markdown` est optionnel : sans lui (avant get_note) seuls l'id et le nom jouent ;

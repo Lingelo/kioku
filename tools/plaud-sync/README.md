@@ -45,7 +45,7 @@ Le rapport de fin liste ce que le tri n'a pas tranché. Lire `inbox/a-trancher/_
 
 Code de sortie : `0` tout est rangé et ingéré ; `2` il reste des sources à reprendre ou à trancher ; `1` erreur.
 
-**Un seul lancement à la fois** par coffre (`lock.mjs`). Une ingestion dure des minutes et la file ne perd son entrée qu'une fois la fiche argent écrite : sans verrou, un second lancement pendant ce temps relancerait une session sur la même source, doublant les candidates et les entrées de `index.md` / `log.md`. Le second lancement échoue tout de suite, en donnant le PID du premier. Rien à nettoyer après un `kill` : un verrou dont le processus n'existe plus est repris au lancement suivant. `--dry-run` ne prend pas le verrou (il n'écrit rien).
+**Un seul lancement à la fois** par coffre (verrou commun, `tools/connectors/lock.mjs`). Une ingestion dure des minutes et la file ne perd son entrée qu'une fois la fiche argent écrite : sans verrou, un second lancement pendant ce temps relancerait une session sur la même source, doublant les candidates et les entrées de `index.md` / `log.md`. Le second lancement échoue tout de suite, en donnant le PID du premier. Rien à nettoyer après un `kill` : un verrou dont le processus n'existe plus est repris au lancement suivant. `--dry-run` ne prend pas le verrou (il n'écrit rien). Le verrou est commun à tous les circuits de capture et aux commandes qui réécrivent le coffre (`kioku rotate-log`, `tag-org`, `tag-raw`, `upgrade --write`, `add-domain`) : il vit dans `tools/connectors/.lock.json`, et `tools/plaud-sync/.lock.json` reste tenu en miroir pendant la transition (un `run.mjs` d'une version antérieure du core ne connaît que lui).
 
 ## Les étapes
 
@@ -131,17 +131,20 @@ Un brut ancien qui a été retitré **et** dont l'id n'est pas au registre ne se
 
 ## Fichiers
 
+Le circuit (tri, confirmation, ingestion, rapport), la file, le verrou, les sources parquées et les primitives de déduplication sont communs aux connecteurs de capture, dans [`tools/connectors/`](../connectors/README.md). Ce dossier garde ce qui est propre à Plaud, et des modules de compatibilité pour les chemins déjà cités.
+
 | Fichier | Rôle |
 |---|---|
-| `run.mjs` | lanceur : dépôt → tri → ingestion → rapport |
+| `run.mjs` | point d'entrée (`kioku plaud`) : le connecteur Plaud branché sur `tools/connectors/circuit.mjs` |
 | `fetch-notes.mjs` | dépôt dans `inbox/` via le MCP ; `--list`, `--dry-run`, `--seed`, `--skip` |
-| `dedup.mjs` | déduplication : id, nom, empreinte, registre |
-| `pending.mjs` | file d'ingestion : ce que le tri vient de ranger et qui n'est pas entré dans l'or |
-| `lock.mjs` | verrou du lanceur : un seul `run.mjs` à la fois sur un coffre |
+| `dedup.mjs` | déduplication Plaud : `plaud_id:`, nom, empreinte, registre `seen.json` (primitives dans `connectors/dedup.mjs`) |
+| `drop.mjs` | écart d'une source parquée par son `plaud_id:` (mécanique dans `connectors/parked.mjs`) |
+| `pending.mjs` | file d'ingestion avec l'état de Plaud (`tools/plaud-sync/`) ; le code est dans `connectors/pending.mjs` |
+| `lock.mjs`, `org-proposals.mjs` | réexports de `connectors/lock.mjs` et `connectors/triage.mjs`, pour les importeurs existants |
 | `seen.json` | registre des ids vus ou écartés (versionné) |
 | `exclusions.txt` | ids Plaud à ne jamais déposer, avec le motif en commentaire (versionné) |
-| `dedup.test.mjs`, `lock.test.mjs`, `pending.test.mjs`, `thread.test.mjs` | tests de la déduplication, du verrou, de la file et du fil de conversation |
-| `.snapshot.json`, `.queue.json`, `.lock.json` | état local, non versionné |
+| `*.test.mjs` | tests de la déduplication, de l'écart, du verrou, de la file, des propositions d'organisation et du fil de conversation |
+| `.snapshot.json`, `.queue.json`, `.lock.json` | état local, non versionné (`.lock.json` : miroir du verrou commun) |
 
 `exclusions.txt` (liste tenue à la main, motif documenté) et `seen.json` (registre tenu par l'outil) coexistent : une exclusion documentée reste dans le premier, un `--skip` va dans le second.
 

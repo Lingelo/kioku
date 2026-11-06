@@ -25,6 +25,9 @@ beforeEach(() => {
   writeFileSync(list, '# termes prives (fictifs)\nInitech\nBob Lambda\nZed\n');
   const run = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
   run('init', '-q', '-b', 'main', repo);
+  // Hermetique : une signature de commit configuree sur le poste (commit.gpgsign + agent SSH) ferait echouer les commits
+  // de test des qu'on lance la suite sans agent (env -i). Le depot de test ne signe pas.
+  run('-C', repo, 'config', 'commit.gpgsign', 'false');
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 

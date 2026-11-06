@@ -14,7 +14,7 @@ import path from 'node:path';
 import { beforeEach, afterEach, test } from 'node:test';
 import { classify, loadRegistry, scanKnown, withPlaudId } from './dedup.mjs';
 import { dropParked, parseEmptyLines, pruneReasons } from './drop.mjs';
-import { writeTestConfig } from '../test-vault.mjs';
+import { terminalEnv, writeTestConfig } from '../test-vault.mjs';
 
 const RUN = path.join(path.dirname(new URL(import.meta.url).pathname), 'run.mjs');
 const BODY ='# Note inventee\n\nContenu invente pour le test.\n';
@@ -77,7 +77,7 @@ test('run.mjs --drop a b c : ecarte chaque fichier, refuse celui sans id, ne lan
   mkdirSync(path.join(vault, '.cla' + 'ude', 'ho' + 'oks'), { recursive: true });
   writeFileSync(path.join(vault, '.cla' + 'ude', 'ho' + 'oks', 'gu' + 'ard.mjs'), '');
   // PATH vide : un appel a claude ou au MCP Plaud echouerait au lieu de passer inapercu.
-  const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--drop', 'a.md', 'b.md', 'c.md'], { encoding: 'utf8', env: { ...process.env, PATH: '' } });
+  const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--drop', 'a.md', 'b.md', 'c.md'], { encoding: 'utf8', env: terminalEnv({ PATH: '' }) });
   assert.equal(r.status, 2, r.stderr);
   assert.match(r.stdout, /2 \/ 3 ecartee/);
   assert.match(r.stderr, /REFUSE {3}c\.md/);

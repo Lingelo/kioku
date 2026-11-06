@@ -92,12 +92,15 @@ Chacun appelle `kioku session|dashboard|plaud|…` ; la session porte `VAULT_MOD
 
 - **Dashboard** (`tools/dashboard/`) : état du médaillon, graphe 3D de l'or, et questions au wiki depuis un navigateur local. La vidéo de présentation de l'onglet Mode d'emploi n'est pas versionnée (trop lourde) : sa source est `tools/dashboard/video/` ; déposez le rendu dans `tools/dashboard/vendor/media/kioku-explainer.mp4`.
 - **Plaud** (`tools/plaud-sync/`) : dépose les notes d'un enregistreur Plaud dans l'entrant, les trie par domaine, demande confirmation, puis les ingère.
+  Le circuit commun aux modules de capture (tri, confirmation, ingestion, rapport, verrou du coffre) vit dans `tools/connectors/` ; Plaud y est branché comme un connecteur.
 
 ## Ce que la garde ne fait pas
 
 - Elle filtre les outils de Claude Code, pas vos propres commandes dans un terminal.
 - Elle juge le texte des commandes shell, pas leurs effets : elle bloque des formes connues, elle ne sandboxe pas.
 - La gate vérifie la provenance, pas la vérité ; le relecteur est un autre appel de modèle dans la même session.
+
+**Seconde barrière : les règles `permissions.deny` de Claude Code.** `kioku init` et `kioku upgrade --write` ajoutent au `.claude/settings.json` du coffre, sans toucher aux règles existantes, des refus `Read`/`Edit` sur le dossier de configuration du module mail (`~/.config/kioku/**`, `~/AppData/Roaming/kioku/**`) et sur `quarantine/**` et `.verdicts/**`, que seule la gate lit, par `kioku`. Un `XDG_CONFIG_HOME` hors `~/.config` donne une règle absolue dans `.claude/settings.local.json`, propre au poste. Syntaxe : [documentation Claude Code, permissions](https://code.claude.com/docs/en/permissions). Ces règles valent pour les outils de fichiers et les commandes Bash que Claude Code reconnaît, pas pour un script qui ouvre les fichiers lui-même ; la casse des chemins n'y est pas documentée. La garde reste la barrière principale.
 
 ## Contribuer
 

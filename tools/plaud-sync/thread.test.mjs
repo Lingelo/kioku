@@ -18,7 +18,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, wr
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
-import { declareFakeGuard, testHome, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, terminalEnv, testHome, writeTestConfig } from '../test-vault.mjs';
 
 const RUN = path.join(path.dirname(new URL(import.meta.url).pathname), 'run.mjs');
 // 'raw' et 'wiki' epeles : la garde refuse une commande qui NOMME une zone fermee, y compris dans un test.
@@ -76,7 +76,7 @@ const run = ({ exit = '0', args = [], yes = true, leaves = null } = {}) => {
     encoding: 'utf8',
     // HOME vierge : la garde declaree est le hook factice, pas un plugin kioku active sur la machine qui lance le test.
     env: {
-      ...process.env,
+      ...terminalEnv(),
       HOME: testHome(vault),
       PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`,
       FAUX_LOG: log,
@@ -303,7 +303,7 @@ describe('U5 : domaines lus dans la configuration du coffre', () => {
   test('--init-structure : le squelette de chaque domaine declare, et d aucun autre', () => {
     build();
     writeTestConfig(vault, { version: 1, domains: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] });
-    const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--init-structure'], { encoding: 'utf8', env: { ...process.env, HOME: testHome(vault) } });
+    const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--init-structure'], { encoding: 'utf8', env: terminalEnv({ HOME: testHome(vault) }) });
     assert.equal(r.status, 0, r.stderr);
     for (const d of ['a', 'b', 'c']) assert.ok(existsSync(path.join(vault, WIKI, d, 'concepts')), d);
     assert.ok(!existsSync(path.join(vault, WIKI, 'perso')), 'un domaine non declare n est pas cree');

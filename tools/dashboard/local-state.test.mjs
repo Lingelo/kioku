@@ -87,6 +87,16 @@ describe('U2 : Lecture des etats locaux de la machine', () => {
     assert.equal(res.lock.pid, process.pid);
   });
 
+  test('verrou commun du coffre (tools/connectors/) : lu en priorite, avec celui qui le tient', () => {
+    put('tools/plaud-sync/.lock.json', JSON.stringify({ pid: 99999999, started: 'miroir' }));
+    put('tools/connectors/.lock.json', JSON.stringify({ pid: process.pid, started: '2026-11-06T10:00:00.000Z', owner: 'circuit mail' }));
+
+    const res = readLocalState(vault);
+
+    assert.equal(res.lock.status, 'active');
+    assert.equal(res.lock.owner, 'circuit mail');
+  });
+
   test('inbox/a-trancher avec 3 fichiers : compte sans lire le contenu ni exposer les noms', () => {
     put('inbox/a-trancher/note-1.md', 'secret content');
     put('inbox/a-trancher/note-2.md', 'secret content 2');

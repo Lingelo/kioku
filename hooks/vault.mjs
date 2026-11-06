@@ -685,9 +685,9 @@ const cmdRotateLog = async (args) => {
   if (dry) return 0;
 
   // Import a la demande : la gate (check, promote...) ne doit pas dependre de tools/ pour fonctionner.
-  const { acquire, release } = await import('../tools/plaud-sync/lock.mjs');
-  const lock = acquire(VAULT);
-  if (!lock.ok) return console.log(`rotate-log : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`), 1;
+  const { acquire, holderText, release } = await import('../tools/connectors/lock.mjs');
+  const lock = acquire(VAULT, { owner: 'kioku rotate-log' });
+  if (!lock.ok) return console.log(`rotate-log : ${holderText(lock.held)}, relance apres`), 1;
   try {
     // Le journal a-t-il bouge depuis la lecture ? Une entree ajoutee entre-temps serait perdue.
     if (readFileSync(file, 'utf8') !== original) return console.log('rotate-log : log.md a change pendant la rotation, rien n\'est ecrit, relance'), 1;
@@ -789,7 +789,7 @@ const cmdProposeOrg = (args) => {
  * juste avant la fin du frontmatter, et verifie qu'en les retirant on retrouve le fichier d'origine a l'octet.
  * Remplace un org: seulement s'il porte une trace org-tag: (pose par la migration) ; un org: pose par la gate
  * ne se touche pas ici. Refuse tant qu'une candidate du domaine attend : promue apres, elle ecraserait la page taguee.
- * Le domaine vise est celui de la session (query ou ingest, extension org), verrou du circuit Plaud pris pendant
+ * Le domaine vise est celui de la session (query ou ingest, extension org), verrou commun du coffre (tools/connectors/lock.mjs) pris pendant
  * l'ecriture, comme rotate-log.
  */
 const cmdTagOrg = async (args) => {
@@ -869,15 +869,15 @@ const setFrontmatterField = (file, field, value, stamp) => {
   return { original, out };
 };
 
-/** Ecrit un plan de tag-org / tag-raw : dry-run, verrou du circuit Plaud, relecture juste avant d'ecrire, ecriture atomique. */
+/** Ecrit un plan de tag-org / tag-raw : dry-run, verrou commun du coffre, relecture juste avant d'ecrire, ecriture atomique. */
 const writeTagPlan = async (name, plan, dry, refused, refuse) => {
   for (const p of plan) console.log(`${dry ? '[dry-run] ' : ''}taguee   ${p.key} -> ${p.label}`);
   console.log(`${dry ? '[dry-run] ' : ''}${name} : ${plan.length} page(s) a ecrire, ${refused} refusee(s)`);
   if (dry || !plan.length) return refused ? 1 : 0;
   // Import a la demande, comme rotate-log : la gate ne depend pas de tools/ hors de ces commandes.
-  const { acquire, release } = await import('../tools/plaud-sync/lock.mjs');
-  const lock = acquire(VAULT);
-  if (!lock.ok) return console.log(`${name} : le circuit Plaud tourne (PID ${lock.held?.pid}), relance apres`), 1;
+  const { acquire, holderText, release } = await import('../tools/connectors/lock.mjs');
+  const lock = acquire(VAULT, { owner: `kioku ${name}` });
+  if (!lock.ok) return console.log(`${name} : ${holderText(lock.held)}, relance apres`), 1;
   let failed = refused;
   try {
     for (const p of plan) {

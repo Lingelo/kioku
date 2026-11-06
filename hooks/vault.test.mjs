@@ -396,6 +396,15 @@ describe('rotate-log : archiver les mois revolus du journal', () => {
     assert.ok(existsSync(path.join(vault, 'tools/plaud-sync/.lock.json')), 'le verrou d un autre n est pas retire');
   });
 
+  test('circuit mail en cours (verrou commun nomme) : le refus le dit, sans accuser Plaud', () => {
+    put('tools/connectors/.lock.json', JSON.stringify({ pid: process.pid, started: 'x', owner: 'circuit mail' }));
+    const out = rotate(queryPro, 'pro');
+    assert.equal(out.status, 1);
+    assert.match(out.stdout, /rotate-log : un circuit de capture \(mail, PID \d+\) tourne, relance apres/);
+    assert.doesNotMatch(out.stdout, /Plaud/);
+    assert.equal(readFileSync(logFile(), 'utf8'), log);
+  });
+
   test('verrou rendu apres la rotation', () => {
     assert.equal(rotate(queryPro, 'pro').status, 0);
     assert.ok(!existsSync(path.join(vault, 'tools/plaud-sync/.lock.json')));

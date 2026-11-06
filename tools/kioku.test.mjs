@@ -7,13 +7,14 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 
 import { EXIT } from './kioku.mjs';
+import { KIOKU_DENY } from './managed.mjs';
 import { HOOKS_DIR } from './test-vault.mjs';
 
 const KIOKU = path.join(path.dirname(fileURLToPath(import.meta.url)), 'kioku.mjs');
@@ -37,6 +38,8 @@ const kioku = (args, extraEnv = {}) => {
   const env = { ...process.env, HOME: path.join(root, 'home'), ...extraEnv };
   if (!('CLAUDECODE' in extraEnv)) delete env.CLAUDECODE;
   if (!('VAULT_MODE' in extraEnv)) delete env.VAULT_MODE;
+  // Hermetique : un XDG_CONFIG_HOME du poste (les runners GitHub en posent un) changerait les regles locales.
+  if (!('XDG_CONFIG_HOME' in extraEnv)) delete env.XDG_CONFIG_HOME;
   delete env.VAULT_DOMAIN;
   delete env.CLAUDE_PROJECT_DIR;
   return spawnSync(process.execPath, [KIOKU, ...args], { encoding: 'utf8', env });
@@ -76,6 +79,23 @@ describe('init', () => {
     assert.ok(existsSync(path.join(vault, 'orgs.json')));
     const settings = JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'));
     assert.deepEqual(settings.enabledPlugins, { 'kioku@dojo': true }, 'la garde est le plugin de la marketplace dojo');
+  });
+
+  test('(c) XDG_CONFIG_HOME egal a ~/.config (directement, ou par un lien) : emplacement par defaut, pas de regle locale', () => {
+    const home = path.join(root, 'home');
+    mkdirSync(path.join(home, '.config'), { recursive: true });
+    assert.equal(kioku(['init', vault, '--domains', 'a'], { XDG_CONFIG_HOME: path.join(home, '.config') }).status, EXIT.ok);
+    assert.ok(!existsSync(path.join(vault, '.claude', 'settings.local.json')), 'XDG = ~/.config');
+    const other = path.join(root, 'autre');
+    symlinkSync(path.join(home, '.config'), path.join(root, 'lien-config'));
+    assert.equal(kioku(['init', other, '--domains', 'a'], { XDG_CONFIG_HOME: path.join(root, 'lien-config', '.', '') }).status, EXIT.ok);
+    assert.ok(!existsSync(path.join(other, '.claude', 'settings.local.json')), 'XDG = lien vers ~/.config');
+  });
+
+  test('(c) --guard-hook : les regles de refus Kioku aussi, a cote du hook', () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a', '--guard-hook']).status, EXIT.ok);
+    assert.deepEqual(JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8')).permissions, { deny: KIOKU_DENY });
+    assert.ok(!existsSync(path.join(vault, '.claude', 'settings.local.json')), 'sans XDG particulier : pas de settings.local.json');
   });
 
   test('--guard-hook : repli de developpement, le hook vise la garde de ce core, schema aux noms nus', () => {
@@ -158,6 +178,21 @@ describe('init', () => {
     assert.equal(kioku(['init', vault, '--domains', 'a,b', '--org', 'c']).status, EXIT.precondition);
   });
 
+  // Verifie avec git lui-meme, pas seulement sur le texte : le motif tools/*/ couvre le verrou canonique, son miroir et
+  // l'etat de tout connecteur, et ne masque rien de versionne (seen.json, exclusions.txt).
+  test('coffre neuf : l etat local des circuits est ignore par git, les registres versionnes ne le sont pas', { skip: spawnSync('git', ['--version']).status !== 0 }, () => {
+    assert.equal(kioku(['init', vault, '--domains', 'a,b']).status, EXIT.ok);
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: vault }).status, 0);
+    const ignored = (rel) => spawnSync('git', ['check-ignore', '-q', rel], { cwd: vault }).status === 0;
+    for (const rel of ['tools/connectors/.lock.json', 'tools/plaud-sync/.lock.json', 'tools/plaud-sync/.queue.json', 'tools/plaud-sync/.snapshot.json', 'tools/mail-sync/.queue.json']) {
+      assert.equal(ignored(rel), true, rel);
+    }
+    for (const rel of ['tools/plaud-sync/seen.json', 'tools/plaud-sync/exclusions.txt', 'kioku.config.json']) assert.equal(ignored(rel), false, rel);
+    // init puis upgrade : rien a ajouter, la ligne n'est pas doublee.
+    assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
+    assert.equal(readFileSync(path.join(vault, '.gitignore'), 'utf8').split('\n').filter((l) => l === 'tools/*/.lock.json').length, 1);
+  });
+
   test('Covers AE7 : sans --plaud, aucun reglage ni fichier Plaud', () => {
     kioku(['init', vault, '--domains', 'a,b']);
     const cfg = JSON.parse(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8'));
@@ -205,7 +240,8 @@ describe('init', () => {
     assert.equal(kioku(['init', vault, '--domains', 'a,b']).status, EXIT.ok);
     const s = JSON.parse(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'));
     assert.equal(s.hooks, undefined);
-    assert.deepEqual(s, { enabledPlugins: { 'kioku@dojo': true } }, 'le coffre declare seulement le plugin');
+    // Point (c) de la verification finale : le coffre declare le plugin ET les regles de refus de Kioku, rien d'autre.
+    assert.deepEqual(s, { enabledPlugins: { 'kioku@dojo': true }, permissions: { deny: KIOKU_DENY } }, 'le coffre declare le plugin et les regles de refus Kioku, rien d autre');
     assert.equal(JSON.parse(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8')).format, 1);
     assert.match(readFileSync(path.join(vault, '.kioku', 'schema.md'), 'utf8'), /\/kioku:ingest/, 'schema prefixe : le plugin porte les skills');
   });
@@ -340,6 +376,22 @@ describe('upgrade', () => {
     assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
   });
 
+  // Un coffre cree avant le socle des connecteurs : son bloc gere n'ignore que l'etat Plaud, ou rien. Le verrou commun
+  // (tools/connectors/.lock.json) et son miroir y sont ecrits par rotate-log, upgrade, add-domain, le circuit.
+  test('coffre existant a l ancien bloc : upgrade --write ajoute l etat des circuits, une seule fois, puis plus rien', () => {
+    const gi = path.join(vault, '.gitignore');
+    writeFileSync(gi, 'node_modules/\n# >>> kioku (gere par kioku init/upgrade)\ninbox/\n.env\n.env.*\n# <<< kioku\nmaison/\n');
+    const w = kioku(['upgrade', '--write', '--vault', vault]);
+    assert.equal(w.status, EXIT.ok, w.stdout);
+    const count = (line) => readFileSync(gi, 'utf8').split('\n').filter((l) => l === line).length;
+    for (const line of ['tools/*/.lock.json', 'tools/*/.queue.json', 'tools/*/.snapshot.json']) assert.equal(count(line), 1, line);
+    assert.match(readFileSync(gi, 'utf8'), /^node_modules\/\n/);
+    assert.match(readFileSync(gi, 'utf8'), /\nmaison\/\n$/);
+    const again = kioku(['upgrade', '--write', '--vault', vault]);
+    assert.match(again.stdout, /deja a la forme courante/);
+    for (const line of ['tools/*/.lock.json', 'tools/*/.queue.json', 'tools/*/.snapshot.json']) assert.equal(count(line), 1, `${line} apres relance`);
+  });
+
   test('ne touche ni CLAUDE.md, ni regles, ni donnees ; config en ajout seul ; settings : migre l ancien catalogue epingle', () => {
     const cfgFile = path.join(vault, 'kioku.config.json');
     const cfg = JSON.parse(readFileSync(cfgFile, 'utf8'));
@@ -363,10 +415,49 @@ describe('upgrade', () => {
     assert.deepEqual(out.default_session, { mode: 'setup' }, 'valeur posee : jamais ecrasee');
     assert.deepEqual(out.modules, { dashboard: {} });
     const s2 = JSON.parse(readFileSync(settingsFile, 'utf8'));
-    assert.deepEqual(s2.permissions, { allow: ['Bash(ls)'] });
+    // Point (c) : allow de l'utilisateur conserve a l'identique, deny Kioku ajoute.
+    assert.deepEqual(s2.permissions, { allow: ['Bash(ls)'], deny: KIOKU_DENY });
     assert.equal(s2.extraKnownMarketplaces, undefined);
     assert.deepEqual(s2.enabledPlugins, { 'kioku@dojo': true });
     assert.doesNotMatch(JSON.stringify(s2), /kioku-pin|sha/);
+  });
+
+  test('(c) un deny preexistant de l utilisateur est conserve, avant ceux de Kioku ; relance : aucun doublon', () => {
+    const settingsFile = path.join(vault, '.claude', 'settings.json');
+    writeFileSync(settingsFile, JSON.stringify({ enabledPlugins: { 'kioku@dojo': true }, permissions: { allow: ['Bash(ls)'], deny: ['Read(./secrets/**)', KIOKU_DENY[0]] } }));
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    const once = JSON.parse(readFileSync(settingsFile, 'utf8'));
+    assert.deepEqual(once.permissions.allow, ['Bash(ls)']);
+    assert.deepEqual(once.permissions.deny, ['Read(./secrets/**)', ...KIOKU_DENY]);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.deepEqual(JSON.parse(readFileSync(settingsFile, 'utf8')), once, 'idempotent');
+    assert.match(kioku(['upgrade', '--vault', vault]).stdout, /deja a la forme courante/);
+  });
+
+  test('N3 : upgrade --write ajoute .claude/settings.local.json au .gitignore gere d un coffre existant, une seule fois ; git l ignore', () => {
+    const gi = path.join(vault, '.gitignore');
+    writeFileSync(gi, readFileSync(gi, 'utf8').replace('.claude/settings.local.json\n', ''));
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.equal(readFileSync(gi, 'utf8').split('\n').filter((l) => l === '.claude/settings.local.json').length, 1);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault]).status, EXIT.ok);
+    assert.equal(readFileSync(gi, 'utf8').split('\n').filter((l) => l === '.claude/settings.local.json').length, 1);
+    if (spawnSync('git', ['--version']).status === 0) {
+      spawnSync('git', ['init', '-q'], { cwd: vault });
+      assert.equal(spawnSync('git', ['check-ignore', '-q', '.claude/settings.local.json'], { cwd: vault }).status, 0);
+      assert.notEqual(spawnSync('git', ['check-ignore', '-q', '.claude/settings.json'], { cwd: vault }).status, 0, 'settings.json reste versionne');
+    }
+  });
+
+  test('(c) XDG_CONFIG_HOME hors ~/.config : regle absolue dans settings.local.json (propre au poste), idempotente', () => {
+    const xdg = path.join(root, 'xdg');
+    const local = path.join(vault, '.claude', 'settings.local.json');
+    writeFileSync(local, JSON.stringify({ permissions: { deny: ['Bash(rm *)'] } }));
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault], { XDG_CONFIG_HOME: xdg }).status, EXIT.ok);
+    const rule = `//${xdg.replace(/^\/+/, '')}/kioku/**`;
+    assert.deepEqual(JSON.parse(readFileSync(local, 'utf8')).permissions.deny, ['Bash(rm *)', `Read(${rule})`, `Edit(${rule})`]);
+    assert.equal(kioku(['upgrade', '--write', '--vault', vault], { XDG_CONFIG_HOME: xdg }).status, EXIT.ok);
+    assert.equal(JSON.parse(readFileSync(local, 'utf8')).permissions.deny.length, 3);
+    assert.doesNotMatch(readFileSync(path.join(vault, '.claude', 'settings.json'), 'utf8'), /xdg/, 'rien de propre au poste dans le fichier versionne');
   });
 
   test('hook de garde du projet : plugin non active (double garde), signale', () => {
@@ -416,7 +507,7 @@ describe('add-domain', () => {
     const before = readFileSync(path.join(vault, 'kioku.config.json'), 'utf8');
     const r = kioku(['add-domain', 'asso', '--vault', vault]);
     assert.equal(r.status, EXIT.precondition);
-    assert.match(r.stdout, /circuit Plaud tourne/);
+    assert.match(r.stdout, /add-domain : un circuit de capture \(Plaud ou version anterieure du core, PID \d+\) tourne, relance apres/);
     assert.equal(readFileSync(path.join(vault, 'kioku.config.json'), 'utf8'), before);
     assert.ok(!existsSync(path.join(vault, WIKI, 'asso')));
   });

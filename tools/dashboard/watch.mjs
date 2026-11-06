@@ -5,7 +5,7 @@
  *
  * Architecture et garanties (KTD3, KTD4) :
  * - Surveillance recursive sur les dossiers du domaine : wiki, .candidats, quarantine, silver, raw
- * - Surveillance non recursive sur tools/plaud-sync/ (filtree sur queue, snapshot, lock)
+ * - Surveillance non recursive des dossiers d'etat des circuits (tools/plaud-sync/, tools/connectors/ ; filtree sur queue, snapshot, lock)
  * - Surveillance non recursive sur .verdicts/ (filtree sur les empreintes des candidates du domaine)
  * - Regroupement anti-rebond (debounce) paramétrable (500 ms par defaut)
  * - Re-armement periodique (heartbeat) pour les dossiers absents au demarrage
@@ -19,6 +19,8 @@ import { assertDomain } from '../vault-config.mjs';
 
 const PLAUD_STATE_FILES = new Set(['.queue.json', '.snapshot.json', '.lock.json']);
 const isPlaudStateFile = (filename) => PLAUD_STATE_FILES.has(filename);
+// Dossiers d'etat surveilles (relatifs au coffre) : le verrou commun et l'etat de chaque connecteur.
+export const CIRCUIT_STATE_DIRS = ['tools/plaud-sync', 'tools/connectors'];
 
 /**
  * Cree une instance de surveillance pour un domaine donne.
@@ -55,7 +57,8 @@ export const createWatcher = (vaultRoot, domain, options = {}) => {
     return f === 'log.md' || f === 'log.md.tmp' || f === 'log' || (path.dirname(f) === 'log' && /\.md(\.tmp)?$/.test(f));
   };
 
-  const plaudDir = path.join(vaultRoot, 'tools', 'plaud-sync');
+  // L'etat local des circuits de capture : la file et la photo de chaque connecteur, le verrou commun du coffre.
+  const stateDirs = CIRCUIT_STATE_DIRS.map((rel) => path.join(vaultRoot, ...rel.split('/')));
   const verdictsDir = path.join(vaultRoot, '.verdicts');
 
   // Map des watchers actifs : chemin absolu -> FSWatcher
@@ -130,9 +133,9 @@ export const createWatcher = (vaultRoot, domain, options = {}) => {
       }
     }
 
-    // 2. Dossier tools/plaud-sync non recursif
-    if (!activeWatchers.has(plaudDir) && setupWatcher(plaudDir, false, isPlaudStateFile)) {
-      newlyAdded = true;
+    // 2. Dossiers d'etat des circuits, non recursifs
+    for (const dir of stateDirs) {
+      if (!activeWatchers.has(dir) && setupWatcher(dir, false, isPlaudStateFile)) newlyAdded = true;
     }
 
     // 3. Dossier .verdicts non recursif filtre par empreintes

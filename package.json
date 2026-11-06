@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "prepare": "git config core.hooksPath scripts/git-hooks || true",
-    "test": "node --test hooks/*.test.mjs tools/*.test.mjs tools/dashboard/*.test.mjs tools/plaud-sync/*.test.mjs",
+    "test": "node --test hooks/*.test.mjs tools/*.test.mjs tools/dashboard/*.test.mjs tools/plaud-sync/*.test.mjs tools/connectors/*.test.mjs",
     "denylist": "node tools/denylist-check.mjs tree"
   }
 }

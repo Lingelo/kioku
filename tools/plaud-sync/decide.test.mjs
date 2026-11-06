@@ -16,7 +16,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, beforeEach, test } from 'node:test';
-import { declareFakeGuard, testHome, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, terminalEnv, testHome, writeTestConfig } from '../test-vault.mjs';
 
 const RUN = path.join(path.dirname(new URL(import.meta.url).pathname), 'run.mjs');
 // 'raw' epele : la garde refuse une commande qui NOMME une zone fermee, y compris dans un test.
@@ -64,7 +64,7 @@ beforeEach(() => {
 const run = (decide) =>
   spawnSync(process.execPath, [RUN, '--vault', vault, '--skip-fetch', '--decide', decide], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log() },
+    env: { ...terminalEnv(), HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log() },
   });
 
 test('l organisation imposee remplace celle du tri a la confirmation', () => {
