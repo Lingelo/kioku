@@ -24,6 +24,11 @@ const opt = (n) => {
   return i >= 0 ? argv[i + 1] : undefined;
 };
 const VAULT = vaultRoot(undefined);
+// Revue N4 : jamais depuis une session du coffre (le circuit, lance du terminal, ne pose pas VAULT_MODE pour ce depot).
+if (process.env.VAULT_MODE !== undefined || process.env.CLAUDECODE) {
+  console.error('fetch-mail : se lance depuis le terminal de l\'utilisateur (par kioku mail), jamais depuis une session Claude Code.');
+  process.exit(1);
+}
 const fail = (msg) => {
   console.error(`fetch-mail : ${msg}`);
   process.exit(1);

@@ -17,7 +17,7 @@ import path from 'node:path';
 import { after, afterEach, before, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { declareFakeGuard, testHome, writeTestConfig } from '../test-vault.mjs';
+import { declareFakeGuard, terminalEnv, testHome, writeTestConfig } from '../test-vault.mjs';
 import { buildPdfStub, buildThread } from './bronze.mjs';
 import { gmailMessage } from './fixtures.mjs';
 import { messageFromApi } from './providers/gmail.mjs';
@@ -39,6 +39,8 @@ before(() => {
       '#!/bin/bash',
       '{ printf "MODE=%s\\n" "$VAULT_MODE"; for a in "$@"; do printf "%s\\n" "$a"; done; echo "---FIN-TOUR---"; } >> "$FAUX_LOG"',
       'if [ "$VAULT_MODE" = "triage" ] && [ "$FAUX_TRI" = "abstient" ]; then echo "ABSTENTION $FAUX_FIL : fil mixte, travail et vie privee"; fi',
+      // Une session de tri qui, sur la foi d'un mail, tenterait de relancer le circuit mail (N4).
+      'if [ "$VAULT_MODE" = "triage" ] && [ -n "$FAUX_RELANCE" ]; then "$FAUX_NODE" "$FAUX_RUN" --vault . --dry-run > /dev/null 2> "$FAUX_RELANCE.err"; echo "$?" > "$FAUX_RELANCE"; fi',
       'if [ "$VAULT_MODE" = "triage" ] && [ "$FAUX_TRI" = "range" ]; then',
       '  mkdir -p "$FAUX_RAW/pro/emails" "$FAUX_RAW/pro/pdfs"',
       '  mv "inbox/$FAUX_FIL" "$FAUX_RAW/pro/emails/"',
@@ -68,11 +70,11 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(vault, { recursive: true, force: true }));
 
-const run = (tri) => {
+const run = (tri, extra = {}) => {
   const log = path.join(vault, 'appels.txt');
   const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--skip-fetch'], {
     encoding: 'utf8',
-    env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log, FAUX_TRI: tri, FAUX_FIL: files.thread, FAUX_FICHE: files.stub, FAUX_RAW: RAW },
+    env: { ...terminalEnv(), HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log, FAUX_TRI: tri, FAUX_FIL: files.thread, FAUX_FICHE: files.stub, FAUX_RAW: RAW, ...extra },
   });
   const tours = existsSync(log) ? readFileSync(log, 'utf8').split('---FIN-TOUR---\n').filter((t) => t.trim()).map((t) => t.split('\n').filter(Boolean)) : [];
   return { ...r, tours };
@@ -148,7 +150,7 @@ describe('sources d un autre circuit', () => {
     const log = path.join(vault, 'appels-plaud.txt');
     const r = spawnSync(process.execPath, [PLAUD_RUN, '--vault', vault, '--skip-fetch'], {
       encoding: 'utf8',
-      env: { ...process.env, HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log, FAUX_TRI: 'aucun' },
+      env: { ...terminalEnv(), HOME: testHome(vault), PATH: `${fakeBin}${path.delimiter}${process.env.PATH}`, FAUX_LOG: log, FAUX_TRI: 'aucun' },
     });
     const tours = readFileSync(log, 'utf8').split('---FIN-TOUR---\n').filter((t) => t.trim()).map((t) => t.split('\n').filter(Boolean));
     const prompt = promptOf(tours.find((t) => t[0] === 'MODE=triage'));
@@ -157,6 +159,29 @@ describe('sources d un autre circuit', () => {
     assert.doesNotMatch(prompt, /untrusted-mail-data/, 'pas de consigne mail : ce n est pas son circuit');
     for (const f of [files.thread, files.stub, files.pdf]) assert.ok(existsSync(path.join(vault, 'inbox', f)), `${f} reste dans l entrant`);
     assert.match(r.stdout, /Laissees dans l'entrant, d'un autre circuit de capture \(2\)/);
+  });
+});
+
+describe('N4 et N6 : relance depuis une session, depot a la main', () => {
+  test('la session de tri du circuit mail ne peut pas relancer kioku mail, meme en --dry-run ; le parent finit', () => {
+    const relance = path.join(vault, 'relance.txt');
+    const r = run('abstient', { FAUX_RELANCE: relance, FAUX_NODE: process.execPath, FAUX_RUN: RUN });
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(readFileSync(relance, 'utf8').trim(), '1');
+    assert.match(readFileSync(`${relance}.err`, 'utf8'), /jamais depuis une session Claude Code/);
+  });
+
+  test('une source deposee a la main (sans marque) : nommee a part, avec la voie a suivre', () => {
+    writeFileSync(path.join(vault, 'inbox', '2026-11-06-note-manuelle.md'), '# note deposee a la main\n');
+    const r = run('abstient');
+    assert.match(r.stdout, /Laissees dans l'entrant, sans marque de circuit \(1, deposees a la main\) : \/triage, ou kioku plaud --skip-fetch\.\n {2}2026-11-06-note-manuelle\.md/);
+    assert.doesNotMatch(r.stdout, /d'un autre circuit de capture/);
+  });
+
+  test('fetch-mail depuis une session : refuse', () => {
+    const r = spawnSync(process.execPath, [path.join(path.dirname(RUN), 'fetch-mail.mjs')], { encoding: 'utf8', env: terminalEnv({ CLAUDE_PROJECT_DIR: vault, VAULT_MODE: 'ingest', VAULT_DOMAIN: 'pro' }) });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /jamais depuis une session Claude Code/);
   });
 });
 

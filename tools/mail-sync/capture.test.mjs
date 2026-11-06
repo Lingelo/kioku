@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { followStubs } from '../connectors/parked.mjs';
-import { writeTestConfig } from '../test-vault.mjs';
+import { terminalEnv, writeTestConfig } from '../test-vault.mjs';
 import { buildThread, slugify, splitAddresses, UNTRUSTED_PREFIX } from './bronze.mjs';
 import { captureAccount } from './capture.mjs';
 import { addToRegistry, classifyThread, dropIdOf, loadRegistry, scanMail } from './dedup.mjs';
@@ -324,7 +324,7 @@ describe('circuit : compagnons et ecart', () => {
     mkdirSync(parked, { recursive: true });
     for (const f of readdirSync(path.join(vault, 'inbox'))) if (f !== 'a-trancher') renameSync(path.join(vault, 'inbox', f), path.join(parked, f));
     writeFileSync(path.join(parked, 'autre.md'), '# sans frontmatter\n');
-    const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--drop', out.deposited[0], `${out.pdfs[0]}.md`, 'autre.md'], { encoding: 'utf8', env: { ...process.env, PATH: '' } });
+    const r = spawnSync(process.execPath, [RUN, '--vault', vault, '--drop', out.deposited[0], `${out.pdfs[0]}.md`, 'autre.md'], { encoding: 'utf8', env: terminalEnv({ PATH: '' }) });
     assert.equal(r.status, 2, r.stderr);
     assert.match(r.stdout, /2 \/ 3 ecartee\(s\)\. tools\/mail-sync\/seen\.json est versionne/);
     assert.match(r.stderr, /REFUSE {3}autre\.md : pas de gmail_thread_id/);
@@ -335,7 +335,7 @@ describe('circuit : compagnons et ecart', () => {
   test('run.mjs --dry-run : sans compte, rien a capter ; compte sans jeton, le circuit s arrete avant le tri en disant quoi faire', () => {
     const cfgHome = mkdtempSync(path.join(tmpdir(), 'kioku-mail-xdg-'));
     try {
-      const env = { ...process.env, XDG_CONFIG_HOME: cfgHome, PATH: '' };
+      const env = terminalEnv({ XDG_CONFIG_HOME: cfgHome, PATH: '' });
       writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', accounts: [] } } });
       const none = spawnSync(process.execPath, [RUN, '--vault', vault, '--dry-run'], { encoding: 'utf8', env });
       assert.equal(none.status, 0, none.stderr);
@@ -358,7 +358,7 @@ describe('circuit : compagnons et ecart', () => {
       const { saveToken } = await import('./oauth.mjs');
       saveToken('a', { access_token: 'x', refresh_token: 'r', expires_at: Date.now() + 3_600_000 }, path.join(cfgHome, 'kioku', 'mail'));
       writeTestConfig(vault, { version: 1, domains: [{ id: 'pro' }], modules: { mail: { state: 'tools/mail-sync', accounts: [{ id: 'a', provider: 'gmail' }, { id: 'b', provider: 'gmail' }] } } });
-      const r = spawnSync(process.execPath, [path.join(HERE, 'fetch-mail.mjs'), '--since', '2026-11-01'], { encoding: 'utf8', env: { ...process.env, CLAUDE_PROJECT_DIR: vault, XDG_CONFIG_HOME: cfgHome } });
+      const r = spawnSync(process.execPath, [path.join(HERE, 'fetch-mail.mjs'), '--since', '2026-11-01'], { encoding: 'utf8', env: terminalEnv({ CLAUDE_PROJECT_DIR: vault, XDG_CONFIG_HOME: cfgHome }) });
       assert.equal(r.status, 1);
       assert.match(r.stderr, /compte b : pas de jeton/);
       assert.match(r.stderr, /aucun depot/);

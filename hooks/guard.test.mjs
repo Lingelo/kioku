@@ -1030,3 +1030,15 @@ describe('circuit mail refuse dans toutes les sessions', () => {
   });
 });
 
+// N4 (filet) pour le mail : concatenations shell et options npm.
+describe('filet : kioku mail reconstitue par le shell (N4)', () => {
+  beforeEach(() => config(THREE));
+  test('les formes de la contre-revue : refusees dans toutes les sessions', () => {
+    for (const sess of [{ mode: 'query', domain: 'a' }, { mode: 'ingest', domain: 'a' }, { mode: 'triage' }, { mode: 'setup' }]) {
+      for (const cmd of ["kioku m''ail --dry-run", 'kioku "m"ail', 'kioku ma\\il', "kioku $'mail'", 'npm --silent run mail:dry-run', 'npm -s run mail:login -- travail']) {
+        assert.equal(guard(sess, bash(cmd)), REFUS, `${sess.mode} : ${cmd}`);
+      }
+    }
+  });
+});
+
