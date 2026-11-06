@@ -212,14 +212,18 @@ describe('verrou a deux fichiers : echec, arret brutal, liberation', { skip: pro
 // I3 : reprise d'un verrou perime par plusieurs lanceurs a la fois. Sans reprise atomique, deux lanceurs qui le voient
 // perime le suppriment chacun et se croient seuls. Vrais processus, lances ensemble (barriere sur un fichier « go »).
 describe('reprise concurrente d un verrou perime', { skip: process.platform === 'win32' }, () => {
-  const contender = (go) => {
+  // Chaque lanceur se declare pret, attend « go », tente sa prise ; le gagnant GARDE le verrou jusqu'a « fin » (un
+  // lanceur tardif, sous charge, ne peut donc pas le prendre legitimement apres coup et fausser le compte).
+  const contender = (i, dir) => {
     const code = [
-      `import { existsSync } from 'node:fs';`,
+      `import { existsSync, writeFileSync } from 'node:fs';`,
       `const L = await import(${JSON.stringify(LOCK)});`,
-      `while (!existsSync(${JSON.stringify(go)})) {}`,
+      `writeFileSync(${JSON.stringify(dir)} + '/ready-${i}', '');`,
+      `while (!existsSync(${JSON.stringify(dir)} + '/go')) {}`,
       `const r = L.acquire(${JSON.stringify(vault)});`,
       `process.stdout.write(r.ok ? 'OK' : 'NO');`,
-      `if (r.ok) { const t = Date.now(); while (Date.now() - t < 400) {} L.release(${JSON.stringify(vault)}); }`,
+      `writeFileSync(${JSON.stringify(dir)} + '/done-${i}', '');`,
+      `if (r.ok) { while (!existsSync(${JSON.stringify(dir)} + '/fin')) {} L.release(${JSON.stringify(vault)}); }`,
     ].join('\n');
     return new Promise((resolve) => {
       const child = spawn(process.execPath, ['--input-type=module', '-e', code]);
@@ -228,16 +232,23 @@ describe('reprise concurrente d un verrou perime', { skip: process.platform === 
       child.on('close', () => resolve(out));
     });
   };
+  const waitFor = async (files) => {
+    for (let t = 0; t < 600 && !files.every((f) => existsSync(f)); t++) await new Promise((r) => setTimeout(r, 50));
+  };
 
   test('8 lanceurs sur un verrou perime (les deux fichiers) : un seul le prend, a chaque fois', async () => {
     for (let round = 0; round < 5; round++) {
       const mort = deadPid();
       put(lockPath(vault), { pid: mort, started: 'vieux' });
       put(legacyLockPath(vault), { pid: mort, started: 'vieux' });
-      const go = path.join(vault, `go-${round}`);
-      const runs = Array.from({ length: 8 }, () => contender(go));
-      await new Promise((r) => setTimeout(r, 300)); // que tous attendent a la barriere
-      writeFileSync(go, '');
+      const dir = path.join(vault, `tour-${round}`);
+      mkdirSync(dir);
+      const n = 8;
+      const runs = Array.from({ length: n }, (_, i) => contender(i, dir));
+      await waitFor(Array.from({ length: n }, (_, i) => path.join(dir, `ready-${i}`)));
+      writeFileSync(path.join(dir, 'go'), '');
+      await waitFor(Array.from({ length: n }, (_, i) => path.join(dir, `done-${i}`)));
+      writeFileSync(path.join(dir, 'fin'), '');
       const outs = await Promise.all(runs);
       assert.equal(outs.filter((o) => o === 'OK').length, 1, `tour ${round} : ${outs.join(',')}`);
       assert.equal(existsSync(`${lockPath(vault)}.break`), false, 'aucun verrou de reprise laisse');
